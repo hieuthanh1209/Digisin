@@ -1,0 +1,20 @@
+# Vercel ignore file for Restaurant Management System
+
+# Node modules
+node_modules/
+
+# Build scripts (not needed for static deployment)
+scripts/
+
+# Development files
+.git/
+.gitignore
+
+# Documentation (optional)
+docs/
+*.md
+
+# Temporary files
+dist/
+.DS_Store
+*.log 
