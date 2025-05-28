@@ -93,28 +93,37 @@ try {
   // Create a simple vercel.json for deployment
   const vercelConfig = {
     "version": 2,
-    "builds": [
+    "rewrites": [
       {
-        "src": "**/*.html",
-        "use": "@vercel/static"
+        "source": "/",
+        "destination": "/public/index.html"
+      },
+      {
+        "source": "/public/(.*)",
+        "destination": "/public/$1"
+      },
+      {
+        "source": "/src/(.*)",
+        "destination": "/src/$1"
+      },
+      {
+        "source": "/dashboard/(.*)",
+        "destination": "/dashboard/$1"
+      },
+      {
+        "source": "/(.*)",
+        "destination": "/$1"
       }
     ],
-    "routes": [
+    "headers": [
       {
-        "src": "/",
-        "dest": "/public/index.html"
-      },
-      {
-        "src": "/public/(.*)",
-        "dest": "/public/$1"
-      },
-      {
-        "src": "/src/(.*)",
-        "dest": "/src/$1"
-      },
-      {
-        "src": "/dashboard/(.*)",
-        "dest": "/dashboard/$1"
+        "source": "/(.*)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400"
+          }
+        ]
       }
     ]
   };

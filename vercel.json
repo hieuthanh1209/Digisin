@@ -1,26 +1,18 @@
 {
   "version": 2,
   "name": "restaurant-management-system",
-  "routes": [
+  "rewrites": [
     {
-      "src": "/",
-      "dest": "/index.html"
+      "source": "/",
+      "destination": "/index.html"
     },
     {
-      "src": "/dashboard/(.*)",
-      "dest": "/dashboard/$1"
+      "source": "/dashboard/(.*)",
+      "destination": "/dashboard/$1"
     },
     {
-      "src": "/src/(.*)",
-      "dest": "/src/$1"
-    },
-    {
-      "src": "/config/(.*)",
-      "dest": "/config/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
+      "source": "/(.*)",
+      "destination": "/$1"
     }
   ],
   "headers": [
@@ -34,6 +26,10 @@
         {
           "key": "X-Content-Type-Options",
           "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
         }
       ]
     }

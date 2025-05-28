@@ -6,6 +6,12 @@
 Error: Cannot find module '/vercel/path0/scripts/build.js'
 ```
 
+**Additional Issue:**
+
+```
+If `rewrites`, `redirects`, `headers`, `cleanUrls` or `trailingSlash` are used, then `routes` cannot be present.
+```
+
 ## ✅ Solution Applied
 
 ### 1. **Removed Build Dependency from Vercel**
@@ -19,13 +25,24 @@ Error: Cannot find module '/vercel/path0/scripts/build.js'
 {
   "version": 2,
   "name": "restaurant-management-system",
-  "routes": [
-    { "src": "/", "dest": "/index.html" },
-    { "src": "/dashboard/(.*)", "dest": "/dashboard/$1" },
-    { "src": "/(.*)", "dest": "/$1" }
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/dashboard/(.*)", "destination": "/dashboard/$1" },
+    { "source": "/(.*)", "destination": "/$1" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    }
   ]
 }
 ```
+
+**Note**: Changed from `routes` to `rewrites` syntax to be compatible with `headers` configuration.
 
 ### 3. **Created `.vercelignore`**
 
