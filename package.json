@@ -2,15 +2,18 @@
   "name": "restaurant-management-system",
   "version": "1.0.0",
   "description": "Complete restaurant management system with role-based dashboards",
-  "main": "public/index.html",
+  "main": "index.html",
   "scripts": {
     "start": "python -m http.server 8000",
-    "dev": "live-server public/",
+    "dev": "live-server .",
     "build": "node scripts/build.js",
-    "deploy": "node scripts/deploy.js",
+    "postbuild": "echo 'Build completed successfully'",
+    "deploy": "vercel --prod",
+    "preview": "vercel",
     "test": "echo 'Tests not implemented yet'",
-    "clean": "rm -rf dist/ build/",
-    "serve": "cd public && python -m http.server 8080"
+    "clean": "rm -rf dist/",
+    "serve": "python -m http.server 8080",
+    "vercel-build": "npm run build"
   },
   "keywords": [
     "restaurant",
@@ -34,5 +37,17 @@
   },
   "engines": {
     "node": ">=14.0.0"
-  }
+  },
+  "files": [
+    "index.html",
+    "script.js",
+    "styles.css",
+    "public/",
+    "src/",
+    "dashboard/",
+    "config/",
+    "scripts/",
+    "README.md",
+    "vercel.json"
+  ]
 } 
