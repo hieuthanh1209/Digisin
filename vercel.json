@@ -1,47 +1,28 @@
 {
   "version": 2,
   "name": "restaurant-management-system",
-  "builds": [
-    {
-      "src": "**/*.html",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "**/*.css",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "**/*.js",
-      "use": "@vercel/static"
-    }
-  ],
   "routes": [
     {
       "src": "/",
       "dest": "/index.html"
     },
     {
-      "src": "/public/(.*)",
-      "dest": "/public/$1"
+      "src": "/dashboard/(.*)",
+      "dest": "/dashboard/$1"
     },
     {
       "src": "/src/(.*)",
       "dest": "/src/$1"
     },
     {
-      "src": "/dashboard/(.*)",
-      "dest": "/dashboard/$1"
-    },
-    {
       "src": "/config/(.*)",
       "dest": "/config/$1"
     },
     {
-      "src": "/(.*\\.(css|js|html|md|json))",
+      "src": "/(.*)",
       "dest": "/$1"
     }
   ],
-  "functions": {},
   "headers": [
     {
       "source": "/(.*)",
@@ -49,6 +30,10 @@
         {
           "key": "Cache-Control",
           "value": "public, max-age=86400"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
         }
       ]
     }
