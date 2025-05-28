@@ -1,20 +1,33 @@
 # Vercel ignore file for Restaurant Management System
 
-# Node modules
+# Node modules and package files
 node_modules/
+package-lock.json
+yarn.lock
 
-# Build scripts (not needed for static deployment)
+# Build scripts and tools (PREVENT BUILD EXECUTION)
 scripts/
+build.js
+*.build.js
 
-# Development files
+# Development and CI files
 .git/
 .gitignore
+.github/
+.vscode/
 
-# Documentation (optional)
+# Documentation (to reduce deployment size)
 docs/
 *.md
+!README.md
 
-# Temporary files
+# Temporary and log files
 dist/
 .DS_Store
-*.log 
+*.log
+.env*
+
+# Build outputs (just in case)
+build/
+out/
+.next/ 

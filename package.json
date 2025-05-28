@@ -6,8 +6,6 @@
   "scripts": {
     "start": "python -m http.server 8000",
     "dev": "live-server .",
-    "build": "node ./scripts/build.js",
-    "postbuild": "echo 'Build completed successfully'",
     "deploy": "vercel --prod",
     "deploy-vercel": "node ./scripts/vercel-deploy.js",
     "preview": "vercel",
@@ -32,9 +30,7 @@
     "url": "https://github.com/your-repo/restaurant-management-system"
   },
   "dependencies": {},
-  "devDependencies": {
-    "live-server": "^1.2.2"
-  },
+  "devDependencies": {},
   "engines": {
     "node": ">=14.0.0"
   },
@@ -42,11 +38,9 @@
     "index.html",
     "script.js",
     "styles.css",
-    "public/",
-    "src/",
     "dashboard/",
+    "src/",
     "config/",
-    "scripts/",
     "README.md",
     "vercel.json"
   ]
