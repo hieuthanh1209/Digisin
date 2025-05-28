@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý - Hệ thống Quản lý Nhà hàng</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="manager-styles.css">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="d-flex vh-100">
+        <!-- Sidebar -->
+        <div class="sidebar bg-white shadow-lg border-end" style="width: 300px;">
+            <div class="p-4 border-bottom">
+                <h1 class="h3 fw-bold text-dark mb-1">Quản lý</h1>
+                <p class="text-muted mb-0">Hệ thống điều hành</p>
+            </div>
+            <nav class="p-3">
+                <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="location.href='../index.html'">
+                    🏠 <span class="ms-2">Trang chủ</span>
+                </button>
+                <button class="nav-button nav-button-active btn w-100 text-start mb-3 p-3" onclick="showTab('dashboard')">
+                    📊 <span class="ms-2">Tổng quan</span>
+                </button>
+                <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="showTab('staff')">
+                    👥 <span class="ms-2">Quản lý nhân viên</span>
+                </button>
+                <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="showTab('reports')">
+                    📈 <span class="ms-2">Báo cáo</span>
+                </button>
+                <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="showTab('analytics')">
+                    📋 <span class="ms-2">Thống kê nâng cao</span>
+                </button>
+                <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="showTab('menu')">
+                    🍽️ <span class="ms-2">Quản lý thực đơn</span>
+                </button>
+                <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="showTab('inventory')">
+                    📦 <span class="ms-2">Kiểm soát định lượng</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-fill d-flex flex-column">
+            <!-- Header -->
+            <div class="bg-white shadow-sm border-bottom p-4 d-flex align-items-center justify-content-between">
+                <h2 class="h4 mb-0" id="pageTitle">Tổng quan hệ thống</h2>
+                <div class="d-flex align-items-center">
+                    <div class="me-3">
+                        <small class="text-muted">Xin chào, <span class="fw-medium">Quản lý</span></small>
+                    </div>
+                    <div class="bg-secondary rounded-circle" style="width: 40px; height: 40px;"></div>
+                </div>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="flex-fill p-4 bg-light overflow-auto">
+                <!-- Dashboard Tab -->
+                <div id="dashboard-tab" class="tab-content active">
+                    <!-- Quick Stats -->
+                    <div class="row g-4 mb-4">
+                        <div class="col-xl-3 col-lg-6">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body p-4">
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <div>
+                                            <p class="text-muted mb-1 small">Doanh thu hôm nay</p>
+                                            <h3 class="display-6 fw-bold mb-0" id="todayRevenue">0₫</h3>
+                                        </div>
+                                        <div class="bg-success bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                            <i data-lucide="dollar-sign" class="text-success" style="width: 24px; height: 24px;"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-lg-6">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body p-4">
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <div>
+                                            <p class="text-muted mb-1 small">Đơn hàng hôm nay</p>
+                                            <h3 class="display-6 fw-bold mb-0" id="todayOrders">0</h3>
+                                        </div>
+                                        <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                            <i data-lucide="shopping-cart" class="text-primary" style="width: 24px; height: 24px;"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-lg-6">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body p-4">
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <div>
+                                            <p class="text-muted mb-1 small">Nhân viên đang làm</p>
+                                            <h3 class="display-6 fw-bold mb-0" id="activeStaff">0</h3>
+                                        </div>
+                                        <div class="bg-info bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                            <i data-lucide="users" class="text-info" style="width: 24px; height: 24px;"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-lg-6">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body p-4">
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <div>
+                                            <p class="text-muted mb-1 small">Bàn đang phục vụ</p>
+                                            <h3 class="display-6 fw-bold mb-0" id="activeTables">0</h3>
+                                        </div>
+                                        <div class="bg-warning bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                            <i data-lucide="utensils" class="text-warning" style="width: 24px; height: 24px;"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Row -->
+                    <div class="row g-4">
+                        <div class="col-lg-8">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white">
+                                    <h5 class="card-title mb-0">Doanh thu 7 ngày qua</h5>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="revenueChart" height="300"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white">
+                                    <h5 class="card-title mb-0">Top món bán chạy</h5>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="topDishesChart" height="300"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Staff Management Tab -->
+                <div id="staff-tab" class="tab-content">
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                    <h5 class="card-title mb-0">Danh sách nhân viên</h5>
+                                    <button class="btn btn-primary" onclick="showAddStaffModal()">
+                                        <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                                        Thêm nhân viên
+                                    </button>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Mã NV</th>
+                                                    <th>Họ tên</th>
+                                                    <th>Chức vụ</th>
+                                                    <th>Số điện thoại</th>
+                                                    <th>Email</th>
+                                                    <th>Trạng thái</th>
+                                                    <th>Thao tác</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="staffTableBody">
+                                                <!-- Staff data will be rendered here -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reports Tab -->
+                <div id="reports-tab" class="tab-content">
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white">
+                                    <h5 class="card-title mb-0">Tạo báo cáo</h5>
+                                </div>
+                                <div class="card-body">
+                                    <form onsubmit="generateReport(); return false;">
+                                        <div class="row g-3">
+                                            <div class="col-md-4">
+                                                <label class="form-label">Loại báo cáo</label>
+                                                <select class="form-select" id="reportType" required>
+                                                    <option value="">Chọn loại báo cáo</option>
+                                                    <option value="daily">Báo cáo ngày</option>
+                                                    <option value="weekly">Báo cáo tuần</option>
+                                                    <option value="monthly">Báo cáo tháng</option>
+                                                    <option value="custom">Tùy chỉnh</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Từ ngày</label>
+                                                <input type="date" class="form-control" id="startDate" required>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Đến ngày</label>
+                                                <input type="date" class="form-control" id="endDate" required>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label">&nbsp;</label>
+                                                <button type="submit" class="btn btn-primary w-100">
+                                                    <i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                                                    Tạo báo cáo
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </form>
+
+                                    <div class="mt-4">
+                                        <h6>Báo cáo gần đây</h6>
+                                        <div class="row g-3" id="recentReports">
+                                            <!-- Recent reports will be rendered here -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytics Tab -->
+                <div id="analytics-tab" class="tab-content">
+                    <div class="row g-4">
+                        <!-- Top Selling Items -->
+                        <div class="col-lg-6">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white">
+                                    <h5 class="card-title mb-0">Món bán chạy nhất</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="topSellingItems">
+                                        <!-- Top selling items will be rendered here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Category Revenue -->
+                        <div class="col-lg-6">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white">
+                                    <h5 class="card-title mb-0">Doanh thu theo danh mục</h5>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="categoryRevenueChart" height="300"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Daily Items Detail -->
+                        <div class="col-12">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white">
+                                    <h5 class="card-title mb-0">Chi tiết món ăn hôm nay</h5>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Món ăn</th>
+                                                    <th>Danh mục</th>
+                                                    <th>Số lượng bán</th>
+                                                    <th>Doanh thu</th>
+                                                    <th>Lợi nhuận</th>
+                                                    <th>Tỷ lệ lợi nhuận</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="dailyItemsTable">
+                                                <!-- Daily items data will be rendered here -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Menu Management Tab -->
+                <div id="menu-tab" class="tab-content">
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h5 class="card-title mb-0">Quản lý thực đơn</h5>
+                                        <small class="text-muted">Quản lý món ăn và công thức</small>
+                                    </div>
+                                    <button class="btn btn-primary" onclick="showAddMenuItemModal()">
+                                        <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                                        Thêm món
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <!-- Menu Filters -->
+                                    <div class="row g-3 mb-4">
+                                        <div class="col-md-6">
+                                            <div class="input-group">
+                                                <span class="input-group-text">
+                                                    <i data-lucide="search" style="width: 16px; height: 16px;"></i>
+                                                </span>
+                                                <input type="text" class="form-control" placeholder="Tìm kiếm món ăn..." id="menuSearchInput" oninput="filterMenuItems()">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <select class="form-select" id="menuCategoryFilter" onchange="filterMenuByCategory()">
+                                                <option value="">Tất cả danh mục</option>
+                                                <option value="Mì & Phở">Mì & Phở</option>
+                                                <option value="Cơm">Cơm</option>
+                                                <option value="Đồ uống">Đồ uống</option>
+                                                <option value="Tráng miệng">Tráng miệng</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <select class="form-select" id="menuStatusFilter" onchange="filterMenuItems()">
+                                                <option value="">Tất cả trạng thái</option>
+                                                <option value="active">Đang bán</option>
+                                                <option value="inactive">Ngừng bán</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Menu Categories -->
+                                    <div id="menuCategories" class="mb-4">
+                                        <!-- Categories will be rendered here -->
+                                    </div>
+
+                                    <!-- Menu Items Grid -->
+                                    <div class="row g-4" id="menuItemsGrid">
+                                        <!-- Menu items will be rendered here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Inventory Tab -->
+                <div id="inventory-tab" class="tab-content">
+                    <div class="row">
+                        <!-- Inventory Alerts -->
+                        <div class="col-12 mb-4">
+                            <div class="alert alert-warning" id="inventoryAlert" style="display: none;">
+                                <div class="d-flex align-items-center">
+                                    <i data-lucide="alert-triangle" class="me-2" style="width: 20px; height: 20px;"></i>
+                                    <div>
+                                        <strong>Cảnh báo tồn kho!</strong>
+                                        <span id="alertMessage"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h5 class="card-title mb-0">Kiểm soát định lượng nguyên liệu</h5>
+                                        <small class="text-muted">Theo dõi mức tiêu thụ với độ lệch cho phép 5-10%</small>
+                                    </div>
+                                    <button class="btn btn-primary" onclick="showAddIngredientModal()">
+                                        <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                                        Thêm nguyên liệu
+                                    </button>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Mã NL</th>
+                                                    <th>Tên nguyên liệu</th>
+                                                    <th>Đơn vị</th>
+                                                    <th>Định mức chuẩn</th>
+                                                    <th>Tồn kho</th>
+                                                    <th>Đã dùng hôm nay</th>
+                                                    <th>Trạng thái</th>
+                                                    <th>Độ lệch</th>
+                                                    <th>Thao tác</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="inventoryTableBody">
+                                                <!-- Inventory data will be rendered here -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Staff Modal -->
+    <div class="modal fade" id="staffModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="staffModalTitle">Thêm nhân viên mới</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="staffForm">
+                        <input type="hidden" id="editStaffId">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Mã nhân viên</label>
+                                <input type="text" class="form-control" id="staffId" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Họ tên</label>
+                                <input type="text" class="form-control" id="staffName" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Chức vụ</label>
+                                <select class="form-select" id="staffPosition" required>
+                                    <option value="">Chọn chức vụ</option>
+                                    <option value="Thu ngân">Thu ngân</option>
+                                    <option value="Phục vụ">Phục vụ</option>
+                                    <option value="Đầu bếp">Đầu bếp</option>
+                                    <option value="Quản lý">Quản lý</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Số điện thoại</label>
+                                <input type="tel" class="form-control" id="staffPhone" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Email</label>
+                                <input type="email" class="form-control" id="staffEmail" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Ngày bắt đầu</label>
+                                <input type="date" class="form-control" id="staffStartDate" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Lương (VNĐ)</label>
+                                <input type="number" class="form-control" id="staffSalary" required>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-primary" onclick="saveStaff()">Lưu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Menu Item Modal -->
+    <div class="modal fade" id="menuItemModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="menuModalTitle">Thêm món mới</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="menuItemForm">
+                        <input type="hidden" id="editMenuId">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Mã món</label>
+                                <input type="text" class="form-control" id="menuId" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Tên món</label>
+                                <input type="text" class="form-control" id="menuName" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Danh mục</label>
+                                <select class="form-select" id="menuCategory" required>
+                                    <option value="">Chọn danh mục</option>
+                                    <option value="Mì & Phở">Mì & Phở</option>
+                                    <option value="Cơm">Cơm</option>
+                                    <option value="Đồ uống">Đồ uống</option>
+                                    <option value="Tráng miệng">Tráng miệng</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Giá bán (VNĐ)</label>
+                                <input type="number" class="form-control" id="menuPrice" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Giá vốn (VNĐ)</label>
+                                <input type="number" class="form-control" id="menuCost" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Hình ảnh URL</label>
+                                <input type="url" class="form-control" id="menuImage">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Nguyên liệu</label>
+                                <textarea class="form-control" id="menuIngredients" rows="3" placeholder="Nhập các nguyên liệu, cách nhau bằng dấu phẩy"></textarea>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-primary" onclick="saveMenuItem()">Lưu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ingredient Modal -->
+    <div class="modal fade" id="ingredientModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ingredientModalTitle">Thêm nguyên liệu mới</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="ingredientForm">
+                        <input type="hidden" id="editIngredientId">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Mã nguyên liệu</label>
+                                <input type="text" class="form-control" id="ingredientId" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Tên nguyên liệu</label>
+                                <input type="text" class="form-control" id="ingredientName" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Đơn vị</label>
+                                <input type="text" class="form-control" id="ingredientUnit" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Định mức chuẩn</label>
+                                <input type="number" class="form-control" id="ingredientStandard" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Ngưỡng cảnh báo</label>
+                                <input type="number" class="form-control" id="ingredientThreshold" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Tồn kho hiện tại</label>
+                                <input type="number" class="form-control" id="ingredientStock" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Giá thành (VNĐ)</label>
+                                <input type="number" class="form-control" id="ingredientCost" required>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-primary" onclick="saveIngredient()">Lưu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="position-fixed top-0 end-0 p-3" style="z-index: 9999;">
+        <div id="toastContainer"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="manager-script.js"></script>
+</body>
+</html> 

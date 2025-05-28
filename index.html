@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập - Hệ thống Quản lý Nhà hàng</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="flex h-screen w-full items-center justify-center bg-gray-100">
+        <div class="card">
+            <div class="card-header">
+                <h1 class="card-title">Đăng nhập hệ thống</h1>
+                <p class="card-description">Chọn vai trò và đăng nhập để tiếp tục</p>
+            </div>
+            <div class="card-content">
+                <form id="loginForm">
+                    <div class="grid gap-4">
+                        <div class="tabs">
+                            <div class="tabs-list">
+                                <button type="button" class="tab-trigger active" data-role="waiter">Phục vụ</button>
+                                <button type="button" class="tab-trigger" data-role="chef">Đầu bếp</button>
+                                <button type="button" class="tab-trigger" data-role="cashier">Thu ngân</button>
+                                <button type="button" class="tab-trigger" data-role="manager">Quản lý</button>
+                            </div>
+                            <div class="tab-content active" id="waiterContent">
+                                <div class="text-center text-sm text-gray-500">
+                                    Đăng nhập với vai trò phục vụ để nhận order tại bàn
+                                </div>
+                            </div>
+                            <div class="tab-content" id="chefContent">
+                                <div class="text-center text-sm text-gray-500">
+                                    Đăng nhập với vai trò đầu bếp để quản lý và cập nhật trạng thái đơn hàng
+                                </div>
+                            </div>
+                            <div class="tab-content" id="cashierContent">
+                                <div class="text-center text-sm text-gray-500">
+                                    Đăng nhập với vai trò thu ngân để thanh toán và xuất hóa đơn
+                                </div>
+                            </div>
+                            <div class="tab-content" id="managerContent">
+                                <div class="text-center text-sm text-gray-500">
+                                    Đăng nhập với vai trò quản lý để xem báo cáo và quản lý nhà hàng
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid gap-2">
+                            <label class="label" for="username">Tên đăng nhập</label>
+                            <input class="input" id="username" type="text" placeholder="Nhập tên đăng nhập" required>
+                        </div>
+                        <div class="grid gap-2">
+                            <label class="label" for="password">Mật khẩu</label>
+                            <input class="input" id="password" type="password" placeholder="Nhập mật khẩu" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer">
+                <button class="button" type="submit" form="loginForm">Đăng nhập</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html> 

@@ -1,0 +1,38 @@
+{
+  "name": "restaurant-management-system",
+  "version": "1.0.0",
+  "description": "Complete restaurant management system with role-based dashboards",
+  "main": "public/index.html",
+  "scripts": {
+    "start": "python -m http.server 8000",
+    "dev": "live-server public/",
+    "build": "node scripts/build.js",
+    "deploy": "node scripts/deploy.js",
+    "test": "echo 'Tests not implemented yet'",
+    "clean": "rm -rf dist/ build/",
+    "serve": "cd public && python -m http.server 8080"
+  },
+  "keywords": [
+    "restaurant",
+    "management", 
+    "pos",
+    "firebase",
+    "javascript",
+    "bootstrap",
+    "dashboard",
+    "vietnam"
+  ],
+  "author": "Restaurant Management Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-repo/restaurant-management-system"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "live-server": "^1.2.2"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+} 

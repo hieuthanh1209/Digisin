@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thu ngân - Hệ thống Quản lý Nhà hàng</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="cashier-styles.css">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+    <div class="d-flex vh-100">
+        <!-- Sidebar -->
+        <div class="sidebar bg-white shadow-lg border-end" style="width: 300px;">
+            <div class="p-4 border-bottom">
+                <h1 class="h3 fw-bold text-dark mb-1">Thu ngân</h1>
+                <p class="text-muted mb-0">Quản lý thanh toán</p>
+            </div>
+            <nav class="p-3">
+                <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="location.href='../index.html'">
+                    🏠 <span class="ms-2">Trang chủ</span>
+                </button>
+                <button class="nav-button nav-button-active btn w-100 text-start mb-3 p-3">
+                    💰 <span class="ms-2">Thanh toán</span>
+                </button>
+                <button class="nav-button btn w-100 text-start mb-3 p-3">
+                    📋 <span class="ms-2">Lịch sử thanh toán</span>
+                </button>
+                <button class="nav-button btn w-100 text-start mb-3 p-3">
+                    📊 <span class="ms-2">Báo cáo</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-fill d-flex flex-column">
+            <!-- Header -->
+            <div class="bg-white shadow-sm border-bottom p-4 d-flex align-items-center justify-content-between">
+                <h2 class="h4 mb-0">Quản lý thanh toán</h2>
+                <div class="d-flex align-items-center">
+                    <div class="me-3">
+                        <small class="text-muted">Xin chào, <span class="fw-medium">Thu ngân</span></small>
+                    </div>
+                    <div class="bg-secondary rounded-circle" style="width: 40px; height: 40px;"></div>
+                </div>
+            </div>
+
+            <!-- Dashboard -->
+            <div class="flex-fill p-4 bg-light overflow-auto">
+                <!-- Stats Cards -->
+                <div class="row g-4 mb-4">
+                    <div class="col-xl-4 col-lg-6 col-md-6">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body p-4">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <p class="text-muted mb-1 small">Chờ thanh toán</p>
+                                        <h3 class="display-6 fw-bold mb-0" id="pendingPayments">0</h3>
+                                    </div>
+                                    <div class="bg-warning bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                        <i data-lucide="clock" class="text-warning" style="width: 24px; height: 24px;"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-4 col-lg-6 col-md-6">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body p-4">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <p class="text-muted mb-1 small">Đã thanh toán hôm nay</p>
+                                        <h3 class="display-6 fw-bold mb-0" id="completedPayments">0</h3>
+                                    </div>
+                                    <div class="bg-success bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                        <i data-lucide="check-circle-2" class="text-success" style="width: 24px; height: 24px;"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-4 col-lg-6 col-md-6">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body p-4">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <p class="text-muted mb-1 small">Tổng thu hôm nay</p>
+                                        <h3 class="display-6 fw-bold mb-0" id="totalRevenue">0₫</h3>
+                                    </div>
+                                    <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                        <i data-lucide="dollar-sign" class="text-primary" style="width: 24px; height: 24px;"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Orders -->
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Hóa đơn chờ thanh toán</h5>
+                        <span class="badge bg-warning text-dark fs-6" id="pendingBadge">0 đơn</span>
+                    </div>
+                    <div class="card-body p-4">
+                        <!-- Search Bar -->
+                        <div class="mb-4">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i data-lucide="search" style="width: 16px; height: 16px;"></i>
+                                </span>
+                                <input type="text" class="form-control" id="orderSearch" placeholder="Tìm kiếm theo mã đơn hàng, bàn...">
+                                <button class="btn btn-outline-secondary" type="button" id="clearOrderSearch">
+                                    <i data-lucide="x" style="width: 16px; height: 16px;"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="pendingOrders">
+                            <!-- Pending orders will be rendered here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Payments -->
+                <div class="card border-0 shadow-sm mt-4">
+                    <div class="card-header bg-white">
+                        <h5 class="card-title mb-0">Thanh toán gần đây</h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <div id="recentPayments">
+                            <!-- Recent payments will be rendered here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div class="modal fade" id="paymentModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-gradient">
+                    <h5 class="modal-title">
+                        <i data-lucide="credit-card" style="width: 20px; height: 20px;"></i>
+                        Thanh toán đơn hàng
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <!-- Order Details (Left Column) -->
+                        <div class="col-lg-6">
+                            <div id="paymentDetails">
+                                <!-- Payment details will be populated here -->
+                            </div>
+                            
+                            <!-- Payment Form -->
+                            <div class="mt-4">
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <label class="form-label fw-semibold">Phương thức thanh toán</label>
+                                        <select class="form-select" id="paymentMethod">
+                                            <option value="cash">💵 Tiền mặt</option>
+                                            <option value="card">💳 Thẻ</option>
+                                            <option value="transfer">🏦 Chuyển khoản</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12" id="cashAmountSection">
+                                        <label class="form-label fw-semibold">Số tiền khách đưa</label>
+                                        <input type="number" class="form-control" id="customerPaid" placeholder="Nhập số tiền khách đưa">
+                                    </div>
+                                </div>
+                                
+                                <!-- Payment Summary -->
+                                <div class="mt-4 payment-summary">
+                                    <h6 class="fw-bold mb-3">Chi tiết thanh toán</h6>
+                                    <div class="summary-line">
+                                        <span>Tổng tiền hàng:</span>
+                                        <span id="subtotal" class="fw-medium">0₫</span>
+                                    </div>
+                                    <div class="summary-line">
+                                        <span>Thuế VAT (8%):</span>
+                                        <span id="taxAmount" class="text-info">+0₫</span>
+                                    </div>
+                                    <div class="summary-line" id="discountLine">
+                                        <span>Giảm giá (<span id="discountLabel">0%</span>):</span>
+                                        <span id="discountAmount" class="text-success">-0₫</span>
+                                    </div>
+                                    <hr>
+                                    <div class="summary-line total-line">
+                                        <span class="fw-bold">Thành tiền:</span>
+                                        <span id="finalTotal" class="fw-bold text-primary fs-5">0₫</span>
+                                    </div>
+                                    <div class="summary-line text-muted" id="changeLine">
+                                        <span>Tiền thối:</span>
+                                        <span id="changeAmount">0₫</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Discount Codes Sidebar (Right Column) -->
+                        <div class="col-lg-6">
+                            <div class="discount-sidebar">
+                                <h6 class="fw-bold mb-3">
+                                    <i data-lucide="percent" style="width: 18px; height: 18px;"></i>
+                                    Mã giảm giá
+                                </h6>
+                                
+                                <!-- Search Box -->
+                                <div class="mb-3">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i data-lucide="search" style="width: 16px; height: 16px;"></i>
+                                        </span>
+                                        <input type="text" class="form-control" id="discountSearch" placeholder="Tìm kiếm mã giảm giá...">
+                                    </div>
+                                </div>
+                                
+                                <div class="discount-codes" id="discountCodes">
+                                    <!-- Discount codes will be rendered here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-outline-primary" onclick="printInvoice(false)">
+                        <i data-lucide="printer" style="width: 16px; height: 16px;"></i>
+                        In hóa đơn
+                    </button>
+                    <button type="button" class="btn btn-primary" id="processPayment">
+                        <i data-lucide="credit-card" style="width: 16px; height: 16px;"></i>
+                        Thanh toán
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div class="modal fade" id="successModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">
+                        <i data-lucide="check-circle-2" style="width: 20px; height: 20px;"></i>
+                        Thanh toán thành công
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <div class="mb-3">
+                        <i data-lucide="check-circle-2" class="text-success" style="width: 64px; height: 64px;"></i>
+                    </div>
+                    <h6 class="fw-bold mb-2">Đơn hàng đã được thanh toán!</h6>
+                    <p class="text-muted mb-0" id="successMessage">Giao dịch đã được xử lý thành công.</p>
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn btn-outline-primary" onclick="printInvoice(true)">
+                        <i data-lucide="printer" style="width: 16px; height: 16px;"></i>
+                        In hóa đơn
+                    </button>
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Invoice Print Modal -->
+    <div class="modal fade" id="invoicePrintModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i data-lucide="file-text" style="width: 20px; height: 20px;"></i>
+                        Hóa đơn thanh toán
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="fullInvoiceContent">
+                    <!-- Full invoice content will be rendered here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="button" class="btn btn-primary" onclick="window.print()">
+                        <i data-lucide="printer" style="width: 16px; height: 16px;"></i>
+                        In hóa đơn
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="cashier-script.js"></script>
+</body>
+</html> 
