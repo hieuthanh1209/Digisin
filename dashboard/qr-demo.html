@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Demo - Mã QR Thanh toán</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <style>
+        body {
+            background: #f8f9fa;
+        }
+        
+        .demo-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .demo-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        
+        .qr-display {
+            text-align: center;
+            padding: 2rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+        
+        .qr-info {
+            background: #e3f2fd;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .invoice-preview {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 1.5rem;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        
+        .demo-controls {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="text-center mb-4">
+                    <h1 class="display-5 fw-bold text-primary">
+                        <i data-lucide="qr-code" style="width: 48px; height: 48px;"></i>
+                        QR Code Demo
+                    </h1>
+                    <p class="lead text-muted">Demo tính năng mã QR thanh toán cho hóa đơn</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Demo Controls -->
+        <div class="demo-controls">
+            <h3 class="h5 mb-3">
+                <i data-lucide="settings" style="width: 20px; height: 20px;"></i>
+                QR Code Generator
+            </h3>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Mã đơn hàng:</label>
+                    <input type="text" class="form-control" id="orderId" value="HD001" placeholder="HD001">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Số bàn:</label>
+                    <input type="text" class="form-control" id="tableNumber" value="Bàn 5" placeholder="Bàn 5">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Số tiền:</label>
+                    <input type="number" class="form-control" id="amount" value="165000" placeholder="165000">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Phương thức thanh toán:</label>
+                    <select class="form-select" id="paymentMethod">
+                        <option value="PayOS QR Code">PayOS QR Code</option>
+                        <option value="PayOS Banking">PayOS Banking</option>
+                        <option value="PayOS Card">PayOS Card</option>
+                        <option value="Tiền mặt">Tiền mặt</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Mã giao dịch (tùy chọn):</label>
+                    <input type="text" class="form-control" id="transactionCode" placeholder="TXN123456789">
+                </div>
+                <div class="col-12">
+                    <button class="btn btn-primary" onclick="generateDemoQR()">
+                        <i data-lucide="qr-code" style="width: 16px; height: 16px;"></i>
+                        Tạo QR Code
+                    </button>
+                    <button class="btn btn-success ms-2" onclick="generateInvoiceWithPayOSQR()">
+                        <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
+                        Xem hóa đơn với PayOS QR
+                    </button>
+                    <button class="btn btn-warning ms-2" onclick="testInvoiceGeneration()">
+                        <i data-lucide="bug" style="width: 16px; height: 16px;"></i>
+                        Test Invoice
+                    </button>
+                    <button class="btn btn-info ms-2" onclick="
+                        console.log('Quick test...');
+                        var testQR = 'https://img.vietqr.io/image/970452-10142505304746708-payos.jpg?addInfo=TT+HD001+Ban+5&amount=165000';
+                        var html = '<div style=\'text-align:center\'><h3>Test QR Code</h3><img src=\'' + testQR + '\' style=\'width:200px;height:200px;border:1px solid #ccc\'></div>';
+                        document.getElementById('invoicePreview').innerHTML = html;
+                        document.getElementById('invoiceSection').style.display = 'block';
+                    ">
+                        <i data-lucide="zap" style="width: 16px; height: 16px;"></i>
+                        Quick Test
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- QR Code Types Demo -->
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="demo-card">
+                    <h4 class="text-primary mb-3">
+                        <i data-lucide="smartphone" style="width: 24px; height: 24px;"></i>
+                        PayOS Payment QR
+                    </h4>
+                    <p class="text-muted mb-3">QR code chứa thông tin thanh toán PayOS với link checkout</p>
+                    
+                    <div class="qr-display" id="payosQRDisplay">
+                        <div class="text-muted">
+                            <i data-lucide="qr-code" style="width: 64px; height: 64px;"></i>
+                            <p class="mt-2">QR Code sẽ hiển thị ở đây</p>
+                        </div>
+                    </div>
+                    
+                    <button class="btn btn-outline-primary w-100" onclick="generatePayOSQR()">
+                        <i data-lucide="credit-card" style="width: 16px; height: 16px;"></i>
+                        Tạo PayOS QR Code
+                    </button>
+                </div>
+            </div>
+            
+            <div class="col-lg-6">
+                <div class="demo-card">
+                    <h4 class="text-info mb-3">
+                        <i data-lucide="link" style="width: 24px; height: 24px;"></i>
+                        VietQR URL Tester
+                    </h4>
+                    <p class="text-muted mb-3">Test và tạo URL VietQR theo format của PayOS</p>
+                    
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">BIN (Ngân hàng):</label>
+                            <select class="form-select" id="bankBin">
+                                <option value="970452">970452 - Vietcombank</option>
+                                <option value="970436">970436 - Vietinbank</option>
+                                <option value="970415">970415 - BIDV</option>
+                                <option value="970422">970422 - MB Bank</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Số tài khoản:</label>
+                            <input type="text" class="form-control" id="accountNumber" value="10142505290726678" placeholder="Số tài khoản">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Số tiền:</label>
+                            <input type="number" class="form-control" id="vietqrAmount" value="165000" placeholder="Số tiền">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Nội dung chuyển khoản:</label>
+                            <input type="text" class="form-control" id="transferContent" value="TT HD001 Ban 5" placeholder="Nội dung">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Template:</label>
+                            <select class="form-select" id="qrTemplate">
+                                <option value="payos">PayOS Template</option>
+                                <option value="standard">Standard VietQR</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <button class="btn btn-info w-100 mb-3" onclick="generateVietQR()">
+                        <i data-lucide="link" style="width: 16px; height: 16px;"></i>
+                        Tạo VietQR URL
+                    </button>
+                    
+                    <div id="vietqrResult" style="display: none;">
+                        <div class="alert alert-success">
+                            <h6>VietQR URL được tạo:</h6>
+                            <div class="mb-2">
+                                <small class="text-muted" id="vietqrUrl" style="word-break: break-all;"></small>
+                            </div>
+                            <div class="text-center">
+                                <img id="vietqrImage" src="" class="img-fluid" style="max-width: 200px; border: 1px solid #ddd; border-radius: 8px;" alt="VietQR">
+                            </div>
+                            <div class="mt-2 text-center">
+                                <a id="vietqrLink" href="" target="_blank" class="btn btn-sm btn-outline-info">
+                                    <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+                                    Mở trong tab mới
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Generated QR Info -->
+        <div class="demo-card" id="qrInfoSection" style="display: none;">
+            <h4 class="text-info mb-3">
+                <i data-lucide="info" style="width: 24px; height: 24px;"></i>
+                Thông tin QR Code
+            </h4>
+            <div class="qr-info" id="qrInfo">
+                <!-- QR info will be displayed here -->
+            </div>
+        </div>
+        
+        <!-- Invoice Preview -->
+        <div class="demo-card" id="invoiceSection" style="display: none;">
+            <h4 class="text-warning mb-3">
+                <i data-lucide="file-text" style="width: 24px; height: 24px;"></i>
+                Preview Hóa đơn với QR Code
+            </h4>
+            <div class="invoice-preview" id="invoicePreview">
+                <!-- Invoice preview will be displayed here -->
+            </div>
+            <div class="text-center mt-3">
+                <button class="btn btn-primary" onclick="printDemoInvoice()">
+                    <i data-lucide="printer" style="width: 16px; height: 16px;"></i>
+                    In hóa đơn
+                </button>
+            </div>
+        </div>
+        
+        <!-- PayOS Integration Demo -->
+        <div class="demo-card">
+            <h4 class="text-warning mb-3">
+                <i data-lucide="code" style="width: 24px; height: 24px;"></i>
+                PayOS Integration Demo
+            </h4>
+            <p class="text-muted mb-3">Mô phỏng việc lấy QR URL từ PayOS API response và lưu vào hóa đơn</p>
+            
+            <div class="row g-3 mb-3">
+                <div class="col-12">
+                    <label class="form-label">PayOS QR URL (mô phỏng từ API response):</label>
+                    <input type="text" class="form-control" id="payosApiQRUrl" 
+                           value="https://img.vietqr.io/image/970452-10142505304746708-payos.jpg?addInfo=TT+HD001+Ban+5&amount=178200" 
+                           placeholder="URL từ PayOS API response">
+                    <small class="text-muted">Đây là URL QR được PayOS trả về khi tạo payment link thành công</small>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Payment Status:</label>
+                    <select class="form-select" id="paymentStatus">
+                        <option value="pending">Pending (Chưa thanh toán)</option>
+                        <option value="paid">Paid (Đã thanh toán)</option>
+                        <option value="cancelled">Cancelled (Đã hủy)</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">PayOS Order Code:</label>
+                    <input type="text" class="form-control" id="payosOrderCode" value="240001" placeholder="Order code từ PayOS">
+                </div>
+                <div class="col-12">
+                    <button class="btn btn-warning w-100" onclick="generateInvoiceFromPayOSAPI()">
+                        <i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                        Tạo hóa đơn từ PayOS API Response
+                    </button>
+                </div>
+            </div>
+            
+            <div class="alert alert-info">
+                <h6 class="text-primary">Cách tích hợp thực tế:</h6>
+                <ol class="mb-0 small">
+                    <li><strong>Tạo Payment:</strong> Gọi PayOS API để tạo payment link</li>
+                    <li><strong>Lấy QR URL:</strong> Từ response, lấy `qrCode` hoặc `paymentLinkId`</li>
+                    <li><strong>Lưu vào DB:</strong> Lưu QR URL cùng với order trong database</li>
+                    <li><strong>Hiển thị hóa đơn:</strong> Sử dụng QR URL đã lưu để hiển thị trong hóa đơn</li>
+                    <li><strong>Webhook:</strong> Nhận callback từ PayOS khi thanh toán thành công</li>
+                </ol>
+            </div>
+        </div>
+        
+        <!-- QR Code Data Decoder -->
+        <div class="demo-card">
+            <h4 class="text-secondary mb-3">
+                <i data-lucide="scan" style="width: 24px; height: 24px;"></i>
+                QR Code Decoder
+            </h4>
+            <p class="text-muted mb-3">Nhập dữ liệu QR code để giải mã thông tin</p>
+            <div class="mb-3">
+                <label class="form-label">Dữ liệu QR Code:</label>
+                <textarea class="form-control" id="qrDataInput" rows="3" placeholder="Paste QR code data here..."></textarea>
+            </div>
+            <button class="btn btn-outline-secondary" onclick="decodeQRData()">
+                <i data-lucide="search" style="width: 16px; height: 16px;"></i>
+                Giải mã
+            </button>
+            <div class="mt-3" id="decodedResult" style="display: none;">
+                <div class="alert alert-info">
+                    <strong>Kết quả giải mã:</strong>
+                    <pre id="decodedData" class="mt-2 mb-0"></pre>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Back to Dashboard -->
+        <div class="text-center mt-4">
+            <a href="cashier-dashboard.html" class="btn btn-primary btn-lg">
+                <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
+                Về Dashboard Thu ngân
+            </a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentQRData = null;
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('vi-VN').format(amount) + '₫';
+        }
+
+        async function generatePayOSQR() {
+            const orderId = document.getElementById('orderId').value || 'HD001';
+            const table = document.getElementById('tableNumber').value || 'Bàn 5';
+            const amount = parseInt(document.getElementById('amount').value) || 165000;
+            const transactionCode = document.getElementById('transactionCode').value || 'TXN' + Date.now();
+            
+            // Demo VietQR URL from PayOS (similar to what PayOS returns)
+            const addInfo = `TT ${orderId} ${table}`.replace(/\s+/g, '+');
+            const vietQRUrl = `https://img.vietqr.io/image/970452-10142505290726678-payos.jpg?addInfo=${addInfo}&amount=${amount}`;
+            
+            const qrData = JSON.stringify({
+                type: 'PAYOS_VIETQR',
+                orderId: orderId,
+                table: table,
+                amount: amount,
+                orderCode: transactionCode,
+                qrCodeUrl: vietQRUrl,
+                paymentUrl: `https://pay.payos.vn/web/${transactionCode}`,
+                timestamp: new Date().toISOString(),
+                restaurant: 'Nhà hàng ABC',
+                accountNumber: '10142505290726678',
+                accountName: 'CONG TY TNHH PAYOS',
+                bin: '970452'
+            });
+            
+            try {
+                const display = document.getElementById('payosQRDisplay');
+                display.innerHTML = `
+                    <img src="${vietQRUrl}" class="img-fluid" style="max-width: 200px;" alt="PayOS VietQR Code">
+                    <p class="mt-2 text-success">PayOS VietQR Code</p>
+                    <small class="text-muted">VietQR Banking QR - Quét để chuyển khoản</small>
+                `;
+                
+                currentQRData = { 
+                    dataUrl: vietQRUrl, 
+                    data: qrData,
+                    isVietQR: true,
+                    qrUrl: vietQRUrl
+                };
+                
+                showQRInfo(qrData, 'PayOS VietQR Payment');
+                
+            } catch (error) {
+                console.error('Error generating PayOS VietQR:', error);
+                alert('Lỗi tạo VietQR Code: ' + error.message);
+            }
+        }
+
+        async function generateDemoQR() {
+            const paymentMethod = document.getElementById('paymentMethod').value;
+            
+            if (paymentMethod.includes('PayOS')) {
+                await generatePayOSQR();
+            } else {
+                // Handle other payment methods
+                alert('Chức năng này chưa được hỗ trợ');
+            }
+        }
+
+        // Function to simulate getting PayOS QR URL
+        function getPayOSQRUrl(orderId, table, amount) {
+            // Simulate PayOS response with QR URL
+            const addInfo = `TT ${orderId} ${table}`.replace(/\s+/g, '+');
+            const qrUrl = `https://img.vietqr.io/image/970452-10142505304746708-payos.jpg?addInfo=${addInfo}&amount=${amount}`;
+            console.log('Generated PayOS QR URL:', qrUrl);
+            return qrUrl;
+        }
+
+        // Function to generate invoice with PayOS QR
+        async function generateInvoiceWithPayOSQR() {
+            const orderId = document.getElementById('orderId').value || 'HD001';
+            const table = document.getElementById('tableNumber').value || 'Bàn 5';
+            const amount = parseInt(document.getElementById('amount').value) || 165000;
+            const paymentMethod = document.getElementById('paymentMethod').value;
+            const transactionCode = document.getElementById('transactionCode').value || 'TXN' + Date.now();
+            
+            // Get PayOS QR URL (simulate PayOS API response)
+            const payosQRUrl = getPayOSQRUrl(orderId, table, amount);
+            
+            // Generate invoice with PayOS QR
+            generateInvoice(payosQRUrl, orderId, table, amount, paymentMethod, transactionCode);
+        }
+
+        // Test function for debugging
+        function testInvoiceGeneration() {
+            console.log('Testing invoice generation...');
+            const testQRUrl = 'https://img.vietqr.io/image/970452-10142505304746708-payos.jpg?addInfo=TT+HD001+Ban+5&amount=165000';
+            console.log('Test QR URL:', testQRUrl);
+            
+            generateInvoice(
+                testQRUrl,
+                'HD001', 
+                'Bàn 5', 
+                165000, 
+                'PayOS QR Code', 
+                'TXN123456',
+                'pending'
+            );
+        }
+
+        // Function to simulate getting invoice from PayOS API response
+        function generateInvoiceFromPayOSAPI() {
+            const payosQRUrl = document.getElementById('payosApiQRUrl').value;
+            const paymentStatus = document.getElementById('paymentStatus').value;
+            const payosOrderCode = document.getElementById('payosOrderCode').value;
+            
+            if (!payosQRUrl) {
+                alert('Vui lòng nhập PayOS QR URL');
+                return;
+            }
+            
+            // Extract order info from the URL for demo
+            const urlParams = new URLSearchParams(payosQRUrl.split('?')[1]);
+            const addInfo = urlParams.get('addInfo') || 'TT HD001 Ban 5';
+            const amount = parseInt(urlParams.get('amount')) || 178200;
+            
+            // Parse order info from addInfo
+            const infoMatch = addInfo.match(/TT\s+(\w+)\s+(.+)/);
+            const orderId = infoMatch ? infoMatch[1] : 'HD001';
+            const table = infoMatch ? infoMatch[2].replace(/\+/g, ' ') : 'Bàn 5';
+            
+            const paymentMethod = 'PayOS QR Code';
+            const transactionCode = paymentStatus === 'paid' ? payosOrderCode : null;
+            
+            // Generate invoice with actual PayOS QR URL
+            generateInvoice(payosQRUrl, orderId, table, amount, paymentMethod, transactionCode, paymentStatus);
+            
+            // Show success message
+            const statusText = {
+                'pending': 'chưa thanh toán',
+                'paid': 'đã thanh toán',
+                'cancelled': 'đã hủy'
+            };
+            
+            alert(`Đã tạo hóa đơn với QR PayOS (${statusText[paymentStatus]})`);
+        }
+
+        function generateInvoice(qrUrl = null, orderId = null, table = null, amount = null, paymentMethod = null, transactionCode = null, paymentStatus = null) {
+            // Use provided values or get from form
+            orderId = orderId || document.getElementById('orderId').value || 'HD001';
+            table = table || document.getElementById('tableNumber').value || 'Bàn 5';
+            amount = amount || parseInt(document.getElementById('amount').value) || 165000;
+            paymentMethod = paymentMethod || document.getElementById('paymentMethod').value;
+            transactionCode = transactionCode || document.getElementById('transactionCode').value;
+            
+            // Use PayOS QR URL if not provided
+            if (!qrUrl) {
+                qrUrl = getPayOSQRUrl(orderId, table, amount);
+            }
+            
+            console.log('Generating invoice with QR URL:', qrUrl);
+            console.log('Order ID:', orderId, 'Table:', table, 'Amount:', amount);
+            
+            // Calculate additional costs
+            const subtotal = amount;
+            const taxAmount = Math.round(subtotal * 0.08); // 8% VAT
+            const finalTotal = subtotal + taxAmount;
+            
+            // Sample items for demo
+            const sampleItems = [
+                { name: 'Phở bò tái', quantity: 2, price: 60000 },
+                { name: 'Cơm rang thập cẩm', quantity: 1, price: 35000 },
+                { name: 'Trà đá', quantity: 2, price: 5000 },
+                { name: 'Nước ngọt', quantity: 1, price: 15000 }
+            ];
+            
+            // Adjust items to match the total
+            const itemsTotal = sampleItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+            if (itemsTotal !== subtotal) {
+                // Adjust last item price to match total
+                const difference = subtotal - (itemsTotal - sampleItems[sampleItems.length - 1].quantity * sampleItems[sampleItems.length - 1].price);
+                sampleItems[sampleItems.length - 1].price = Math.round(difference / sampleItems[sampleItems.length - 1].quantity);
+            }
+            
+            const isPaid = paymentStatus === 'paid' || (paymentMethod.includes('PayOS') && transactionCode);
+            const isCancelled = paymentStatus === 'cancelled';
+            
+            let invoiceStatus, statusColor;
+            if (isCancelled) {
+                invoiceStatus = 'ĐÃ HỦY';
+                statusColor = '#dc3545';
+            } else if (isPaid) {
+                invoiceStatus = 'ĐÃ THANH TOÁN';
+                statusColor = '#28a745';
+            } else {
+                invoiceStatus = 'CHƯA THANH TOÁN';
+                statusColor = '#ff6b35';
+            }
+            
+            const invoiceHtml = `
+                <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px;">
+                    <h2 style="margin: 0; font-size: 18px; font-weight: bold;">NHÀ HÀNG ABC</h2>
+                    <p style="margin: 5px 0 0 0; font-size: 12px;">123 Đường XYZ, Quận 1, TP.HCM</p>
+                    <p style="margin: 2px 0 0 0; font-size: 12px;">Tel: 028.1234.5678</p>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span><strong>Hóa đơn:</strong></span>
+                        <span>${orderId}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span><strong>Bàn:</strong></span>
+                        <span>${table}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span><strong>Ngày:</strong></span>
+                        <span>${new Date().toLocaleDateString('vi-VN')}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span><strong>Giờ:</strong></span>
+                        <span>${new Date().toLocaleTimeString('vi-VN', {hour: '2-digit', minute: '2-digit'})}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span><strong>Phương thức:</strong></span>
+                        <span>${paymentMethod}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span><strong>Trạng thái:</strong></span>
+                        <span style="color: ${statusColor}; font-weight: bold;">${invoiceStatus}</span>
+                    </div>
+                    ${transactionCode ? `
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <span><strong>Mã giao dịch:</strong></span>
+                            <span>${transactionCode}</span>
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 10px 0; margin-bottom: 15px;">
+                    ${sampleItems.map(item => `
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                            <span>${item.quantity}x ${item.name}</span>
+                            <span>${formatCurrency(item.quantity * item.price)}</span>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                        <span>Tổng tiền hàng:</span>
+                        <span>${formatCurrency(subtotal)}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                        <span>Thuế VAT (8%):</span>
+                        <span>${formatCurrency(taxAmount)}</span>
+                    </div>
+                </div>
+                
+                <div style="border-top: 2px solid #000; padding-top: 10px; margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold;">
+                        <span>THÀNH TIỀN:</span>
+                        <span>${formatCurrency(finalTotal)}</span>
+                    </div>
+                </div>
+                
+                <div style="text-align: center; border-top: 1px dashed #000; padding-top: 15px; margin-bottom: 15px;">
+                    <p style="margin: 0 0 10px 0; font-size: 12px; font-weight: bold;">
+                        ${isCancelled ? 'MÃ QR THANH TOÁN ĐÃ HỦY' : (isPaid ? 'MÃ QR THANH TOÁN ĐÃ SỬ DỤNG' : 'MÃ QR THANH TOÁN PAYOS')}
+                    </p>
+                    <div style="position: relative; display: inline-block;">
+                        <img src="${qrUrl}" 
+                             style="width: 140px; height: 140px; margin: 10px auto; display: block; border: 1px solid #ddd; border-radius: 8px; ${isCancelled ? 'filter: grayscale(100%) opacity(0.5);' : ''}" 
+                             alt="PayOS QR Code thanh toán" 
+                             onload="console.log('QR Image loaded successfully')"
+                             onerror="console.error('QR Image failed to load:', this.src); this.style.backgroundColor='#f8f9fa'; this.style.border='2px dashed #ccc'; this.alt='QR Code không tải được - URL: ' + this.src;">
+                        ${isCancelled ? `
+                            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(220, 53, 69, 0.9); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">
+                                ĐÃ HỦY
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div style="margin-top: 5px; font-size: 9px; color: #999; word-break: break-all;">
+                        QR URL: ${qrUrl}
+                    </div>
+                    <p style="margin: 10px 0 5px 0; font-size: 10px; color: #666;">
+                        ${isCancelled ? 'Giao dịch đã bị hủy' : (isPaid ? 'QR Code đã được sử dụng để thanh toán' : 'Quét mã QR để thanh toán qua VietQR')}
+                    </p>
+                    <p style="margin: 0; font-size: 9px; color: #999;">
+                        Ngân hàng: Vietcombank | TK: ...304746708
+                    </p>
+                    ${!isPaid && !isCancelled ? `
+                        <div style="margin-top: 10px; padding: 8px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px;">
+                            <p style="margin: 0; font-size: 11px; color: #856404;">
+                                <strong>Hướng dẫn:</strong> Mở app ngân hàng → Quét QR → Xác nhận thanh toán
+                            </p>
+                        </div>
+                    ` : ''}
+                    ${isCancelled ? `
+                        <div style="margin-top: 10px; padding: 8px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px;">
+                            <p style="margin: 0; font-size: 11px; color: #721c24;">
+                                <strong>Lưu ý:</strong> Giao dịch thanh toán đã bị hủy
+                            </p>
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <div style="text-align: center; font-size: 12px; border-top: 1px dashed #000; padding-top: 10px;">
+                    <p style="margin: 0 0 5px 0;"><strong>CẢM ƠN QUÝ KHÁCH!</strong></p>
+                    <p style="margin: 0;">Hẹn gặp lại!</p>
+                    <p style="margin: 5px 0 0 0; font-size: 10px; color: #666;">
+                        Thanh toán điện tử an toàn với PayOS
+                    </p>
+                    ${!isPaid && !isCancelled ? `
+                        <p style="margin: 10px 0 0 0; font-size: 10px; color: #ff6b35;">
+                            * Đây là hóa đơn tạm. Vui lòng thanh toán để hoàn tất.
+                        </p>
+                    ` : ''}
+                    ${isCancelled ? `
+                        <p style="margin: 10px 0 0 0; font-size: 10px; color: #dc3545;">
+                            * Hóa đơn đã hủy. Vui lòng tạo đơn hàng mới nếu cần.
+                        </p>
+                    ` : ''}
+                </div>
+            `;
+            
+            const invoiceSection = document.getElementById('invoiceSection');
+            const invoicePreview = document.getElementById('invoicePreview');
+            
+            invoicePreview.innerHTML = invoiceHtml;
+            invoiceSection.style.display = 'block';
+            
+            // Update section title based on payment status
+            const sectionTitle = invoiceSection.querySelector('h4');
+            if (sectionTitle) {
+                let titleText;
+                if (isCancelled) {
+                    titleText = 'Hóa đơn đã hủy với PayOS QR';
+                } else if (isPaid) {
+                    titleText = 'Hóa đơn đã thanh toán với PayOS QR';
+                } else {
+                    titleText = 'Hóa đơn tạm với PayOS QR';
+                }
+                
+                sectionTitle.innerHTML = `
+                    <i data-lucide="file-text" style="width: 24px; height: 24px;"></i>
+                    ${titleText}
+                `;
+                lucide.createIcons();
+            }
+        }
+
+        function showQRInfo(qrData, type) {
+            const data = JSON.parse(qrData);
+            const infoSection = document.getElementById('qrInfoSection');
+            const qrInfo = document.getElementById('qrInfo');
+            
+            const isVietQR = data.type === 'PAYOS_VIETQR';
+            
+            let qrDetailsHtml = '';
+            if (isVietQR) {
+                // VietQR specific information
+                qrDetailsHtml = `
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <strong>Số tài khoản:</strong> ${data.accountNumber || 'N/A'}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Tên tài khoản:</strong> ${data.accountName || 'N/A'}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Mã ngân hàng:</strong> ${data.bin || 'N/A'}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Nội dung CK:</strong> TT ${data.orderId} - ${data.table}
+                        </div>
+                        <div class="col-12">
+                            <strong>VietQR URL:</strong><br>
+                            <small class="text-muted" style="word-break: break-all;">${data.qrCodeUrl}</small>
+                        </div>
+                    </div>
+                    <div class="alert alert-info mt-3">
+                        <h6 class="text-primary">Cấu trúc VietQR URL:</h6>
+                        <ul class="mb-0 small">
+                            <li><strong>Base URL:</strong> https://img.vietqr.io/image/</li>
+                            <li><strong>Format:</strong> [BIN]-[ACCOUNT_NUMBER]-payos.jpg</li>
+                            <li><strong>Params:</strong> ?addInfo=[PAYMENT_INFO]&amount=[AMOUNT]</li>
+                            <li><strong>BIN 970452:</strong> Vietcombank</li>
+                        </ul>
+                    </div>
+                `;
+            } else {
+                // Regular QR code information
+                qrDetailsHtml = `
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <strong>Loại QR:</strong> Thông tin đơn hàng
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Phương thức:</strong> ${data.paymentMethod || 'N/A'}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            qrInfo.innerHTML = `
+                <h6 class="text-primary">Loại QR: ${type}</h6>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <strong>Mã đơn hàng:</strong> ${data.orderId}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Bàn:</strong> ${data.table}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Số tiền:</strong> ${formatCurrency(data.amount)}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Thời gian:</strong> ${new Date(data.timestamp).toLocaleString('vi-VN')}
+                    </div>
+                    ${data.orderCode ? `
+                        <div class="col-md-6">
+                            <strong>Mã giao dịch:</strong> ${data.orderCode}
+                        </div>
+                    ` : ''}
+                </div>
+                
+                ${qrDetailsHtml}
+                
+                <div class="mt-3">
+                    <strong>Raw Data:</strong>
+                    <pre class="bg-light p-2 rounded mt-1" style="font-size: 12px; overflow-x: auto;">${qrData}</pre>
+                </div>
+            `;
+            
+            infoSection.style.display = 'block';
+        }
+
+        function printDemoInvoice() {
+            const invoiceContent = document.getElementById('invoicePreview').innerHTML;
+            
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Demo Hóa đơn QR Code</title>
+                    <style>
+                        @page { 
+                            size: A5; 
+                            margin: 10mm; 
+                        }
+                        body { 
+                            margin: 0; 
+                            padding: 0; 
+                            font-family: 'Courier New', monospace; 
+                        }
+                        @media print {
+                            body { 
+                                print-color-adjust: exact; 
+                                -webkit-print-color-adjust: exact; 
+                            }
+                            img {
+                                max-width: 100% !important;
+                                height: auto !important;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div style="max-width: 400px; margin: 0 auto;">
+                        ${invoiceContent}
+                    </div>
+                </body>
+                </html>
+            `);
+            
+            printWindow.document.close();
+            printWindow.focus();
+            
+            setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+            }, 250);
+        }
+
+        function generateVietQR() {
+            const bin = document.getElementById('bankBin').value;
+            const accountNumber = document.getElementById('accountNumber').value;
+            const amount = document.getElementById('vietqrAmount').value;
+            const content = document.getElementById('transferContent').value;
+            const template = document.getElementById('qrTemplate').value;
+            
+            if (!accountNumber || !amount || !content) {
+                alert('Vui lòng điền đầy đủ thông tin');
+                return;
+            }
+            
+            // Encode content for URL
+            const encodedContent = encodeURIComponent(content).replace(/%20/g, '+');
+            
+            let vietqrUrl;
+            if (template === 'payos') {
+                // PayOS style VietQR URL
+                vietqrUrl = `https://img.vietqr.io/image/${bin}-${accountNumber}-payos.jpg?addInfo=${encodedContent}&amount=${amount}`;
+            } else {
+                // Standard VietQR URL
+                vietqrUrl = `https://img.vietqr.io/image/${bin}-${accountNumber}-compact2.jpg?addInfo=${encodedContent}&amount=${amount}`;
+            }
+            
+            // Display result
+            document.getElementById('vietqrUrl').textContent = vietqrUrl;
+            document.getElementById('vietqrImage').src = vietqrUrl;
+            document.getElementById('vietqrLink').href = vietqrUrl;
+            document.getElementById('vietqrResult').style.display = 'block';
+            
+            console.log('Generated VietQR URL:', vietqrUrl);
+        }
+
+        function decodeQRData() {
+            const input = document.getElementById('qrDataInput').value.trim();
+            const resultDiv = document.getElementById('decodedResult');
+            const dataDiv = document.getElementById('decodedData');
+            
+            if (!input) {
+                alert('Vui lòng nhập dữ liệu QR code');
+                return;
+            }
+            
+            try {
+                const data = JSON.parse(input);
+                dataDiv.textContent = JSON.stringify(data, null, 2);
+                resultDiv.style.display = 'block';
+            } catch (error) {
+                dataDiv.textContent = 'Dữ liệu không phải JSON hợp lệ:\n' + input;
+                resultDiv.style.display = 'block';
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            lucide.createIcons();
+        });
+    </script>
+</body>
+</html> 

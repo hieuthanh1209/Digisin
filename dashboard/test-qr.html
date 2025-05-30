@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-box { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        button { margin: 10px; padding: 10px 20px; }
+    </style>
+</head>
+<body>
+    <h1>QR Code Test</h1>
+    
+    <div class="test-box">
+        <h3>Test 1: Direct QR Image</h3>
+        <img src="https://img.vietqr.io/image/970452-10142505304746708-payos.jpg?addInfo=TT+HD001+Ban+5&amount=165000" 
+             style="width: 200px; height: 200px; border: 1px solid #ddd;" 
+             alt="QR Code Test">
+    </div>
+    
+    <div class="test-box">
+        <h3>Test 2: JavaScript Generated</h3>
+        <div id="jsQR"></div>
+        <button onclick="generateQR()">Generate QR</button>
+    </div>
+    
+    <div class="test-box">
+        <h3>Test 3: Invoice Preview</h3>
+        <div id="invoice" style="border: 1px solid #000; padding: 20px; max-width: 400px; font-family: monospace;">
+            <!-- Invoice will be generated here -->
+        </div>
+        <button onclick="generateInvoice()">Generate Invoice with QR</button>
+    </div>
+
+    <script>
+        function generateQR() {
+            const qrUrl = 'https://img.vietqr.io/image/970452-10142505304746708-payos.jpg?addInfo=TT+HD001+Ban+5&amount=165000';
+            document.getElementById('jsQR').innerHTML = `
+                <img src="${qrUrl}" style="width: 200px; height: 200px; border: 1px solid #ddd;" alt="JS Generated QR">
+                <p>QR URL: ${qrUrl}</p>
+            `;
+        }
+        
+        function generateInvoice() {
+            const qrUrl = 'https://img.vietqr.io/image/970452-10142505304746708-payos.jpg?addInfo=TT+HD001+Ban+5&amount=165000';
+            
+            const invoiceHtml = `
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <h3>NHÀ HÀNG ABC</h3>
+                    <p>Hóa đơn: HD001 | Bàn: 5</p>
+                    <p>Ngày: ${new Date().toLocaleDateString('vi-VN')}</p>
+                </div>
+                
+                <div style="margin: 20px 0;">
+                    <p>2x Phở bò tái: 120,000₫</p>
+                    <p>1x Cơm rang: 35,000₫</p>
+                    <p>2x Trà đá: 10,000₫</p>
+                    <hr>
+                    <strong>Tổng: 165,000₫</strong>
+                </div>
+                
+                <div style="text-align: center; border-top: 1px dashed #000; padding-top: 15px;">
+                    <p><strong>MÃ QR THANH TOÁN PAYOS</strong></p>
+                    <img src="${qrUrl}" style="width: 140px; height: 140px; border: 1px solid #ddd;" alt="PayOS QR">
+                    <p style="font-size: 10px;">Quét mã QR để thanh toán</p>
+                </div>
+                
+                <div style="text-align: center; border-top: 1px dashed #000; padding-top: 10px; margin-top: 15px;">
+                    <p><strong>CẢM ƠN QUÝ KHÁCH!</strong></p>
+                </div>
+            `;
+            
+            document.getElementById('invoice').innerHTML = invoiceHtml;
+        }
+    </script>
+</body>
+</html> 

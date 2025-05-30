@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayOS Size Demo - Tùy chỉnh kích thước</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+        body {
+            background: #f8f9fa;
+        }
+        
+        .size-preview {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .size-preview:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        
+        .size-preview h4 {
+            color: #1976d2;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .demo-iframe {
+            width: 100%;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #1976d2;
+            font-weight: 600;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .demo-iframe::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="%23bbdefb" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            opacity: 0.3;
+        }
+        
+        .demo-iframe .content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .size-specs {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .spec-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .spec-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .spec-label {
+            color: #6c757d;
+            font-weight: 500;
+        }
+        
+        .spec-value {
+            color: #495057;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .copy-button {
+            font-size: 0.8rem;
+            padding: 0.25rem 0.5rem;
+        }
+        
+        .preview-controls {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .device-simulation {
+            border: 8px solid #2c3e50;
+            border-radius: 12px;
+            position: relative;
+            margin: 1rem auto;
+        }
+        
+        .device-simulation.mobile {
+            max-width: 375px;
+        }
+        
+        .device-simulation.tablet {
+            max-width: 768px;
+        }
+        
+        .device-simulation.desktop {
+            max-width: 1200px;
+        }
+        
+        .device-label {
+            position: absolute;
+            top: -30px;
+            left: 0;
+            background: #2c3e50;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="text-center mb-4">
+                    <h1 class="display-5 fw-bold text-primary">
+                        <i data-lucide="monitor" style="width: 48px; height: 48px;"></i>
+                        PayOS Size Demo
+                    </h1>
+                    <p class="lead text-muted">Xem trước và test các kích thước khác nhau của PayOS iframe</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Live Preview Controls -->
+        <div class="preview-controls">
+            <h3 class="h5 mb-3">
+                <i data-lucide="settings" style="width: 20px; height: 20px;"></i>
+                Live Preview Controls
+            </h3>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Chọn kích thước:</label>
+                    <select class="form-select" id="sizeSelector" onchange="updateLivePreview()">
+                        <option value="small">Small (350px - 400px)</option>
+                        <option value="medium" selected>Medium (500px - 600px)</option>
+                        <option value="large">Large (650px - 800px)</option>
+                        <option value="xl">Extra Large (800px - 1000px)</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Thiết bị:</label>
+                    <select class="form-select" id="deviceSelector" onchange="updateLivePreview()">
+                        <option value="desktop">Desktop (1200px+)</option>
+                        <option value="tablet">Tablet (768px)</option>
+                        <option value="mobile">Mobile (375px)</option>
+                    </select>
+                </div>
+                <div class="col-12" id="customControls" style="display: none;">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Min Height:</label>
+                            <input type="text" class="form-control" id="customMinHeight" placeholder="350px" onchange="updateLivePreview()">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Height:</label>
+                            <input type="text" class="form-control" id="customHeight" placeholder="60vh" onchange="updateLivePreview()">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Max Height:</label>
+                            <input type="text" class="form-control" id="customMaxHeight" placeholder="500px" onchange="updateLivePreview()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Live Preview -->
+            <div class="mt-4">
+                <h6 class="fw-bold mb-3">Live Preview:</h6>
+                <div class="device-simulation desktop" id="deviceFrame">
+                    <div class="device-label" id="deviceLabel">Desktop</div>
+                    <div class="demo-iframe" id="livePreview" style="min-height: 500px; height: 65vh; max-height: 600px;">
+                        <div class="content">
+                            <div>
+                                <i data-lucide="credit-card" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i>
+                                <h5>PayOS Payment Interface</h5>
+                                <p class="mb-2">Kích thước: <span id="currentSize">Medium</span></p>
+                                <p class="mb-0 small text-muted">Live preview - thay đổi kích thước để xem hiệu ứng</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Generated CSS -->
+                <div class="mt-3">
+                    <h6 class="fw-bold">CSS Generated:</h6>
+                    <div class="bg-dark text-light p-3 rounded position-relative">
+                        <button class="btn btn-outline-light btn-sm position-absolute top-0 end-0 m-2 copy-button" onclick="copyCSSCode()">
+                            <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                            Copy
+                        </button>
+                        <pre id="generatedCSS" class="text-light mb-0">#payos-checkout-iframe {
+    min-height: 500px;
+    height: 65vh;
+    max-height: 600px;
+}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Size Previews -->
+        <div class="row">
+            <div class="col-lg-6 col-xl-3">
+                <div class="size-preview">
+                    <h4>
+                        <i data-lucide="smartphone"></i>
+                        Small (Compact)
+                    </h4>
+                    <div class="demo-iframe" style="min-height: 350px; height: 50vh; max-height: 400px;">
+                        <div class="content">
+                            <i data-lucide="smartphone" style="width: 32px; height: 32px;"></i>
+                            <div class="mt-2">Small Size</div>
+                            <small>Phù hợp mobile</small>
+                        </div>
+                    </div>
+                    <div class="size-specs">
+                        <div class="spec-item">
+                            <span class="spec-label">Min Height:</span>
+                            <span class="spec-value">350px</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Height:</span>
+                            <span class="spec-value">50vh</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Max Height:</span>
+                            <span class="spec-value">400px</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Modal Width:</span>
+                            <span class="spec-value">1000px</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-outline-primary w-100 mt-2 copy-button" onclick="copySize('small')">
+                        <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                        Copy CSS
+                    </button>
+                </div>
+            </div>
+            
+            <div class="col-lg-6 col-xl-3">
+                <div class="size-preview">
+                    <h4>
+                        <i data-lucide="tablet"></i>
+                        Medium (Standard)
+                    </h4>
+                    <div class="demo-iframe" style="min-height: 500px; height: 65vh; max-height: 600px;">
+                        <div class="content">
+                            <i data-lucide="tablet" style="width: 32px; height: 32px;"></i>
+                            <div class="mt-2">Medium Size</div>
+                            <small>Khuyến nghị chung</small>
+                        </div>
+                    </div>
+                    <div class="size-specs">
+                        <div class="spec-item">
+                            <span class="spec-label">Min Height:</span>
+                            <span class="spec-value">500px</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Height:</span>
+                            <span class="spec-value">65vh</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Max Height:</span>
+                            <span class="spec-value">600px</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Modal Width:</span>
+                            <span class="spec-value">1200px</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-outline-primary w-100 mt-2 copy-button" onclick="copySize('medium')">
+                        <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                        Copy CSS
+                    </button>
+                </div>
+            </div>
+            
+            <div class="col-lg-6 col-xl-3">
+                <div class="size-preview">
+                    <h4>
+                        <i data-lucide="monitor"></i>
+                        Large (Desktop)
+                    </h4>
+                    <div class="demo-iframe" style="min-height: 650px; height: 75vh; max-height: 800px;">
+                        <div class="content">
+                            <i data-lucide="monitor" style="width: 32px; height: 32px;"></i>
+                            <div class="mt-2">Large Size</div>
+                            <small>Desktop lớn</small>
+                        </div>
+                    </div>
+                    <div class="size-specs">
+                        <div class="spec-item">
+                            <span class="spec-label">Min Height:</span>
+                            <span class="spec-value">650px</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Height:</span>
+                            <span class="spec-value">75vh</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Max Height:</span>
+                            <span class="spec-value">800px</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Modal Width:</span>
+                            <span class="spec-value">1400px</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-outline-primary w-100 mt-2 copy-button" onclick="copySize('large')">
+                        <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                        Copy CSS
+                    </button>
+                </div>
+            </div>
+            
+            <div class="col-lg-6 col-xl-3">
+                <div class="size-preview">
+                    <h4>
+                        <i data-lucide="tv"></i>
+                        Extra Large (4K)
+                    </h4>
+                    <div class="demo-iframe" style="min-height: 800px; height: 85vh; max-height: 1000px;">
+                        <div class="content">
+                            <i data-lucide="tv" style="width: 32px; height: 32px;"></i>
+                            <div class="mt-2">XL Size</div>
+                            <small>Màn hình lớn</small>
+                        </div>
+                    </div>
+                    <div class="size-specs">
+                        <div class="spec-item">
+                            <span class="spec-label">Min Height:</span>
+                            <span class="spec-value">800px</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Height:</span>
+                            <span class="spec-value">85vh</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Max Height:</span>
+                            <span class="spec-value">1000px</span>
+                        </div>
+                        <div class="spec-item">
+                            <span class="spec-label">Modal Width:</span>
+                            <span class="spec-value">1600px</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-outline-primary w-100 mt-2 copy-button" onclick="copySize('xl')">
+                        <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                        Copy CSS
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Responsive Guidelines -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i data-lucide="layers" style="width: 20px; height: 20px;"></i>
+                    Responsive Guidelines
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6>📱 Mobile (< 576px)</h6>
+                        <ul class="list-unstyled">
+                            <li>• Min Height: 350px</li>
+                            <li>• Height: 45vh</li>
+                            <li>• Max Height: 400px</li>
+                            <li>• Modal: Full width</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>📱 Tablet (576px - 1200px)</h6>
+                        <ul class="list-unstyled">
+                            <li>• Min Height: 500px</li>
+                            <li>• Height: 60vh</li>
+                            <li>• Max Height: 600px</li>
+                            <li>• Modal: 95% width</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>🖥️ Desktop (> 1200px)</h6>
+                        <ul class="list-unstyled">
+                            <li>• Min Height: 600px</li>
+                            <li>• Height: 75vh</li>
+                            <li>• Max Height: 800px</li>
+                            <li>• Modal: 1400px+</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Back to Dashboard -->
+        <div class="text-center mt-4">
+            <a href="cashier-dashboard.html" class="btn btn-primary btn-lg">
+                <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
+                Về Dashboard Thu ngân
+            </a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const sizeConfig = {
+            small: { minHeight: '350px', height: '50vh', maxHeight: '400px', modalWidth: '1000px' },
+            medium: { minHeight: '500px', height: '65vh', maxHeight: '600px', modalWidth: '1200px' },
+            large: { minHeight: '650px', height: '75vh', maxHeight: '800px', modalWidth: '1400px' },
+            xl: { minHeight: '800px', height: '85vh', maxHeight: '1000px', modalWidth: '1600px' }
+        };
+
+        function updateLivePreview() {
+            const sizeSelector = document.getElementById('sizeSelector');
+            const deviceSelector = document.getElementById('deviceSelector');
+            const livePreview = document.getElementById('livePreview');
+            const deviceFrame = document.getElementById('deviceFrame');
+            const deviceLabel = document.getElementById('deviceLabel');
+            const currentSize = document.getElementById('currentSize');
+            const customControls = document.getElementById('customControls');
+            const generatedCSS = document.getElementById('generatedCSS');
+
+            // Handle custom controls
+            if (sizeSelector.value === 'custom') {
+                customControls.style.display = 'block';
+                const minHeight = document.getElementById('customMinHeight').value || '500px';
+                const height = document.getElementById('customHeight').value || '65vh';
+                const maxHeight = document.getElementById('customMaxHeight').value || '600px';
+                
+                livePreview.style.minHeight = minHeight;
+                livePreview.style.height = height;
+                livePreview.style.maxHeight = maxHeight;
+                currentSize.textContent = 'Custom';
+                
+                generatedCSS.textContent = `#payos-checkout-iframe {
+    min-height: ${minHeight};
+    height: ${height};
+    max-height: ${maxHeight};
+}`;
+            } else {
+                customControls.style.display = 'none';
+                const config = sizeConfig[sizeSelector.value];
+                livePreview.style.minHeight = config.minHeight;
+                livePreview.style.height = config.height;
+                livePreview.style.maxHeight = config.maxHeight;
+                currentSize.textContent = sizeSelector.value.charAt(0).toUpperCase() + sizeSelector.value.slice(1);
+                
+                generatedCSS.textContent = `#payos-checkout-iframe {
+    min-height: ${config.minHeight};
+    height: ${config.height};
+    max-height: ${config.maxHeight};
+}`;
+            }
+
+            // Handle device frame
+            deviceFrame.className = `device-simulation ${deviceSelector.value}`;
+            deviceLabel.textContent = deviceSelector.value.charAt(0).toUpperCase() + deviceSelector.value.slice(1);
+        }
+
+        function copySize(size) {
+            const config = sizeConfig[size];
+            const cssText = `#payos-checkout-iframe {
+    min-height: ${config.minHeight};
+    height: ${config.height};
+    max-height: ${config.maxHeight};
+}
+
+.modal-xl .modal-dialog {
+    max-width: ${config.modalWidth};
+}`;
+            
+            navigator.clipboard.writeText(cssText).then(() => {
+                alert('CSS đã được copy vào clipboard!');
+            });
+        }
+
+        function copyCSSCode() {
+            const cssCode = document.getElementById('generatedCSS').textContent;
+            navigator.clipboard.writeText(cssCode).then(() => {
+                alert('CSS đã được copy vào clipboard!');
+            });
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            lucide.createIcons();
+            updateLivePreview();
+        });
+    </script>
+</body>
+</html> 
