@@ -14,39 +14,32 @@
         <div class="sidebar bg-white shadow-lg border-end" style="width: 300px;">
             <div class="p-4 border-bottom">
                 <h1 class="h3 fw-bold text-dark mb-1">Phục vụ</h1>
-                <p class="text-muted mb-0">Quản lý bàn và đơn hàng</p>
+                <p class="text-muted mb-0">Quản lý bàn và Order</p>
             </div>
             <nav class="p-3">
                 <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="location.href='../index.html'">
                     🏠 <span class="ms-2">Trang chủ</span>
-                </button>
-                <button class="nav-button nav-button-active btn w-100 text-start mb-3 p-3">
+                </button>                <button class="nav-button nav-button-active btn w-100 text-start mb-3 p-3" id="tablesManagementBtn">
                     🍽️ <span class="ms-2">Quản lý bàn</span>
                 </button>
-                <button class="nav-button btn w-100 text-start mb-3 p-3">
-                    📝 <span class="ms-2">Đơn hàng</span>
-                </button>
-                <button class="nav-button btn w-100 text-start mb-3 p-3">
-                    🍕 <span class="ms-2">Thực đơn</span>
+                <button class="nav-button btn w-100 text-start mb-3 p-3" id="ordersManagementBtn">
+                    📝 <span class="ms-2">Quản lý Order</span>
                 </button>
             </nav>
         </div>
 
         <!-- Main Content -->
-        <div class="flex-fill d-flex flex-column">
-            <!-- Header -->
+        <div class="flex-fill d-flex flex-column">            <!-- Header -->
             <div class="bg-white shadow-sm border-bottom p-4 d-flex align-items-center justify-content-between">
-                <h2 class="h4 mb-0">Quản lý bàn</h2>
+                <h2 class="h4 mb-0" id="pageTitle">Quản lý bàn</h2>
                 <div class="d-flex align-items-center">
                     <div class="me-3">
                         <small class="text-muted">Xin chào, <span class="fw-medium">Nhân viên phục vụ</span></small>
                     </div>
                     <div class="bg-secondary rounded-circle" style="width: 40px; height: 40px;"></div>
                 </div>
-            </div>
-
-            <!-- Dashboard -->
-            <div class="flex-fill p-4 bg-light overflow-auto">
+            </div>            <!-- Dashboard -->
+            <div class="flex-fill p-4 bg-light overflow-auto" id="tablesManagement">
                 <!-- Stats Cards -->
                 <div class="row g-4 mb-4">
                     <div class="col-xl-3 col-lg-6 col-md-6">
@@ -128,6 +121,160 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Orders Management -->
+            <div class="flex-fill p-4 bg-light overflow-auto d-none" id="ordersManagement">
+                <!-- Orders Stats -->
+                <div class="row g-4 mb-4">
+                    <div class="col-xl-3 col-lg-6 col-md-6">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body p-4">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <p class="text-muted mb-1 small">Chờ xác nhận</p>
+                                        <h3 class="display-6 fw-bold mb-0" id="pendingOrders">0</h3>
+                                    </div>
+                                    <div class="bg-warning bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                        <i data-lucide="clock" class="text-warning" style="width: 24px; height: 24px;"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-lg-6 col-md-6">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body p-4">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <p class="text-muted mb-1 small">Đang nấu</p>
+                                        <h3 class="display-6 fw-bold mb-0" id="cookingOrders">0</h3>
+                                    </div>
+                                    <div class="bg-info bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                        <i data-lucide="chef-hat" class="text-info" style="width: 24px; height: 24px;"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-lg-6 col-md-6">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body p-4">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <p class="text-muted mb-1 small">Sẵn sàng</p>
+                                        <h3 class="display-6 fw-bold mb-0" id="readyOrders">0</h3>
+                                    </div>
+                                    <div class="bg-success bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                        <i data-lucide="check-circle-2" class="text-success" style="width: 24px; height: 24px;"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-lg-6 col-md-6">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body p-4">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <p class="text-muted mb-1 small">Hoàn thành</p>
+                                        <h3 class="display-6 fw-bold mb-0" id="completedOrders">0</h3>
+                                    </div>
+                                    <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                        <i data-lucide="check-check" class="text-primary" style="width: 24px; height: 24px;"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Orders Filter and Actions -->
+                <div class="row g-4 mb-4">
+                    <div class="col-lg-8">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body">
+                                <div class="row g-3 align-items-center">
+                                    <div class="col-md-4">
+                                        <label class="form-label mb-1 small fw-medium">Lọc theo trạng thái</label>
+                                        <select class="form-select" id="orderStatusFilter">
+                                            <option value="all">Tất cả</option>
+                                            <option value="pending">Chờ xác nhận</option>
+                                            <option value="cooking">Đang nấu</option>
+                                            <option value="ready">Sẵn sàng</option>
+                                            <option value="completed">Hoàn thành</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label mb-1 small fw-medium">Lọc theo bàn</label>
+                                        <select class="form-select" id="orderTableFilter">
+                                            <option value="all">Tất cả bàn</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label mb-1 small fw-medium">Tìm kiếm</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">
+                                                <i data-lucide="search" style="width: 16px; height: 16px;"></i>
+                                            </span>
+                                            <input type="text" class="form-control" placeholder="Tìm order..." id="orderSearch">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body d-flex align-items-center">
+                                <button class="btn btn-primary w-100" onclick="showCreateOrderModal()">
+                                    <i data-lucide="plus" style="width: 18px; height: 18px;"></i>
+                                    Tạo Order mới
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Orders List -->
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Danh sách Order</h5>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="refreshOrders()">
+                                <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+                                Làm mới
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="px-4 py-3">Order ID</th>
+                                        <th class="py-3">Bàn</th>
+                                        <th class="py-3">Thời gian</th>
+                                        <th class="py-3">Món ăn</th>
+                                        <th class="py-3">Tổng tiền</th>
+                                        <th class="py-3">Trạng thái</th>
+                                        <th class="py-3">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ordersTableBody">
+                                    <!-- Orders will be rendered here -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="p-4 text-center d-none" id="noOrdersMessage">
+                            <div class="text-muted">
+                                <i data-lucide="clipboard-list" style="width: 48px; height: 48px;" class="mb-3 opacity-50"></i>
+                                <p class="mb-0">Chưa có order nào</p>
+                                <small>Tạo order mới để bắt đầu</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -141,7 +288,7 @@
                             <i data-lucide="utensils" class="text-white" style="width: 24px; height: 24px;"></i>
                         </div>
                         <div>
-                            <h5 class="modal-title mb-0">Tạo đơn hàng</h5>
+                            <h5 class="modal-title mb-0">Tạo Order</h5>
                             <small class="opacity-75">
                                 <i data-lucide="map-pin" style="width: 14px; height: 14px;"></i>
                                 <span id="modalTableName" class="ms-1"></span>
@@ -216,7 +363,7 @@
                             <div class="p-4 border-bottom bg-primary text-white">
                                 <h6 class="fw-bold mb-0">
                                     <i data-lucide="shopping-cart" class="me-2" style="width: 18px; height: 18px;"></i>
-                                    Đơn hàng
+                                    Order
                                     <span class="badge bg-white text-primary ms-2" id="orderItemCount">0</span>
                                 </h6>
                             </div>
@@ -239,7 +386,7 @@
                                 <div class="order-notes">
                                     <label class="form-label fw-semibold">
                                         <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
-                                        Ghi chú đơn hàng
+                                        Ghi chú Order
                                     </label>
                                     <textarea class="form-control" id="orderNotes" rows="3" 
                                               placeholder="Ghi chú đặc biệt (không cay, ít đường, v.v.)"></textarea>
@@ -276,7 +423,7 @@
                         </button>
                         <button type="button" class="btn btn-primary flex-fill" id="submitOrder" disabled>
                             <i data-lucide="check" style="width: 16px; height: 16px;"></i>
-                            Tạo đơn hàng
+                            Tạo Order
                         </button>
                     </div>
                 </div>
@@ -310,9 +457,7 @@
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- Success Modal -->
+    </div>    <!-- Success Modal -->
     <div class="modal fade" id="successModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -327,11 +472,161 @@
                     <div class="mb-3">
                         <i data-lucide="check-circle-2" class="text-success" style="width: 64px; height: 64px;"></i>
                     </div>
-                    <h6 class="fw-bold mb-2" id="successTitle">Đơn hàng đã được tạo!</h6>
-                    <p class="text-muted mb-0" id="successMessage">Đơn hàng đã được gửi đến bếp.</p>
+                    <h6 class="fw-bold mb-2" id="successTitle">Order đã được tạo!</h6>
+                    <p class="text-muted mb-0" id="successMessage">Order đã được gửi đến bếp.</p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Detail Modal -->
+    <div class="modal fade" id="orderDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-primary text-white border-0">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-white bg-opacity-20 rounded-circle p-2 me-3">
+                            <i data-lucide="clipboard-list" class="text-white" style="width: 24px; height: 24px;"></i>
+                        </div>
+                        <div>
+                            <h5 class="modal-title mb-0">Chi tiết Order</h5>
+                            <small class="opacity-75" id="orderDetailSubtitle"></small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                
+                <div class="modal-body p-0">
+                    <div class="row g-0">
+                        <!-- Order Info -->
+                        <div class="col-12">
+                            <div class="p-4 border-bottom bg-light">
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label small text-muted mb-1">Order ID</label>
+                                        <div class="fw-bold" id="detailOrderId">#ORD-001</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small text-muted mb-1">Bàn số</label>
+                                        <div class="fw-bold" id="detailTableNumber">1</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small text-muted mb-1">Thời gian tạo</label>
+                                        <div class="fw-bold" id="detailOrderTime">14:30</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small text-muted mb-1">Trạng thái</label>
+                                        <div id="detailOrderStatus">
+                                            <span class="badge bg-warning">Chờ xác nhận</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Order Items -->
+                        <div class="col-12">
+                            <div class="p-4 border-bottom">
+                                <h6 class="fw-bold mb-3 text-primary">
+                                    <i data-lucide="utensils" class="me-2" style="width: 18px; height: 18px;"></i>
+                                    Món ăn đã order
+                                </h6>
+                                <div id="detailOrderItems">
+                                    <!-- Order items will be rendered here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Order Notes -->
+                        <div class="col-12">
+                            <div class="p-4 border-bottom">
+                                <h6 class="fw-bold mb-3 text-primary">
+                                    <i data-lucide="file-text" class="me-2" style="width: 18px; height: 18px;"></i>
+                                    Ghi chú
+                                </h6>
+                                <div id="detailOrderNotes" class="text-muted">
+                                    Không có ghi chú
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Order Total -->
+                        <div class="col-12">
+                            <div class="p-4 bg-light">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>Tạm tính:</span>
+                                            <span id="detailSubtotal">0₫</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2 text-muted small">
+                                            <span>VAT (10%):</span>
+                                            <span id="detailVat">0₫</span>
+                                        </div>
+                                        <hr class="my-2">
+                                        <div class="d-flex justify-content-between fw-bold h5">
+                                            <span>Tổng cộng:</span>
+                                            <span id="detailTotal" class="text-primary">0₫</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer bg-light border-0 p-4">
+                    <div class="d-flex gap-3 w-100">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                            <i data-lucide="x" style="width: 16px; height: 16px;"></i>
+                            Đóng
+                        </button>
+                        <button type="button" class="btn btn-warning" id="editOrderBtn" onclick="editOrder()">
+                            <i data-lucide="edit" style="width: 16px; height: 16px;"></i>
+                            Chỉnh sửa
+                        </button>
+                        <button type="button" class="btn btn-success" id="updateOrderStatusBtn" onclick="updateOrderStatus()">
+                            <i data-lucide="check" style="width: 16px; height: 16px;"></i>
+                            Cập nhật trạng thái
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Order for Table Modal -->
+    <div class="modal fade" id="createOrderModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i data-lucide="plus-circle" style="width: 20px; height: 20px;"></i>
+                        Tạo Order mới
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Chọn bàn</label>
+                        <select class="form-select" id="selectTableForOrder">
+                            <option value="">-- Chọn bàn --</option>
+                        </select>
+                    </div>
+                    <div class="alert alert-info">
+                        <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+                        Sau khi chọn bàn, bạn sẽ được chuyển đến màn hình tạo order chi tiết.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-primary" onclick="proceedToCreateOrder()">
+                        <i data-lucide="arrow-right" style="width: 16px; height: 16px;"></i>
+                        Tiếp tục
+                    </button>
                 </div>
             </div>
         </div>

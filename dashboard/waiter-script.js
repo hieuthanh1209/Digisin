@@ -52,11 +52,94 @@ const menuItems = [
     { id: 28, name: 'Yaourt dâu', price: 15000, category: 'snacks', image: 'https://via.placeholder.com/150x100/FFB6C1/000000?text=Yaourt+Dâu' }
 ];
 
+// Mock data for orders
+let orders = [
+    {
+        id: 'ORD-001',
+        tableId: 2,
+        tableName: 'Bàn 2',
+        items: [
+            { id: 1, name: 'Phở bò tái', price: 60000, quantity: 2 },
+            { id: 14, name: 'Trà đá', price: 5000, quantity: 2 }
+        ],
+        notes: 'Không hành',
+        status: 'cooking',
+        createdAt: new Date(Date.now() - 30 * 60000),
+        subtotal: 130000,
+        vat: 13000,
+        total: 143000
+    },
+    {
+        id: 'ORD-002',
+        tableId: 4,
+        tableName: 'Bàn 4',
+        items: [
+            { id: 8, name: 'Cơm tấm sườn nướng', price: 40000, quantity: 1 },
+            { id: 15, name: 'Coca Cola', price: 12000, quantity: 1 }
+        ],
+        notes: '',
+        status: 'ready',
+        createdAt: new Date(Date.now() - 45 * 60000),
+        subtotal: 52000,
+        vat: 5200,
+        total: 57200
+    },
+    {
+        id: 'ORD-003',
+        tableId: 6,
+        tableName: 'Bàn 6',
+        items: [
+            { id: 3, name: 'Bún chả Hà Nội', price: 45000, quantity: 3 },
+            { id: 9, name: 'Cơm rang thập cẩm', price: 35000, quantity: 2 },
+            { id: 16, name: 'Pepsi', price: 12000, quantity: 3 }
+        ],
+        notes: 'Ít cay, không rau mùi',
+        status: 'pending',
+        createdAt: new Date(Date.now() - 10 * 60000),
+        subtotal: 241000,
+        vat: 24100,
+        total: 265100
+    },
+    {
+        id: 'ORD-004',
+        tableId: 9,
+        tableName: 'Bàn 9',
+        items: [
+            { id: 12, name: 'Cơm bò lúc lắc', price: 55000, quantity: 1 },
+            { id: 20, name: 'Cà phê sữa', price: 18000, quantity: 1 }
+        ],
+        notes: '',
+        status: 'completed',
+        createdAt: new Date(Date.now() - 75 * 60000),
+        subtotal: 73000,
+        vat: 7300,
+        total: 80300
+    },
+    {
+        id: 'ORD-005',
+        tableId: 12,
+        tableName: 'Bàn 12',
+        items: [
+            { id: 5, name: 'Mì Quảng', price: 52000, quantity: 2 },
+            { id: 22, name: 'Trà sữa trân châu', price: 30000, quantity: 2 }
+        ],
+        notes: 'Ít đường',
+        status: 'cooking',
+        createdAt: new Date(Date.now() - 20 * 60000),
+        subtotal: 164000,
+        vat: 16400,
+        total: 180400
+    }
+];
+
 let currentTable = null;
 let currentOrder = [];
 let selectedCategory = 'all';
 let selectedTableId = null;
 let selectedTableName = '';
+
+let currentViewOrder = null;
+let currentSection = 'tables'; // 'tables' or 'orders'
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
@@ -104,6 +187,35 @@ document.addEventListener('DOMContentLoaded', function() {
     const submitBtn = document.getElementById('submitOrder');
     if (submitBtn) {
         submitBtn.addEventListener('click', submitOrder);
+    }
+    
+    // Navigation event listeners
+    const tablesBtn = document.getElementById('tablesManagementBtn');
+    const ordersBtn = document.getElementById('ordersManagementBtn');
+    
+    if (tablesBtn) {
+        tablesBtn.addEventListener('click', switchToTablesManagement);
+    }
+    
+    if (ordersBtn) {
+        ordersBtn.addEventListener('click', switchToOrdersManagement);
+    }
+    
+    // Filter event listeners
+    const statusFilter = document.getElementById('orderStatusFilter');
+    const tableFilter = document.getElementById('orderTableFilter');
+    const searchInput = document.getElementById('orderSearch');
+    
+    if (statusFilter) {
+        statusFilter.addEventListener('change', renderOrders);
+    }
+    
+    if (tableFilter) {
+        tableFilter.addEventListener('change', renderOrders);
+    }
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', renderOrders);
     }
 });
 
@@ -534,45 +646,352 @@ function callWaiter() {
     currentTable = null;
 }
 
-function showSuccess(title, message) {
-    showSuccessMessage(title, message);
+function switchToTablesManagement() {
+    currentSection = 'tables';
+    document.getElementById('tablesManagement').classList.remove('d-none');
+    document.getElementById('ordersManagement').classList.add('d-none');
+    document.getElementById('pageTitle').textContent = 'Quản lý bàn';
+    
+    // Update nav buttons
+    document.getElementById('tablesManagementBtn').classList.add('nav-button-active');
+    document.getElementById('ordersManagementBtn').classList.remove('nav-button-active');
 }
 
-// Simulate real-time table updates
-setInterval(() => {
-    // Randomly update occupied tables (simulate customer activity)
-    tables.forEach((table, index) => {
-        if (table.status === 'occupied') {
-            // 10% chance to finish and need cleaning
-            if (Math.random() < 0.1) {
-                tables[index].status = 'cleaning';
-                tables[index].startTime = null;
-            }
-        } else if (table.status === 'cleaning') {
-            // 15% chance to get cleaned automatically
-            if (Math.random() < 0.15) {
-                tables[index].status = 'empty';
-                tables[index].orderTotal = 0;
-                tables[index].customers = 0;
-            }
-        } else if (table.status === 'empty') {
-            // 5% chance to get new customers
-            if (Math.random() < 0.05) {
-                tables[index].status = 'occupied';
-                tables[index].startTime = new Date();
-                tables[index].customers = Math.floor(Math.random() * 6) + 1;
-                tables[index].orderTotal = Math.floor(Math.random() * 300000) + 50000;
+function switchToOrdersManagement() {
+    currentSection = 'orders';
+    document.getElementById('tablesManagement').classList.add('d-none');
+    document.getElementById('ordersManagement').classList.remove('d-none');
+    document.getElementById('pageTitle').textContent = 'Quản lý Order';
+    
+    // Update nav buttons
+    document.getElementById('tablesManagementBtn').classList.remove('nav-button-active');
+    document.getElementById('ordersManagementBtn').classList.add('nav-button-active');
+    
+    // Initialize orders data
+    updateOrdersStats();
+    renderOrders();
+    populateTableFilter();
+}
+
+function updateOrdersStats() {
+    const pendingCount = orders.filter(o => o.status === 'pending').length;
+    const cookingCount = orders.filter(o => o.status === 'cooking').length;
+    const readyCount = orders.filter(o => o.status === 'ready').length;
+    const completedCount = orders.filter(o => o.status === 'completed').length;
+    
+    document.getElementById('pendingOrders').textContent = pendingCount;
+    document.getElementById('cookingOrders').textContent = cookingCount;
+    document.getElementById('readyOrders').textContent = readyCount;
+    document.getElementById('completedOrders').textContent = completedCount;
+}
+
+function getStatusBadge(status) {
+    const statusConfig = {
+        pending: { class: 'bg-warning', text: 'Chờ xác nhận' },
+        cooking: { class: 'bg-info', text: 'Đang nấu' },
+        ready: { class: 'bg-success', text: 'Sẵn sàng' },
+        completed: { class: 'bg-primary', text: 'Hoàn thành' }
+    };
+    
+    const config = statusConfig[status] || { class: 'bg-secondary', text: 'Không xác định' };
+    return `<span class="badge ${config.class}">${config.text}</span>`;
+}
+
+function renderOrders() {
+    const tbody = document.getElementById('ordersTableBody');
+    const noOrdersMessage = document.getElementById('noOrdersMessage');
+    
+    // Apply filters
+    let filteredOrders = [...orders];
+    
+    const statusFilter = document.getElementById('orderStatusFilter')?.value;
+    const tableFilter = document.getElementById('orderTableFilter')?.value;
+    const searchTerm = document.getElementById('orderSearch')?.value?.toLowerCase();
+    
+    if (statusFilter && statusFilter !== 'all') {
+        filteredOrders = filteredOrders.filter(order => order.status === statusFilter);
+    }
+    
+    if (tableFilter && tableFilter !== 'all') {
+        filteredOrders = filteredOrders.filter(order => order.tableId.toString() === tableFilter);
+    }
+    
+    if (searchTerm) {
+        filteredOrders = filteredOrders.filter(order => 
+            order.id.toLowerCase().includes(searchTerm) ||
+            order.tableName.toLowerCase().includes(searchTerm) ||
+            order.items.some(item => item.name.toLowerCase().includes(searchTerm))
+        );
+    }
+    
+    if (filteredOrders.length === 0) {
+        tbody.innerHTML = '';
+        noOrdersMessage.classList.remove('d-none');
+        return;
+    }
+    
+    noOrdersMessage.classList.add('d-none');
+    
+    tbody.innerHTML = filteredOrders.map(order => {
+        const itemsPreview = order.items.slice(0, 2).map(item => 
+            `${item.name} (${item.quantity})`
+        ).join(', ');
+        const remainingItems = order.items.length > 2 ? ` và ${order.items.length - 2} món khác` : '';
+        
+        return `
+            <tr>
+                <td class="px-4 py-3">
+                    <div class="fw-bold text-primary">${order.id}</div>
+                </td>
+                <td class="py-3">
+                    <div class="fw-medium">${order.tableName}</div>
+                </td>
+                <td class="py-3">
+                    <div>${order.createdAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
+                    <small class="text-muted">${order.createdAt.toLocaleDateString('vi-VN')}</small>
+                </td>
+                <td class="py-3">
+                    <div class="small">${itemsPreview}${remainingItems}</div>
+                    <small class="text-muted">${order.items.length} món</small>
+                </td>
+                <td class="py-3">
+                    <div class="fw-bold">${formatCurrency(order.total)}</div>
+                </td>
+                <td class="py-3">
+                    ${getStatusBadge(order.status)}
+                </td>
+                <td class="py-3">
+                    <div class="d-flex gap-1">
+                        <button class="btn btn-outline-primary btn-sm" onclick="viewOrderDetail('${order.id}')" title="Xem chi tiết">
+                            <i data-lucide="eye" style="width: 14px; height: 14px;"></i>
+                        </button>
+                        ${order.status !== 'completed' ? `
+                            <button class="btn btn-outline-warning btn-sm" onclick="editOrderInline('${order.id}')" title="Chỉnh sửa">
+                                <i data-lucide="edit" style="width: 14px; height: 14px;"></i>
+                            </button>
+                        ` : ''}
+                        ${order.status === 'ready' ? `
+                            <button class="btn btn-outline-success btn-sm" onclick="markOrderCompleted('${order.id}')" title="Hoàn thành">
+                                <i data-lucide="check" style="width: 14px; height: 14px;"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    // Re-initialize Lucide icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+function populateTableFilter() {
+    const tableFilter = document.getElementById('orderTableFilter');
+    if (!tableFilter) return;
+    
+    // Clear existing options except "Tất cả bàn"
+    tableFilter.innerHTML = '<option value="all">Tất cả bàn</option>';
+    
+    // Add table options
+    tables.forEach(table => {
+        const option = document.createElement('option');
+        option.value = table.id;
+        option.textContent = `Bàn ${table.id}`;
+        tableFilter.appendChild(option);
+    });
+}
+
+function viewOrderDetail(orderId) {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+    
+    currentViewOrder = order;
+    
+    // Populate modal with order details
+    document.getElementById('detailOrderId').textContent = order.id;
+    document.getElementById('detailTableNumber').textContent = order.tableName;
+    document.getElementById('detailOrderTime').textContent = order.createdAt.toLocaleString('vi-VN');
+    document.getElementById('detailOrderStatus').innerHTML = getStatusBadge(order.status);
+    document.getElementById('detailOrderNotes').textContent = order.notes || 'Không có ghi chú';
+    document.getElementById('detailSubtotal').textContent = formatCurrency(order.subtotal);
+    document.getElementById('detailVat').textContent = formatCurrency(order.vat);
+    document.getElementById('detailTotal').textContent = formatCurrency(order.total);
+    
+    // Render order items
+    const itemsContainer = document.getElementById('detailOrderItems');
+    itemsContainer.innerHTML = order.items.map(item => `
+        <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+            <div>
+                <div class="fw-medium">${item.name}</div>
+                <small class="text-muted">${formatCurrency(item.price)} x ${item.quantity}</small>
+            </div>
+            <div class="fw-bold">${formatCurrency(item.price * item.quantity)}</div>
+        </div>
+    `).join('');
+    
+    // Update modal buttons based on status
+    const editBtn = document.getElementById('editOrderBtn');
+    const updateStatusBtn = document.getElementById('updateOrderStatusBtn');
+    
+    if (order.status === 'completed') {
+        editBtn.style.display = 'none';
+        updateStatusBtn.style.display = 'none';
+    } else {
+        editBtn.style.display = 'inline-flex';
+        updateStatusBtn.style.display = 'inline-flex';
+        
+        // Update status button text based on current status
+        if (order.status === 'pending') {
+            updateStatusBtn.innerHTML = '<i data-lucide="check" style="width: 16px; height: 16px;"></i> Xác nhận';
+        } else if (order.status === 'cooking') {
+            updateStatusBtn.innerHTML = '<i data-lucide="check" style="width: 16px; height: 16px;"></i> Sẵn sàng';
+        } else if (order.status === 'ready') {
+            updateStatusBtn.innerHTML = '<i data-lucide="check" style="width: 16px; height: 16px;"></i> Hoàn thành';
+        }
+    }
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('orderDetailModal'));
+    modal.show();
+}
+
+function editOrder() {
+    if (!currentViewOrder) return;
+    
+    // Close detail modal
+    const detailModal = bootstrap.Modal.getInstance(document.getElementById('orderDetailModal'));
+    detailModal.hide();
+    
+    // Set up order modal for editing
+    selectedTableId = currentViewOrder.tableId;
+    selectedTableName = currentViewOrder.tableName;
+    currentOrder = [...currentViewOrder.items];
+    
+    // Update modal title
+    document.getElementById('modalTableName').textContent = selectedTableName;
+    
+    // Update order summary
+    updateOrderSummary();
+    
+    // Show order modal
+    const orderModal = new bootstrap.Modal(document.getElementById('orderModal'));
+    orderModal.show();
+}
+
+function updateOrderStatus() {
+    if (!currentViewOrder) return;
+    
+    const order = orders.find(o => o.id === currentViewOrder.id);
+    if (!order) return;
+    
+    // Progress status
+    const statusFlow = ['pending', 'cooking', 'ready', 'completed'];
+    const currentIndex = statusFlow.indexOf(order.status);
+    
+    if (currentIndex < statusFlow.length - 1) {
+        order.status = statusFlow[currentIndex + 1];
+          // Update table status if order is completed
+        if (order.status === 'completed') {
+            const table = tables.find(t => t.id === order.tableId);
+            if (table) {
+                table.status = 'cleaning';
             }
         }
-    });
+        
+        // Refresh data
+        updateOrdersStats();
+        renderOrders();
+        updateStats();
+        renderTables();
+        
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('orderDetailModal'));
+        modal.hide();
+        
+        // Show success message
+        showSuccess('Trạng thái đã được cập nhật!', `Order ${order.id} đã chuyển sang trạng thái mới.`);
+    }
+}
+
+function editOrderInline(orderId) {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
     
+    viewOrderDetail(orderId);
+}
+
+function markOrderCompleted(orderId) {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+    
+    order.status = 'completed';
+    
+    // Update table status
+    const table = tables.find(t => t.id === order.tableId);
+    if (table) {
+        table.status = 'cleaning';
+    }
+    
+    // Refresh data
+    updateOrdersStats();
+    renderOrders();
     updateStats();
     renderTables();
-}, 60000); // Update every minute 
+    
+    showSuccess('Order đã hoàn thành!', `Order ${order.id} đã được đánh dấu hoàn thành.`);
+}
 
-function filterMenuItems(category) {
-    selectedCategory = category;
-    renderMenuItems();
+function showCreateOrderModal() {
+    // Populate table select with available tables
+    const tableSelect = document.getElementById('selectTableForOrder');
+    tableSelect.innerHTML = '<option value="">-- Chọn bàn --</option>';
+    
+    tables.forEach(table => {
+        const option = document.createElement('option');
+        option.value = table.id;
+        option.textContent = `Bàn ${table.id} (${table.status === 'empty' ? 'Trống' : table.status === 'occupied' ? 'Đang phục vụ' : 'Cần dọn'})`;
+        tableSelect.appendChild(option);
+    });
+    
+    const modal = new bootstrap.Modal(document.getElementById('createOrderModal'));
+    modal.show();
+}
+
+function proceedToCreateOrder() {
+    const tableSelect = document.getElementById('selectTableForOrder');
+    const selectedTableId = parseInt(tableSelect.value);
+    
+    if (!selectedTableId) {
+        alert('Vui lòng chọn bàn');
+        return;
+    }
+    
+    // Close create order modal
+    const createModal = bootstrap.Modal.getInstance(document.getElementById('createOrderModal'));
+    createModal.hide();
+    
+    // Switch to table management and open order modal
+    switchToTablesManagement();
+    
+    setTimeout(() => {
+        openOrderModal(selectedTableId);
+    }, 300);
+}
+
+function refreshOrders() {
+    updateOrdersStats();
+    renderOrders();
+    showSuccess('Đã làm mới!', 'Danh sách order đã được cập nhật.');
+}
+
+function showSuccess(title, message) {
+    document.getElementById('successTitle').textContent = title;
+    document.getElementById('successMessage').textContent = message;
+    
+    const modal = new bootstrap.Modal(document.getElementById('successModal'));
+    modal.show();
 }
 
 // Search functionality
@@ -644,4 +1063,4 @@ function renderFilteredMenuItems(items) {
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
-} 
+}
