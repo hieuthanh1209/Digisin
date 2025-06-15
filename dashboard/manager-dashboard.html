@@ -40,6 +40,9 @@
                 <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="showTab('inventory')">
                     📦 <span class="ms-2">Quản lý kho</span>
                 </button>
+                <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="showTab('finance')">
+                    💰 <span class="ms-2">Quản lý thu chi</span>
+                </button>
             </nav>
         </div>
 
@@ -409,6 +412,131 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Finance Tab -->
+                <div id="finance-tab" class="tab-content">
+                    <div class="row">
+                        <!-- Finance Summary -->
+                        <div class="col-12 mb-4">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center justify-content-between mb-4">
+                                        <h4 class="card-title mb-0">Tổng quan thu chi</h4>
+                                        <div>
+                                            <button class="btn btn-sm btn-outline-secondary me-2" id="refreshFinanceBtn">
+                                                <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+                                                Cập nhật
+                                            </button>
+                                            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#financeTransactionModal">
+                                                <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                                                Thêm phiếu thu/chi
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row g-4 mb-4">
+                                        <div class="col-lg-3 col-md-6">
+                                            <div class="bg-light p-3 rounded-3">
+                                                <p class="text-muted mb-1 small">Tổng thu (tháng)</p>
+                                                <h4 class="fw-bold mb-0" id="monthlyIncome">0₫</h4>
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-3 col-md-6">
+                                            <div class="bg-light p-3 rounded-3">
+                                                <p class="text-muted mb-1 small">Tổng chi (tháng)</p>
+                                                <h4 class="fw-bold mb-0" id="monthlyExpense">0₫</h4>
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-3 col-md-6">
+                                            <div class="bg-light p-3 rounded-3">
+                                                <p class="text-muted mb-1 small">Lợi nhuận (tháng)</p>
+                                                <h4 class="fw-bold mb-0" id="monthlyProfit">0₫</h4>
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-3 col-md-6">
+                                            <div class="bg-light p-3 rounded-3">
+                                                <p class="text-muted mb-1 small">Lợi nhuận (năm)</p>
+                                                <h4 class="fw-bold mb-0" id="yearlyProfit">0₫</h4>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Filters -->
+                                    <div class="card mb-4">
+                                        <div class="card-body">
+                                            <div class="row g-3">
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Từ ngày</label>
+                                                    <input type="date" class="form-control" id="financeStartDate">
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Đến ngày</label>
+                                                    <input type="date" class="form-control" id="financeEndDate">
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Loại phiếu</label>
+                                                    <select class="form-select" id="financeType">
+                                                        <option value="all">Tất cả</option>
+                                                        <option value="income">Thu</option>
+                                                        <option value="expense">Chi</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Danh mục</label>
+                                                    <select class="form-select" id="financeCategory">
+                                                        <option value="all">Tất cả</option>
+                                                        <option value="sales">Doanh thu bán hàng</option>
+                                                        <option value="inventory">Nhập hàng</option>
+                                                        <option value="salary">Lương nhân viên</option>
+                                                        <option value="utilities">Điện nước, tiện ích</option>
+                                                        <option value="rent">Tiền thuê mặt bằng</option>
+                                                        <option value="other">Khác</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-12">
+                                                    <button class="btn btn-primary" id="filterFinanceBtn">
+                                                        <i data-lucide="filter" style="width: 16px; height: 16px;"></i>
+                                                        Lọc dữ liệu
+                                                    </button>
+                                                    <button class="btn btn-outline-secondary ms-2" id="exportFinanceBtn">
+                                                        <i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                                                        Xuất Excel
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Finance Transactions Table -->
+                                    <div class="table-responsive">
+                                        <table class="table table-hover table-striped">
+                                            <thead>
+                                                <tr>
+                                                    <th>#</th>
+                                                    <th>Mã phiếu</th>
+                                                    <th>Ngày</th>
+                                                    <th>Loại</th>
+                                                    <th>Danh mục</th>
+                                                    <th>Mô tả</th>
+                                                    <th>Số tiền</th>
+                                                    <th>Ghi chú</th>
+                                                    <th>Thao tác</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="financeTableBody">
+                                                <!-- Finance data will be rendered here -->
+                                            </tbody>
+                                        </table>
+                                        <div id="financeEmptyState" class="text-center p-4 d-none">
+                                            <img src="https://cdn-icons-png.flaticon.com/512/2855/2855027.png" alt="No data" style="width: 80px; height: 80px; opacity: 0.3;">
+                                            <p class="text-muted mt-3">Không có dữ liệu thu chi nào trong khoảng thời gian này</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -511,10 +639,17 @@
                             <div class="col-md-6">
                                 <label class="form-label">Hình ảnh URL</label>
                                 <input type="url" class="form-control" id="menuImage">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Nguyên liệu</label>
-                                <textarea class="form-control" id="menuIngredients" rows="3" placeholder="Nhập các nguyên liệu, cách nhau bằng dấu phẩy"></textarea>
+                            </div>                            <div class="col-12">
+                                <label class="form-label">Nguyên liệu và định lượng</label>
+                                <div class="mb-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addIngredientRow()">
+                                        <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Thêm nguyên liệu
+                                    </button>
+                                </div>
+                                <div id="ingredientsList" class="mb-2">
+                                    <!-- Ingredient rows will be added here -->
+                                </div>
+                                <div class="text-muted small">Chọn nguyên liệu và nhập định lượng cần thiết cho món ăn này</div>
                             </div>
                         </div>
                     </form>
@@ -578,6 +713,77 @@
         </div>
     </div>
 
+    <!-- Finance Transaction Modal -->
+    <div class="modal fade" id="financeTransactionModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="financeModalTitle">Thêm phiếu thu/chi mới</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="financeForm">
+                        <input type="hidden" id="editFinanceId">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Mã phiếu</label>
+                                <input type="text" class="form-control" id="financeCode" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Ngày</label>
+                                <input type="date" class="form-control" id="financeDate" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Loại phiếu</label>
+                                <select class="form-select" id="financeTypeInput" required>
+                                    <option value="">Chọn loại phiếu</option>
+                                    <option value="income">Thu</option>
+                                    <option value="expense">Chi</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Danh mục</label>
+                                <select class="form-select" id="financeCategoryInput" required>
+                                    <option value="">Chọn danh mục</option>
+                                    <option value="sales">Doanh thu bán hàng</option>
+                                    <option value="inventory">Nhập hàng</option>
+                                    <option value="salary">Lương nhân viên</option>
+                                    <option value="utilities">Điện nước, tiện ích</option>
+                                    <option value="rent">Tiền thuê mặt bằng</option>
+                                    <option value="other">Khác</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Mô tả</label>
+                                <input type="text" class="form-control" id="financeDescription" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Số tiền (VNĐ)</label>
+                                <input type="number" class="form-control" id="financeAmount" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Phương thức thanh toán</label>
+                                <select class="form-select" id="financePaymentMethod">
+                                    <option value="cash">Tiền mặt</option>
+                                    <option value="transfer">Chuyển khoản</option>
+                                    <option value="card">Thẻ</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Ghi chú</label>
+                                <textarea class="form-control" id="financeNote" rows="3"></textarea>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-primary" onclick="saveFinanceTransaction()">Lưu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div class="position-fixed top-0 end-0 p-3" style="z-index: 9999;">
         <div id="toastContainer"></div>
@@ -586,4 +792,4 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="manager-script.js"></script>
 </body>
-</html> 
+</html>
