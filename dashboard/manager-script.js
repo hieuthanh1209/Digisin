@@ -1616,16 +1616,21 @@ function exportFinanceToExcel() {
   // Create worksheet
   const ws = XLSX.utils.json_to_sheet(excelData);
 
-  // Format header
-  const range = XLSX.utils.decode_range(ws["!ref"]);
-  const headerStyle = {
-    font: { bold: true },
-    alignment: { horizontal: "center" },
-  };
+  // Format header  // Nếu không có dữ liệu, tránh xử lý style
+  if (ws["!ref"]) {
+    const range = XLSX.utils.decode_range(ws["!ref"]);
 
-  for (let col = range.s.c; col <= range.e.c; col++) {
-    const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
-    ws[cellAddress].s = headerStyle;
+    // SheetJS style cần plugin thêm để hoạt động đầy đủ, tạm bỏ qua style
+    // Nhưng cố gắng format header với dữ liệu hiện có
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+      // Kiểm tra đối tượng tồn tại trước khi gán style
+      if (ws[cellAddress]) {
+        // Gán một đối tượng trống để không gặp lỗi
+        // Style sẽ không hoạt động trong phiên bản cơ bản của SheetJS
+        if (!ws[cellAddress].s) ws[cellAddress].s = {};
+      }
+    }
   }
 
   // Create workbook
