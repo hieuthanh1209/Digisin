@@ -48,6 +48,60 @@ body {
     color: #6b7280;
 }
 
+.mx-auto {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.mr-2 {
+    margin-right: 0.5rem;
+}
+
+.mb-2 {
+    margin-bottom: 0.5rem;
+}
+
+.p-2 {
+    padding: 0.5rem;
+}
+
+.p-4 {
+    padding: 1rem;
+}
+
+.rounded {
+    border-radius: 0.25rem;
+}
+
+.rounded-b-lg {
+    border-bottom-left-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
+.border {
+    border: 1px solid #e5e7eb;
+}
+
+.bg-white {
+    background-color: white;
+}
+
+.bg-gray-50 {
+    background-color: #f9fafb;
+}
+
+.text-red-500 {
+    color: #ef4444;
+}
+
+.text-blue-600 {
+    color: #2563eb;
+}
+
+.text-xs {
+    font-size: 0.75rem;
+}
+
 /* Card Styles */
 .card {
     width: 400px;
@@ -93,6 +147,10 @@ body {
 
 .gap-2 {
     gap: 0.5rem;
+}
+
+.grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 /* Tabs Component */
@@ -232,4 +290,4 @@ body {
         border-right: none;
         border-bottom: 1px solid #e5e7eb;
     }
-} 
+}

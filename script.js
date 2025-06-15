@@ -1,44 +1,67 @@
-document.addEventListener('DOMContentLoaded', function() {
-    // Get DOM elements
-    const loginForm = document.getElementById('loginForm');
-    const tabTriggers = document.querySelectorAll('.tab-trigger');
-    const tabContents = document.querySelectorAll('.tab-content');
-    let currentRole = 'waiter';
+document.addEventListener("DOMContentLoaded", function () {
+  // Get DOM elements
+  const loginForm = document.getElementById("loginForm");
+  const loginError = document.getElementById("loginError");
+  // Demo user accounts with roles
+  const users = {
+    // Thu ngân
+    "thanhhieu@gmail.com": { password: "123456", role: "cashier" },
+    "tiendung@yahoo.com": { password: "56789", role: "cashier" },
 
-    // Handle tab switching
-    tabTriggers.forEach(trigger => {
-        trigger.addEventListener('click', () => {
-            // Remove active class from all triggers and contents
-            tabTriggers.forEach(t => t.classList.remove('active'));
-            tabContents.forEach(c => c.classList.remove('active'));
+    // Phục vụ
+    "ngochoa@gmail.com": { password: "123456", role: "waiter" },
+    "thuytien@yahoo.com": { password: "56789", role: "waiter" },
 
-            // Add active class to clicked trigger and corresponding content
-            trigger.classList.add('active');
-            currentRole = trigger.dataset.role;
-            document.getElementById(`${currentRole}Content`).classList.add('active');
-        });
-    });
+    // Đầu bếp
+    "minhtri@gmail.com": { password: "123456", role: "chef" },
+    "vietanh@yahoo.com": { password: "56789", role: "chef" },
 
-    // Handle form submission
-    loginForm.addEventListener('submit', function(e) {
-        e.preventDefault();
+    // Quản lý
+    "quocminh@gmail.com": { password: "123456", role: "manager" },
+    "thanhtrung@yahoo.com": { password: "56789", role: "manager" },
+  };
 
-        const username = document.getElementById('username').value;
-        const password = document.getElementById('password').value;
+  // Handle form submission
+  loginForm.addEventListener("submit", function (e) {
+    e.preventDefault();
 
-        // Basic validation
-        if (!username || !password) {
-            alert('Vui lòng nhập đầy đủ thông tin đăng nhập');
-            return;
-        }
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value;
 
-        // In a real application, you would validate credentials against a backend
-        // For demo purposes, we'll use some basic checks
-        if (username === currentRole && password === 'password') {
-            // Redirect to appropriate dashboard based on role
-            window.location.href = `./dashboard/${currentRole}-dashboard.html`;
-        } else {
-            alert('Thông tin đăng nhập không chính xác');
-        }
-    });
-}); 
+    // Hide previous error message
+    loginError.style.display = "none";
+
+    // Basic validation
+    if (!username || !password) {
+      loginError.textContent = "Vui lòng nhập đầy đủ thông tin đăng nhập";
+      loginError.style.display = "block";
+      return;
+    }
+
+    // Check if user exists
+    if (users[username] && users[username].password === password) {
+      // Get user role
+      const userRole = users[username].role;
+
+      // Store login info if "remember me" is checked
+      if (document.getElementById("remember").checked) {
+        localStorage.setItem("restaurantUser", username);
+        // In a real app, you would use a more secure method for authentication
+      }
+
+      // Redirect to appropriate dashboard based on role
+      window.location.href = `./dashboard/${userRole}-dashboard.html`;
+    } else {
+      // Show error message
+      loginError.textContent = "Tên đăng nhập hoặc mật khẩu không chính xác";
+      loginError.style.display = "block";
+    }
+  });
+
+  // Check for saved login
+  const savedUser = localStorage.getItem("restaurantUser");
+  if (savedUser) {
+    document.getElementById("username").value = savedUser;
+    document.getElementById("remember").checked = true;
+  }
+});

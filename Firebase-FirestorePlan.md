@@ -4,6 +4,23 @@
 
 Tài liệu này trình bày phương án tổ chức cơ sở dữ liệu trên Firebase Firestore cho hệ thống quản lý nhà hàng. Firestore là cơ sở dữ liệu NoSQL dựa trên tài liệu (document) và bộ sưu tập (collection) thay vì bảng và quan hệ như cơ sở dữ liệu quan hệ truyền thống.
 
+### 1.1. Tài khoản demo cho mục đích thử nghiệm
+
+Hệ thống được thiết lập với các tài khoản demo sau để phục vụ mục đích thử nghiệm:
+
+| Vai trò      | Email                | Mật khẩu | Phân quyền                                     |
+| ------------ | -------------------- | -------- | ---------------------------------------------- |
+| **Thu ngân** | thanhhieu@gmail.com  | 123456   | Quản lý đơn hàng, thanh toán, xuất hóa đơn     |
+|              | tiendung@yahoo.com   | 56789    |                                                |
+| **Phục vụ**  | ngochoa@gmail.com    | 123456   | Xem bàn trống, nhận order, cập nhật trạng thái |
+|              | thuytien@yahoo.com   | 56789    |                                                |
+| **Đầu bếp**  | minhtri@gmail.com    | 123456   | Nhận order, cập nhật trạng thái nấu            |
+|              | vietanh@yahoo.com    | 56789    |                                                |
+| **Quản lý**  | quocminh@gmail.com   | 123456   | Toàn quyền trên hệ thống                       |
+|              | thanhtrung@yahoo.com | 56789    |                                                |
+
+> Lưu ý: Các tài khoản này chỉ sử dụng cho mục đích phát triển và thử nghiệm. Trong môi trường sản xuất, cần thiết lập hệ thống xác thực và phân quyền chặt chẽ hơn.
+
 ## 2. Cấu trúc cơ sở dữ liệu
 
 ### 2.1. Collection `users` - Người dùng hệ thống
@@ -285,10 +302,120 @@ Cần tạo composite index cho các truy vấn phức tạp:
 
 Thiết lập quy tắc bảo mật chi tiết theo vai trò:
 
-```
-match /users/{userId} {
-  allow read: if request.auth != null;
-  allow write: if request.auth.uid == userId || request.auth.token.role == 'manager';
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Hàm kiểm tra xem người dùng đã đăng nhập chưa
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Hàm kiểm tra role của người dùng
+    function hasRole(role) {
+      return isSignedIn() && request.auth.token.role == role;
+    }
+
+    // Hàm kiểm tra xem người dùng có phải là quản lý không
+    function isManager() {
+      return hasRole('manager');
+    }
+
+    // Hàm kiểm tra xem người dùng có phải là chủ của dữ liệu không
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Quy tắc cho collection users
+    match /users/{userId} {
+      // Ai cũng có thể đọc thông tin cơ bản của users
+      allow read: if isSignedIn();
+      // Chỉ owner hoặc manager mới có thể sửa thông tin user
+      allow write: if isOwner(userId) || isManager();
+    }
+
+    // Quy tắc cho collection menu_items
+    match /menu_items/{itemId} {
+      // Ai cũng có thể xem menu
+      allow read: if isSignedIn();
+      // Chỉ manager mới có thể thêm/sửa/xóa món ăn
+      allow write: if isManager();
+    }
+
+    // Quy tắc cho collection orders
+    match /orders/{orderId} {
+      // Tất cả nhân viên đều có thể xem orders
+      allow read: if isSignedIn();
+      // Waiter có thể tạo và cập nhật order
+      allow create, update: if hasRole('waiter') || hasRole('cashier') || isManager();
+      // Cashier có thể cập nhật trạng thái thanh toán
+      allow update: if hasRole('cashier') &&
+                     (request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['paymentStatus', 'paymentMethod', 'updatedAt']));
+      // Chef có thể cập nhật trạng thái các món ăn
+      allow update: if hasRole('chef') &&
+                     (request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['items', 'status', 'updatedAt']));
+      // Chỉ manager mới có thể xóa đơn hàng
+      allow delete: if isManager();
+    }
+
+    // Quy tắc cho collection transactions
+    match /transactions/{transId} {
+      // Cashier và manager có thể đọc transactions
+      allow read: if hasRole('cashier') || isManager();
+      // Cashier chỉ có thể thêm/cập nhật giao dịch thu
+      allow create, update: if hasRole('cashier') && request.resource.data.type == 'income';
+      // Manager có thể thêm/sửa/xóa tất cả giao dịch
+      allow write: if isManager();
+    }
+
+    // Quy tắc cho collection inventory
+    match /inventory/{ingredientId} {
+      // Chef và manager có thể xem kho
+      allow read: if hasRole('chef') || isManager();
+      // Chỉ manager mới có thể thêm/sửa/xóa nguyên liệu
+      allow write: if isManager();
+    }
+
+    // Quy tắc cho collection tables
+    match /tables/{tableId} {
+      // Tất cả nhân viên đều có thể xem bàn
+      allow read: if isSignedIn();
+      // Waiter và cashier có thể cập nhật trạng thái bàn
+      allow update: if hasRole('waiter') || hasRole('cashier') || isManager();
+      // Chỉ manager mới có thể tạo/xóa bàn
+      allow create, delete: if isManager();
+    }
+
+    // Quy tắc cho collection reports
+    match /reports/{reportId} {
+      // Chỉ manager mới có thể đọc/ghi báo cáo
+      allow read, write: if isManager();
+    }
+
+    // Quy tắc cho collection settings
+    match /settings/{docId} {
+      // Tất cả nhân viên đều có thể đọc cấu hình
+      allow read: if isSignedIn();
+      // Chỉ manager mới có thể thay đổi cấu hình
+      allow write: if isManager();
+    }
+
+    // Quy tắc cho collection notifications
+    match /notifications/{notificationId} {
+      // Người dùng chỉ có thể đọc thông báo dành cho họ
+      allow read: if isSignedIn() &&
+                   (resource.data.targetUsers.hasAny([request.auth.uid]) ||
+                    resource.data.targetRoles.hasAny([request.auth.token.role]));
+      // Chỉ manager mới có thể tạo thông báo
+      allow create: if isManager();
+      // Người dùng có thể cập nhật trạng thái đã đọc của họ
+      allow update: if isSignedIn() &&
+                     request.resource.data.diff(resource.data).affectedKeys()
+                     .hasOnly(['read.' + request.auth.uid]);
+    }
+  }
 }
 ```
 
@@ -356,13 +483,47 @@ Sử dụng cho các tác vụ tự động:
 2. Kích hoạt Firestore Database
 3. Thiết lập Authentication (Email/Password, Google)
 
-### 6.2. Thiết lập cấu hình
+### 6.2. Thiết lập Authentication
+
+1. Kích hoạt phương thức đăng nhập Email/Password trong Firebase Authentication
+2. Tạo tài khoản người dùng demo như đã định nghĩa ở phần 1.1
+3. Sử dụng Firebase Admin SDK để gán Custom Claims cho vai trò người dùng:
+
+```javascript
+// Ví dụ thiết lập role cho người dùng
+const admin = require("firebase-admin");
+admin.initializeApp();
+
+async function setUserRole(email, role) {
+  try {
+    const user = await admin.auth().getUserByEmail(email);
+    await admin.auth().setCustomUserClaims(user.uid, { role: role });
+    console.log(`Đã thiết lập role ${role} cho user ${email}`);
+  } catch (error) {
+    console.error("Lỗi:", error);
+  }
+}
+
+// Thiết lập role cho các tài khoản demo
+setUserRole("thanhhieu@gmail.com", "cashier");
+setUserRole("tiendung@yahoo.com", "cashier");
+setUserRole("ngochoa@gmail.com", "waiter");
+setUserRole("thuytien@yahoo.com", "waiter");
+setUserRole("minhtri@gmail.com", "chef");
+setUserRole("vietanh@yahoo.com", "chef");
+setUserRole("quocminh@gmail.com", "manager");
+setUserRole("thanhtrung@yahoo.com", "manager");
+```
+
+4. Tạo thông tin người dùng trong collection `users` tương ứng với các tài khoản Authentication
+
+### 6.3. Thiết lập cấu hình
 
 1. Tạo các collection và document mẫu
 2. Thiết lập Security Rules
 3. Tạo Indexes cần thiết
 
-### 6.3. Tích hợp SDK
+### 6.4. Tích hợp SDK
 
 ```javascript
 // Khởi tạo Firebase trong ứng dụng
@@ -382,20 +543,315 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 ```
 
-### 6.4. Đồng bộ dữ liệu offline
+### 6.5. Tích hợp Firebase Authentication
 
-Kích hoạt tính năng đồng bộ offline để ứng dụng hoạt động khi mất kết nối:
+Kết hợp Firebase Authentication với trang đăng nhập:
 
 ```javascript
-import { enableIndexedDbPersistence } from "firebase/firestore";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+} from "firebase/auth";
 
-enableIndexedDbPersistence(db).catch((err) => {
-  console.error("Không thể kích hoạt persistence:", err);
+const auth = getAuth(app);
+
+// Hàm đăng nhập
+async function loginWithEmail(email, password) {
+  try {
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+    const user = userCredential.user;
+
+    // Lấy token để kiểm tra role
+    const idTokenResult = await user.getIdTokenResult();
+    const role = idTokenResult.claims.role;
+
+    // Điều hướng dựa trên role
+    switch (role) {
+      case "cashier":
+        window.location.href = "./dashboard/cashier-dashboard.html";
+        break;
+      case "waiter":
+        window.location.href = "./dashboard/waiter-dashboard.html";
+        break;
+      case "chef":
+        window.location.href = "./dashboard/chef-dashboard.html";
+        break;
+      case "manager":
+        window.location.href = "./dashboard/manager-dashboard.html";
+        break;
+      default:
+        // Xử lý trường hợp không có role hoặc role không hợp lệ
+        console.error("Role không hợp lệ hoặc không được thiết lập");
+    }
+
+    return { success: true, user };
+  } catch (error) {
+    console.error("Lỗi đăng nhập:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Kiểm tra trạng thái đăng nhập
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    // Người dùng đã đăng nhập
+    console.log("Đã đăng nhập:", user.email);
+  } else {
+    // Người dùng chưa đăng nhập, điều hướng về trang đăng nhập
+    if (!window.location.href.includes("index.html")) {
+      window.location.href = "../index.html";
+    }
+  }
 });
+```
+
+### 6.6. Sử dụng Firebase Storage cho lưu trữ hình ảnh
+
+Cấu hình Firebase Storage để lưu trữ hình ảnh món ăn, logo nhà hàng và hình ảnh người dùng:
+
+```javascript
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+
+const storage = getStorage(app);
+
+// Upload hình ảnh món ăn
+async function uploadMenuImage(menuId, file) {
+  try {
+    const storageRef = ref(storage, `menu_items/${menuId}`);
+    await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(storageRef);
+
+    // Cập nhật URL hình ảnh vào document menu_items
+    await updateDoc(doc(db, "menu_items", menuId), {
+      image: downloadURL,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true, url: downloadURL };
+  } catch (error) {
+    console.error("Lỗi upload hình ảnh:", error);
+    return { success: false, error: error.message };
+  }
+}
+```
+
+### 6.7. Thiết lập Firebase Cloud Functions
+
+Tạo các Cloud Functions để tự động hóa các tác vụ quan trọng:
+
+```javascript
+const functions = require("firebase-functions");
+const admin = require("firebase-admin");
+admin.initializeApp();
+
+// Function tự động cập nhật kho khi hoàn thành đơn hàng
+exports.updateInventoryOnOrderComplete = functions.firestore
+  .document("orders/{orderId}")
+  .onUpdate(async (change, context) => {
+    const newValue = change.after.data();
+    const previousValue = change.before.data();
+
+    // Nếu đơn hàng vừa được đánh dấu là đã hoàn thành
+    if (
+      previousValue.status !== "completed" &&
+      newValue.status === "completed"
+    ) {
+      const orderId = context.params.orderId;
+      const db = admin.firestore();
+
+      // Lấy thông tin các món ăn trong đơn hàng
+      const orderItems = newValue.items;
+
+      for (const item of orderItems) {
+        // Lấy thông tin món ăn
+        const menuItemRef = db.collection("menu_items").doc(item.id);
+        const menuItemDoc = await menuItemRef.get();
+        if (!menuItemDoc.exists) continue;
+
+        const menuItemData = menuItemDoc.data();
+        const ingredients = menuItemData.ingredients || [];
+
+        // Cập nhật tồn kho cho từng nguyên liệu
+        for (const ingredient of ingredients) {
+          const ingredientRef = db.collection("inventory").doc(ingredient.id);
+          const ingredientDoc = await ingredientRef.get();
+          if (!ingredientDoc.exists) continue;
+
+          const ingredientData = ingredientDoc.data();
+          const currentStock = ingredientData.currentStock || 0;
+          const usedAmount = ingredient.amount * item.quantity;
+          const newStock = Math.max(0, currentStock - usedAmount);
+
+          // Cập nhật số lượng tồn kho mới
+          await ingredientRef.update({
+            currentStock: newStock,
+            usedToday: admin.firestore.FieldValue.increment(usedAmount),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          // Ghi lịch sử xuất kho
+          await db.collection("inventory_history").add({
+            id: db.collection("inventory_history").doc().id,
+            ingredientId: ingredient.id,
+            ingredientName: ingredient.name,
+            type: "out",
+            quantity: usedAmount,
+            remainingStock: newStock,
+            unit: ingredient.unit,
+            date: admin.firestore.FieldValue.serverTimestamp(),
+            reason: "consumption",
+            relatedOrderId: orderId,
+            createdBy: newValue.waiterId || "system",
+            note: `Sử dụng cho đơn hàng #${orderId}`,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          // Kiểm tra và gửi thông báo nếu tồn kho dưới ngưỡng
+          if (newStock <= ingredientData.thresholdAlert) {
+            await db.collection("notifications").add({
+              id: db.collection("notifications").doc().id,
+              type: "alert",
+              title: "Cảnh báo tồn kho thấp",
+              message: `Nguyên liệu ${ingredient.name} đã xuống dưới ngưỡng cảnh báo (${newStock} ${ingredient.unit})`,
+              targetRoles: ["manager"],
+              read: {},
+              relatedTo: {
+                type: "inventory",
+                id: ingredient.id,
+              },
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+        }
+      }
+    }
+  });
+
+// Function tạo báo cáo hàng ngày tự động
+exports.generateDailyReport = functions.pubsub
+  .schedule("0 0 * * *") // Chạy lúc 00:00 mỗi ngày
+  .timeZone("Asia/Ho_Chi_Minh")
+  .onRun(async (context) => {
+    const db = admin.firestore();
+
+    // Lấy ngày hiện tại và ngày hôm qua
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const startDate = admin.firestore.Timestamp.fromDate(
+      new Date(
+        yesterday.getFullYear(),
+        yesterday.getMonth(),
+        yesterday.getDate(),
+        0,
+        0,
+        0
+      )
+    );
+    const endDate = admin.firestore.Timestamp.fromDate(
+      new Date(
+        yesterday.getFullYear(),
+        yesterday.getMonth(),
+        yesterday.getDate(),
+        23,
+        59,
+        59
+      )
+    );
+
+    // Lấy tất cả đơn hàng đã hoàn thành trong ngày hôm qua
+    const ordersRef = db.collection("orders");
+    const completedOrders = await ordersRef
+      .where("status", "==", "completed")
+      .where("completedAt", ">=", startDate)
+      .where("completedAt", "<=", endDate)
+      .get();
+
+    // Tổng hợp dữ liệu
+    let totalRevenue = 0;
+    let orderCount = 0;
+    const itemsSold = {};
+    const categorySales = {};
+
+    completedOrders.forEach((doc) => {
+      const order = doc.data();
+      totalRevenue += order.total;
+      orderCount++;
+
+      // Thống kê số lượng món bán được
+      order.items.forEach((item) => {
+        if (!itemsSold[item.id]) {
+          itemsSold[item.id] = {
+            id: item.id,
+            name: item.name,
+            quantity: 0,
+            revenue: 0,
+          };
+        }
+        itemsSold[item.id].quantity += item.quantity;
+        itemsSold[item.id].revenue += item.price * item.quantity;
+      });
+    });
+
+    // Lấy thông tin các giao dịch chi trong ngày
+    const expenseTransactions = await db
+      .collection("transactions")
+      .where("type", "==", "expense")
+      .where("date", ">=", startDate)
+      .where("date", "<=", endDate)
+      .get();
+
+    let totalExpense = 0;
+    expenseTransactions.forEach((doc) => {
+      totalExpense += doc.data().amount;
+    });
+
+    // Top 5 món bán chạy
+    const topSellingItems = Object.values(itemsSold)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5);
+
+    // Tạo báo cáo
+    await db.collection("reports").add({
+      id: db.collection("reports").doc().id,
+      name: `Báo cáo ngày ${yesterday.getDate()}/${
+        yesterday.getMonth() + 1
+      }/${yesterday.getFullYear()}`,
+      type: "daily",
+      startDate: startDate,
+      endDate: endDate,
+      revenue: totalRevenue,
+      costs: totalExpense,
+      profit: totalRevenue - totalExpense,
+      orderCount: orderCount,
+      averageOrderValue: orderCount > 0 ? totalRevenue / orderCount : 0,
+      topSellingItems: topSellingItems,
+      createdBy: "system",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return null;
+  });
 ```
 
 ## 7. Kết luận
 
-Firebase Firestore cung cấp nền tảng cơ sở dữ liệu mạnh mẽ cho hệ thống quản lý nhà hàng với khả năng mở rộng cao, đồng bộ real-time, và hoạt động offline. Cấu trúc được đề xuất tận dụng các ưu điểm của mô hình NoSQL trong khi vẫn đảm bảo hiệu suất và tính nhất quán của dữ liệu.
+Firebase Firestore kết hợp với Firebase Authentication, Storage, và Cloud Functions cung cấp một giải pháp toàn diện cho hệ thống quản lý nhà hàng với các ưu điểm:
 
-Cấu trúc này có thể điều chỉnh dựa trên quy mô và yêu cầu cụ thể của nhà hàng. Firestore linh hoạt cho phép mở rộng và điều chỉnh cơ sở dữ liệu khi ứng dụng phát triển.
+1. **Đồng bộ thời gian thực**: Các cập nhật được phản ánh ngay lập tức trên tất cả các thiết bị kết nối, giúp nhân viên luôn cập nhật tình trạng đơn hàng, bàn ăn, và kho.
+
+2. **Hoạt động offline**: Ứng dụng vẫn hoạt động khi mất kết nối internet, đảm bảo việc kinh doanh không bị gián đoạn.
+
+3. **Bảo mật linh hoạt**: Hệ thống phân quyền chi tiết, kiểm soát truy cập chính xác theo vai trò người dùng.
+
+4. **Tự động hóa**: Cloud Functions giúp tự động hóa các tác vụ như cập nhật kho, tạo báo cáo, và gửi thông báo.
+
+5. **Khả năng mở rộng**: Cơ sở hạ tầng serverless tự động mở rộng theo nhu cầu sử dụng, phù hợp cho cả nhà hàng nhỏ và chuỗi nhà hàng lớn.
+
+Với sự linh hoạt của Firestore, cấu trúc này có thể dễ dàng điều chỉnh theo yêu cầu cụ thể của từng nhà hàng và phát triển theo thời gian.
