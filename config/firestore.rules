@@ -1,0 +1,116 @@
+// Kịch bản thiết lập cấu trúc Firestore Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Hàm kiểm tra xem người dùng đã đăng nhập chưa
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Hàm kiểm tra role của người dùng
+    function hasRole(role) {
+      return isSignedIn() && request.auth.token.role == role;
+    }
+
+    // Hàm kiểm tra xem người dùng có phải là quản lý không
+    function isManager() {
+      return hasRole('manager');
+    }
+
+    // Hàm kiểm tra xem người dùng có phải là chủ của dữ liệu không
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Quy tắc cho collection users
+    match /users/{userId} {
+      // Ai cũng có thể đọc thông tin cơ bản của users
+      allow read: if isSignedIn();
+      // Chỉ owner hoặc manager mới có thể sửa thông tin user
+      allow write: if isOwner(userId) || isManager();
+    }
+
+    // Quy tắc cho collection menu_items
+    match /menu_items/{itemId} {
+      // Ai cũng có thể xem menu
+      allow read: if isSignedIn();
+      // Chỉ manager mới có thể thêm/sửa/xóa món ăn
+      allow write: if isManager();
+    }
+
+    // Quy tắc cho collection orders
+    match /orders/{orderId} {
+      // Tất cả nhân viên đều có thể xem orders
+      allow read: if isSignedIn();
+      // Waiter có thể tạo và cập nhật order
+      allow create, update: if hasRole('waiter') || hasRole('cashier') || isManager();
+      // Cashier có thể cập nhật trạng thái thanh toán
+      allow update: if hasRole('cashier') &&
+                     (request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['paymentStatus', 'paymentMethod', 'updatedAt']));
+      // Chef có thể cập nhật trạng thái các món ăn
+      allow update: if hasRole('chef') &&
+                     (request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['items', 'status', 'updatedAt']));
+      // Chỉ manager mới có thể xóa đơn hàng
+      allow delete: if isManager();
+    }
+
+    // Quy tắc cho collection transactions
+    match /transactions/{transId} {
+      // Cashier và manager có thể đọc transactions
+      allow read: if hasRole('cashier') || isManager();
+      // Cashier chỉ có thể thêm/cập nhật giao dịch thu
+      allow create, update: if hasRole('cashier') && request.resource.data.type == 'income';
+      // Manager có thể thêm/sửa/xóa tất cả giao dịch
+      allow write: if isManager();
+    }
+
+    // Quy tắc cho collection inventory
+    match /inventory/{ingredientId} {
+      // Chef và manager có thể xem kho
+      allow read: if hasRole('chef') || isManager();
+      // Chỉ manager mới có thể thêm/sửa/xóa nguyên liệu
+      allow write: if isManager();
+    }
+
+    // Quy tắc cho collection tables
+    match /tables/{tableId} {
+      // Tất cả nhân viên đều có thể xem bàn
+      allow read: if isSignedIn();
+      // Waiter và cashier có thể cập nhật trạng thái bàn
+      allow update: if hasRole('waiter') || hasRole('cashier') || isManager();
+      // Chỉ manager mới có thể tạo/xóa bàn
+      allow create, delete: if isManager();
+    }
+
+    // Quy tắc cho collection reports
+    match /reports/{reportId} {
+      // Chỉ manager mới có thể đọc/ghi báo cáo
+      allow read, write: if isManager();
+    }
+
+    // Quy tắc cho collection settings
+    match /settings/{docId} {
+      // Tất cả nhân viên đều có thể đọc cấu hình
+      allow read: if isSignedIn();
+      // Chỉ manager mới có thể thay đổi cấu hình
+      allow write: if isManager();
+    }
+
+    // Quy tắc cho collection notifications
+    match /notifications/{notificationId} {
+      // Người dùng chỉ có thể đọc thông báo dành cho họ
+      allow read: if isSignedIn() &&
+                   (resource.data.targetUsers.hasAny([request.auth.uid]) ||
+                    resource.data.targetRoles.hasAny([request.auth.token.role]));
+      // Chỉ manager mới có thể tạo thông báo
+      allow create: if isManager();
+      // Người dùng có thể cập nhật trạng thái đã đọc của họ
+      allow update: if isSignedIn() &&
+                     request.resource.data.diff(resource.data).affectedKeys()
+                     .hasOnly(['read.' + request.auth.uid]);
+    }
+  }
+}

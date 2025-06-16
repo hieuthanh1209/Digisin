@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Khởi tạo dữ liệu Firebase - Hệ thống Quản lý Nhà hàng</title>
+  <link rel="icon" href="../assets/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div class="flex h-screen w-full items-center justify-center bg-gray-100 flex-col p-6">
+    <div class="card max-w-3xl w-full">
+      <div class="card-header">
+        <h1 class="card-title">Khởi tạo dữ liệu Firebase</h1>
+        <p class="card-description">Công cụ này sẽ tạo dữ liệu mẫu cho ứng dụng quản lý nhà hàng trên Firebase</p>
+      </div>
+      <div class="card-content">
+        <div class="grid gap-6">
+          <div class="bg-yellow-50 p-4 rounded-md border border-yellow-200">
+            <h2 class="font-medium text-yellow-800 mb-2">Lưu ý quan trọng</h2>
+            <ul class="list-disc pl-5 space-y-1 text-yellow-700">
+              <li>Trước khi tiếp tục, hãy chắc chắn rằng bạn đã tạo dự án Firebase và cập nhật cấu hình trong file <code>config/firebase-config.js</code>.</li>
+              <li>Công cụ này sẽ tạo các tài khoản demo, món ăn, bàn và dữ liệu kho ban đầu.</li>
+              <li>Không nên chạy công cụ này nhiều lần để tránh tạo dữ liệu trùng lặp.</li>
+            </ul>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h3 class="font-medium mb-2">Tài khoản demo sẽ được tạo:</h3>
+              <div class="bg-white p-3 rounded shadow-sm overflow-auto max-h-60">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="border-b">
+                      <th class="text-left py-2">Email</th>
+                      <th class="text-left py-2">Vai trò</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="border-b"><td class="py-1.5">thanhhieu@gmail.com</td><td>Thu ngân</td></tr>
+                    <tr class="border-b"><td class="py-1.5">tiendung@yahoo.com</td><td>Thu ngân</td></tr>
+                    <tr class="border-b"><td class="py-1.5">ngochoa@gmail.com</td><td>Phục vụ</td></tr>
+                    <tr class="border-b"><td class="py-1.5">thuytien@yahoo.com</td><td>Phục vụ</td></tr>
+                    <tr class="border-b"><td class="py-1.5">minhtri@gmail.com</td><td>Đầu bếp</td></tr>
+                    <tr class="border-b"><td class="py-1.5">vietanh@yahoo.com</td><td>Đầu bếp</td></tr>
+                    <tr class="border-b"><td class="py-1.5">quocminh@gmail.com</td><td>Quản lý</td></tr>
+                    <tr class="border-b"><td class="py-1.5">thanhtrung@yahoo.com</td><td>Quản lý</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <div>
+              <h3 class="font-medium mb-2">Các loại dữ liệu sẽ được tạo:</h3>
+              <div class="bg-white p-3 rounded shadow-sm">
+                <ul class="list-disc pl-5 space-y-2">
+                  <li>Tài khoản người dùng với 4 vai trò</li>
+                  <li>Các món ăn (4 món thuộc 4 danh mục)</li>
+                  <li>Danh sách bàn ăn (5 bàn)</li>
+                  <li>Dữ liệu kho và nguyên liệu</li>
+                  <li>Cấu hình nhà hàng</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-4">
+            <div id="statusContainer" class="hidden mb-4 p-4 rounded-md">
+              <h3 class="font-medium mb-2">Trạng thái:</h3>
+              <pre id="statusLog" class="bg-gray-800 text-green-400 p-3 rounded overflow-auto text-sm h-40"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <button id="initializeButton" class="button bg-blue-600 hover:bg-blue-700 text-white">Khởi tạo dữ liệu</button>
+        <a href="../index.html" class="button bg-gray-300 hover:bg-gray-400 text-gray-800 ml-4">Quay lại trang đăng nhập</a>
+      </div>
+    </div>
+  </div>
+    <!-- Import Firebase -->
+  <script type="module" src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"></script>
+  <script type="module" src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"></script>
+  <script type="module" src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js"></script>
+  
+  <!-- Import script -->
+  <script type="module" src="../src/initialize-firebase-data.js"></script>
+  <script>
+    // Giám sát và hiển thị log
+    const originalConsoleLog = console.log;
+    const originalConsoleError = console.error;
+    const statusLog = document.getElementById('statusLog');
+    const statusContainer = document.getElementById('statusContainer');
+    
+    console.log = function(message) {
+      originalConsoleLog.apply(console, arguments);
+      appendToLog(message, 'log');
+    };
+    
+    console.error = function(message) {
+      originalConsoleError.apply(console, arguments);
+      appendToLog(message, 'error');
+    };
+    
+    function appendToLog(message, type) {
+      statusContainer.classList.remove('hidden');
+      
+      if (typeof message === 'object') {
+        message = JSON.stringify(message, null, 2);
+      }
+      
+      const entry = document.createElement('div');
+      entry.className = type === 'error' ? 'text-red-500' : 'text-green-400';
+      entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+      
+      statusLog.appendChild(entry);
+      statusLog.scrollTop = statusLog.scrollHeight;
+    }
+    
+    // Xử lý nút khởi tạo
+    document.getElementById('initializeButton').addEventListener('click', function() {
+      this.disabled = true;
+      this.textContent = 'Đang khởi tạo...';
+      this.classList.add('opacity-70');
+      appendToLog('Bắt đầu quá trình khởi tạo dữ liệu...', 'log');
+      
+      // Script sẽ bắt sự kiện click này và xử lý ở file initialize-firebase-data.js
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Chef-Waiter Integration</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="mb-0">Test Chef-Waiter Integration</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <strong>Test Flow:</strong> Script này sẽ tạo orders mẫu với các món ăn có sẵn công thức 
+                            để test việc đồng bộ giữa waiter và chef dashboard.
+                        </div>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <button id="addMenuBtn" class="btn btn-success w-100">
+                                    1. Thêm Menu Items
+                                </button>
+                            </div>
+                            <div class="col-md-4">
+                                <button id="addOrdersBtn" class="btn btn-primary w-100" disabled>
+                                    2. Tạo Orders Test
+                                </button>
+                            </div>
+                            <div class="col-md-4">
+                                <button id="clearDataBtn" class="btn btn-danger w-100">
+                                    Xóa Dữ liệu Test
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <a href="../dashboard/waiter-dashboard.html" class="btn btn-outline-primary w-100" target="_blank">
+                                    🍽️ Mở Waiter Dashboard
+                                </a>
+                            </div>
+                            <div class="col-md-6">
+                                <a href="../dashboard/chef-dashboard.html" class="btn btn-outline-secondary w-100" target="_blank">
+                                    👨‍🍳 Mở Chef Dashboard
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <div id="result" class="mt-4"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import {
+          getFirestore,
+          collection,
+          doc,
+          setDoc,
+          addDoc,
+          deleteDoc,
+          getDocs,
+          Timestamp,
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import firebaseConfig from "../config/firebase-config.js";
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const resultDiv = document.getElementById('result');
+
+        // Sample menu items with recipes
+        const sampleMenuItems = [
+          {
+            id: "pho-bo",
+            name: "Phở Bò",
+            category: "Món chính",
+            price: 85000,
+            description: "Phở bò truyền thống với nước dầm đậm đà",
+            ingredients: [
+              "Thịt bò tái", "Bánh phở", "Hành lá", "Ngò gai", "Giá đỗ", "Chanh", "Ớt"
+            ],
+            recipe: {
+              steps: [
+                "Luộc bánh phở với nước sôi trong 2-3 phút",
+                "Xếp bánh phở vào tô, cho thịt bò tái lên trên",
+                "Chan nước dùng nóng vào tô",
+                "Thêm hành lá, ngò gai, giá đỗ",
+                "Ăn kèm với chanh và ớt"
+              ],
+              preparationTime: 5,
+              cookingTime: 15,
+              difficulty: "easy",
+              servings: 1
+            },
+            cookingTime: 15,
+            difficulty: "easy",
+            available: true,
+            createdAt: Timestamp.now()
+          },
+          {
+            id: "com-tam",
+            name: "Cơm Tấm Sườn Nướng",
+            category: "Món chính", 
+            price: 75000,
+            description: "Cơm tấm với sườn nướng thơm ngon",
+            ingredients: [
+              "Cơm tấm", "Sườn heo", "Đồ chua", "Nước mắm pha", "Hành phi", "Mỡ hành"
+            ],
+            recipe: {
+              steps: [
+                "Ướp sườn với gia vị trong 30 phút",
+                "Nướng sườn trên bếp than hoặc lò nướng 15-20 phút",
+                "Nấu cơm tấm",
+                "Chuẩn bị đồ chua và nước mắm pha",
+                "Bày cơm ra đĩa, xếp sườn nướng lên trên",
+                "Rưới mỡ hành, ăn kèm đồ chua"
+              ],
+              preparationTime: 35,
+              cookingTime: 20,
+              difficulty: "medium",
+              servings: 1
+            },
+            cookingTime: 20,
+            difficulty: "medium",
+            available: true,
+            createdAt: Timestamp.now()
+          },
+          {
+            id: "banh-mi",
+            name: "Bánh Mì Thịt Nướng",
+            category: "Đồ ăn nhanh",
+            price: 25000,
+            description: "Bánh mì giòn với thịt nướng thơm lừng",
+            ingredients: [
+              "Bánh mì", "Thịt heo nướng", "Đồ chua", "Rau thơm", "Ớt", "Tương ớt", "Mayonnaise"
+            ],
+            recipe: {
+              steps: [
+                "Nướng bánh mì đến khi giòn vàng",
+                "Rạch bánh mì, phết mayonnaise và tương ớt",
+                "Cho thịt nướng vào bánh",
+                "Thêm đồ chua, rau thơm, ớt",
+                "Gói bánh và phục vụ"
+              ],
+              preparationTime: 3,
+              cookingTime: 5,
+              difficulty: "easy", 
+              servings: 1
+            },
+            cookingTime: 5,
+            difficulty: "easy",
+            available: true,
+            createdAt: Timestamp.now()
+          }
+        ];
+
+        // Sample orders
+        const sampleOrders = [
+          {
+            tableNumber: "B01",
+            tableName: "B01",
+            items: [
+              {
+                id: "pho-bo",
+                name: "Phở Bò",
+                price: 85000,
+                quantity: 2,
+                note: "Ít hành",
+                itemStatus: "pending"
+              },
+              {
+                id: "com-tam",
+                name: "Cơm Tấm Sườn Nướng", 
+                price: 75000,
+                quantity: 1,
+                note: "",
+                itemStatus: "pending"
+              }
+            ],
+            status: "pending",
+            totalAmount: 245000,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+            createdBy: "waiter-test"
+          },
+          {
+            tableNumber: "B02",
+            tableName: "B02",
+            items: [
+              {
+                id: "banh-mi",
+                name: "Bánh Mì Thịt Nướng",
+                price: 25000,
+                quantity: 3,
+                note: "Không ớt",
+                itemStatus: "pending"
+              }
+            ],
+            status: "pending",
+            totalAmount: 75000,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+            createdBy: "waiter-test"
+          },
+          {
+            tableNumber: "B03",
+            tableName: "B03",
+            items: [
+              {
+                id: "pho-bo",
+                name: "Phở Bò",
+                price: 85000,
+                quantity: 1,
+                note: "",
+                itemStatus: "cooking"
+              },
+              {
+                id: "banh-mi",
+                name: "Bánh Mì Thịt Nướng",
+                price: 25000,
+                quantity: 2,
+                note: "",
+                itemStatus: "pending"
+              }
+            ],
+            status: "cooking",
+            totalAmount: 135000,
+            createdAt: Timestamp.fromDate(new Date(Date.now() - 10 * 60 * 1000)), // 10 minutes ago
+            updatedAt: Timestamp.now(),
+            createdBy: "waiter-test"
+          }
+        ];
+
+        // Add menu items
+        document.getElementById('addMenuBtn').addEventListener('click', async () => {
+          const button = document.getElementById('addMenuBtn');
+          button.disabled = true;
+          button.textContent = 'Đang thêm menu...';
+          
+          try {
+            resultDiv.innerHTML = '<div class="alert alert-info">Đang thêm menu items...</div>';
+            
+            for (const item of sampleMenuItems) {
+              const menuRef = doc(db, "menu_items", item.id);
+              await setDoc(menuRef, item);
+            }
+            
+            resultDiv.innerHTML = `
+              <div class="alert alert-success">
+                <h5>✅ Đã thêm menu items thành công!</h5>
+                <ul class="mb-0">
+                  ${sampleMenuItems.map(item => `<li>${item.name} (${item.id})</li>`).join('')}
+                </ul>
+              </div>
+            `;
+            
+            document.getElementById('addOrdersBtn').disabled = false;
+            
+          } catch (error) {
+            console.error('Lỗi:', error);
+            resultDiv.innerHTML = `<div class="alert alert-danger">Lỗi: ${error.message}</div>`;
+          } finally {
+            button.disabled = false;
+            button.textContent = '1. Thêm Menu Items';
+          }
+        });
+
+        // Add sample orders
+        document.getElementById('addOrdersBtn').addEventListener('click', async () => {
+          const button = document.getElementById('addOrdersBtn');
+          button.disabled = true;
+          button.textContent = 'Đang tạo orders...';
+          
+          try {
+            resultDiv.innerHTML = '<div class="alert alert-info">Đang tạo sample orders...</div>';
+            
+            const addedOrders = [];
+            for (const order of sampleOrders) {
+              const orderRef = await addDoc(collection(db, "orders"), order);
+              addedOrders.push({...order, id: orderRef.id});
+            }
+            
+            resultDiv.innerHTML = `
+              <div class="alert alert-success">
+                <h5>✅ Đã tạo orders thành công!</h5>
+                <div class="row g-3">
+                  ${addedOrders.map(order => `
+                    <div class="col-md-4">
+                      <div class="card border-0 shadow-sm">
+                        <div class="card-body p-3">
+                          <h6 class="card-title mb-2">Order #${order.id.slice(-5).toUpperCase()}</h6>
+                          <p class="card-text small mb-2">
+                            <strong>Bàn:</strong> ${order.tableName}<br>
+                            <strong>Trạng thái:</strong> ${order.status}<br>
+                            <strong>Tổng tiền:</strong> ${order.totalAmount.toLocaleString()}đ
+                          </p>
+                          <div class="small text-muted">
+                            <strong>Món ăn:</strong>
+                            <ul class="mb-0 ps-3">
+                              ${order.items.map(item => `<li>${item.quantity}x ${item.name}</li>`).join('')}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+                <div class="mt-3 p-3 bg-light rounded">
+                  <strong>Hướng dẫn test:</strong>
+                  <ol class="mb-0 mt-2">
+                    <li>Mở <strong>Chef Dashboard</strong> - sẽ thấy orders có trạng thái "pending" và "cooking"</li>
+                    <li>Click vào nút <strong>"Công thức"</strong> để xem chi tiết nguyên liệu và cách làm</li>
+                    <li>Thử thay đổi trạng thái order từ pending → cooking → ready</li>
+                    <li>Mở <strong>Waiter Dashboard</strong> để xem sự đồng bộ real-time</li>
+                  </ol>
+                </div>
+              </div>
+            `;
+            
+          } catch (error) {
+            console.error('Lỗi:', error);
+            resultDiv.innerHTML = `<div class="alert alert-danger">Lỗi: ${error.message}</div>`;
+          } finally {
+            button.disabled = false;
+            button.textContent = '2. Tạo Orders Test';
+          }
+        });
+
+        // Clear test data
+        document.getElementById('clearDataBtn').addEventListener('click', async () => {
+          if (!confirm('Bạn có chắc muốn xóa tất cả dữ liệu test?')) return;
+          
+          const button = document.getElementById('clearDataBtn');
+          button.disabled = true;
+          button.textContent = 'Đang xóa...';
+          
+          try {
+            resultDiv.innerHTML = '<div class="alert alert-warning">Đang xóa dữ liệu test...</div>';
+            
+            // Delete orders
+            const ordersSnapshot = await getDocs(collection(db, "orders"));
+            const orderDeletePromises = ordersSnapshot.docs.map(doc => deleteDoc(doc.ref));
+            await Promise.all(orderDeletePromises);
+            
+            // Delete menu items
+            const menuDeletePromises = sampleMenuItems.map(item => 
+              deleteDoc(doc(db, "menu_items", item.id))
+            );
+            await Promise.all(menuDeletePromises);
+            
+            resultDiv.innerHTML = `
+              <div class="alert alert-success">
+                <h5>✅ Đã xóa dữ liệu test thành công!</h5>
+                <p class="mb-0">Đã xóa ${ordersSnapshot.docs.length} orders và ${sampleMenuItems.length} menu items</p>
+              </div>
+            `;
+            
+            document.getElementById('addOrdersBtn').disabled = true;
+            
+          } catch (error) {
+            console.error('Lỗi:', error);
+            resultDiv.innerHTML = `<div class="alert alert-danger">Lỗi: ${error.message}</div>`;
+          } finally {
+            button.disabled = false;
+            button.textContent = 'Xóa Dữ liệu Test';
+          }
+        });
+    </script>
+</body>
+</html>

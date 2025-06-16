@@ -1,28 +1,46 @@
+import { loginWithEmail, checkAuthState } from "./src/firebase.js";
+
 document.addEventListener("DOMContentLoaded", function () {
   // Get DOM elements
   const loginForm = document.getElementById("loginForm");
   const loginError = document.getElementById("loginError");
-  // Demo user accounts with roles
-  const users = {
-    // Thu ngân
-    "thanhhieu@gmail.com": { password: "123456", role: "cashier" },
-    "tiendung@yahoo.com": { password: "56789", role: "cashier" },
 
-    // Phục vụ
-    "ngochoa@gmail.com": { password: "123456", role: "waiter" },
-    "thuytien@yahoo.com": { password: "56789", role: "waiter" },
+  // Hàm chuyển hướng dựa trên vai trò
+  function redirectBasedOnRole(role) {
+    switch (role) {
+      case "cashier":
+        window.location.href = "./dashboard/cashier-dashboard.html";
+        break;
+      case "waiter":
+        window.location.href = "./dashboard/waiter-dashboard.html";
+        break;
+      case "chef":
+        window.location.href = "./dashboard/chef-dashboard.html";
+        break;
+      case "manager":
+        window.location.href = "./dashboard/manager-dashboard.html";
+        break;
+      default:
+        console.error("Role không hợp lệ:", role);
+    }
+  }
 
-    // Đầu bếp
-    "minhtri@gmail.com": { password: "123456", role: "chef" },
-    "vietanh@yahoo.com": { password: "56789", role: "chef" },
-
-    // Quản lý
-    "quocminh@gmail.com": { password: "123456", role: "manager" },
-    "thanhtrung@yahoo.com": { password: "56789", role: "manager" },
-  };
+  // Kiểm tra trạng thái đăng nhập khi tải trang
+  checkAuthState(({ loggedIn, user }) => {
+    if (loggedIn) {
+      // Người dùng đã đăng nhập, điều hướng đến trang tương ứng
+      if (user && user.role) {
+        redirectBasedOnRole(user.role);
+      } else {
+        console.warn(
+          "Người dùng đã đăng nhập nhưng không tìm thấy thông tin role"
+        );
+      }
+    }
+  });
 
   // Handle form submission
-  loginForm.addEventListener("submit", function (e) {
+  loginForm.addEventListener("submit", async function (e) {
     e.preventDefault();
 
     const username = document.getElementById("username").value.trim();
@@ -38,23 +56,60 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
-    // Check if user exists
-    if (users[username] && users[username].password === password) {
-      // Get user role
-      const userRole = users[username].role;
+    // Hiển thị thông báo đang xử lý
+    const submitBtn = document.querySelector('button[type="submit"]');
+    const originalBtnText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML =
+      '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang xử lý...';
 
-      // Store login info if "remember me" is checked
-      if (document.getElementById("remember").checked) {
-        localStorage.setItem("restaurantUser", username);
-        // In a real app, you would use a more secure method for authentication
+    try {
+      // Đăng nhập với Firebase
+      const result = await loginWithEmail(username, password);
+
+      if (result.success) {
+        // Lưu trạng thái đăng nhập nếu "remember me" được chọn
+        if (document.getElementById("remember").checked) {
+          localStorage.setItem("restaurantRememberMe", "true");
+        }
+
+        // Điều hướng đã được xử lý trong hàm loginWithEmail
+      } else {
+        // Hiển thị lỗi cụ thể
+        let errorMessage = "Đăng nhập thất bại. Vui lòng thử lại.";
+
+        if (
+          result.error &&
+          result.error.includes("auth/network-request-failed")
+        ) {
+          errorMessage =
+            "Lỗi kết nối mạng. Vui lòng kiểm tra kết nối internet của bạn.";
+        } else if (
+          result.error &&
+          result.error.includes("auth/wrong-password")
+        ) {
+          errorMessage = "Sai mật khẩu. Vui lòng thử lại.";
+        } else if (
+          result.error &&
+          result.error.includes("auth/user-not-found")
+        ) {
+          errorMessage = "Không tìm thấy tài khoản với email này.";
+        } else if (result.error) {
+          errorMessage = result.error;
+        }
+
+        loginError.textContent = errorMessage;
+        loginError.style.display = "block";
       }
-
-      // Redirect to appropriate dashboard based on role
-      window.location.href = `./dashboard/${userRole}-dashboard.html`;
-    } else {
-      // Show error message
-      loginError.textContent = "Tên đăng nhập hoặc mật khẩu không chính xác";
+    } catch (error) {
+      console.error("Lỗi xử lý đăng nhập:", error);
+      loginError.textContent =
+        "Có lỗi xảy ra khi đăng nhập. Vui lòng thử lại sau.";
       loginError.style.display = "block";
+    } finally {
+      // Khôi phục trạng thái nút submit
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalBtnText;
     }
   });
 

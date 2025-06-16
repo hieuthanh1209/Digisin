@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="vi">
-<head>
-    <meta charset="UTF-8">
+<head>    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Đăng nhập - Hệ thống Quản lý Nhà hàng</title>
+    <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="styles.css">
+    <!-- Firebase App (the core Firebase SDK) is always required and must be listed first -->
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"></script>
 </head>
 <body>
     <div class="flex h-screen w-full items-center justify-center bg-gray-100">
@@ -65,8 +67,19 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </div>    </div>
+    
+    <!-- Admin tools (tylko na etapie wdrażania) -->
+    <div class="fixed bottom-4 right-4">
+        <a href="./admin/initialize-firebase.html" class="text-xs text-gray-500 hover:underline">Khởi tạo dữ liệu Firebase</a>
     </div>
-    <script src="script.js"></script>
+    
+    <!-- Firebase SDK -->
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"></script>
+    
+    <!-- Main script -->
+    <script type="module" src="script.js"></script>
 </body>
 </html>
