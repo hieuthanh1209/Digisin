@@ -30,8 +30,5 @@
     }
   ],
   "env": {
-    "PAYOS_CLIENT_ID": "@payos_client_id",
-    "PAYOS_API_KEY": "@payos_api_key", 
-    "PAYOS_CHECKSUM_KEY": "@payos_checksum_key"
   }
 }
