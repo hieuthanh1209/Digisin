@@ -3,11 +3,19 @@
   "name": "restaurant-management-system",
   "builds": [
     {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "**",
       "use": "@vercel/static"
     }
   ],
   "routes": [
+    {
+      "src": "/api/payos/(.*)",
+      "dest": "/api/payos/$1"
+    },
     {
       "src": "/",
       "dest": "/index.html"
@@ -20,5 +28,10 @@
       "src": "/(.*)",
       "dest": "/$1"
     }
-  ]
-} 
+  ],
+  "env": {
+    "PAYOS_CLIENT_ID": "@payos_client_id",
+    "PAYOS_API_KEY": "@payos_api_key", 
+    "PAYOS_CHECKSUM_KEY": "@payos_checksum_key"
+  }
+}

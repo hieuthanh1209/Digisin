@@ -18,6 +18,9 @@ import {
   where,
   orderBy,
   limit,
+  getDocs,
+  startAfter,
+  Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
   getStorage,
@@ -359,6 +362,265 @@ export async function uploadImage(file, folder, itemId) {
     return { success: true, url: downloadURL };
   } catch (error) {
     console.error("Error uploading image:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ==================== PAYMENT HISTORY FUNCTIONS ====================
+
+// Lấy lịch sử thanh toán với bộ lọc
+export async function getPaymentHistory(filters = {}) {
+  try {
+    // Query từ collection orders với paymentStatus: "paid"
+    let q = collection(db, "orders");
+
+    // Tạo mảng điều kiện where
+    const whereConstraints = [];
+
+    // Lọc theo trạng thái thanh toán (chỉ lấy đơn đã thanh toán)
+    whereConstraints.push(where("paymentStatus", "==", "paid"));
+
+    // Lọc theo khoảng thời gian (dùng paymentTime thay vì date)
+    if (filters.startDate) {
+      whereConstraints.push(
+        where("paymentTime", ">=", Timestamp.fromDate(filters.startDate))
+      );
+    }
+    if (filters.endDate) {
+      whereConstraints.push(
+        where("paymentTime", "<=", Timestamp.fromDate(filters.endDate))
+      );
+    }
+
+    // Lọc theo phương thức thanh toán
+    if (filters.paymentMethod && filters.paymentMethod !== "all") {
+      let paymentMethodValue = filters.paymentMethod;
+      // Map giá trị filter sang giá trị trong Firestore
+      if (filters.paymentMethod === "cash") paymentMethodValue = "Tiền mặt";
+      else if (filters.paymentMethod === "card") paymentMethodValue = "Thẻ";
+      else if (filters.paymentMethod === "transfer")
+        paymentMethodValue = "Chuyển khoản";
+
+      whereConstraints.push(where("paymentMethod", "==", paymentMethodValue));
+    }
+
+    // Áp dụng các điều kiện và sắp xếp
+    q = query(
+      q,
+      ...whereConstraints,
+      orderBy("paymentTime", "desc"),
+      limit(filters.limit || 100)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const payments = [];
+
+    // Xử lý dữ liệu từ mỗi đơn hàng
+    querySnapshot.forEach((docSnapshot) => {
+      const orderData = docSnapshot.data();
+
+      payments.push({
+        id: docSnapshot.id,
+        orderId: docSnapshot.id, // Sử dụng document ID làm orderId
+        amount: orderData.finalTotal || orderData.total || 0,
+        paymentMethod: orderData.paymentMethod || "Tiền mặt",
+        timestamp:
+          orderData.paymentTime?.toDate() ||
+          orderData.createdAt?.toDate() ||
+          new Date(),
+        cashier: orderData.cashierName || "Thu ngân",
+        status: orderData.status === "completed" ? "Thành công" : "Đang xử lý",
+        table: orderData.tableName || orderData.tableId || "N/A",
+        items: orderData.items || [],
+        discount: orderData.discountCode
+          ? {
+              code: orderData.discountCode,
+              percent: orderData.discount || 0,
+            }
+          : null,
+        subtotal: orderData.subtotal || 0,
+        vatAmount: orderData.vat || 0,
+        changeAmount: orderData.changeAmount || 0,
+        customerPaid: orderData.customerPaid || 0,
+        notes: orderData.notes || "",
+        // Thêm các thông tin khác từ order data
+        cookingStartTime: orderData.cookingStartTime?.toDate(),
+        cookingCompletedTime: orderData.cookingCompletedTime?.toDate(),
+        createdAt: orderData.createdAt?.toDate(),
+        updatedAt: orderData.updatedAt?.toDate(),
+      });
+    });
+
+    return { success: true, data: payments, total: payments.length };
+  } catch (error) {
+    console.error("Error getting payment history:", error);
+    return { success: false, error: error.message, data: [] };
+  }
+}
+
+// Lấy thống kê thanh toán theo khoảng thời gian
+export async function getPaymentStats(startDate, endDate) {
+  try {
+    const q = query(
+      collection(db, "orders"),
+      where("paymentStatus", "==", "paid"),
+      where("paymentTime", ">=", Timestamp.fromDate(startDate)),
+      where("paymentTime", "<=", Timestamp.fromDate(endDate)),
+      orderBy("paymentTime", "desc")
+    );
+
+    const querySnapshot = await getDocs(q);
+    const orders = [];
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      orders.push({
+        amount: data.finalTotal || data.total || 0,
+        paymentMethod: data.paymentMethod || "Tiền mặt",
+        date:
+          data.paymentTime?.toDate() || data.createdAt?.toDate() || new Date(),
+      });
+    });
+
+    // Tính toán thống kê
+    const stats = {
+      totalOrders: orders.length,
+      totalRevenue: orders.reduce((sum, t) => sum + t.amount, 0),
+      cashRevenue: orders
+        .filter((t) => t.paymentMethod === "Tiền mặt")
+        .reduce((sum, t) => sum + t.amount, 0),
+      cardRevenue: orders
+        .filter((t) => t.paymentMethod === "Thẻ")
+        .reduce((sum, t) => sum + t.amount, 0),
+      transferRevenue: orders
+        .filter((t) => t.paymentMethod === "Chuyển khoản")
+        .reduce((sum, t) => sum + t.amount, 0),
+    };
+
+    return { success: true, stats };
+  } catch (error) {
+    console.error("Error getting payment stats:", error);
+    return {
+      success: false,
+      error: error.message,
+      stats: {
+        totalOrders: 0,
+        totalRevenue: 0,
+        cashRevenue: 0,
+        cardRevenue: 0,
+        transferRevenue: 0,
+      },
+    };
+  }
+}
+
+// Lấy chi tiết giao dịch theo ID
+export async function getTransactionDetail(transactionId) {
+  try {
+    const transactionDoc = await getDoc(doc(db, "transactions", transactionId));
+
+    if (!transactionDoc.exists()) {
+      return { success: false, error: "Không tìm thấy giao dịch" };
+    }
+
+    const transactionData = transactionDoc.data();
+
+    // Lấy thông tin đơn hàng liên quan
+    let orderData = null;
+    if (transactionData.relatedOrderId) {
+      const orderDoc = await getDoc(
+        doc(db, "orders", transactionData.relatedOrderId)
+      );
+      if (orderDoc.exists()) {
+        orderData = orderDoc.data();
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        id: transactionDoc.id,
+        ...transactionData,
+        orderData,
+        timestamp:
+          transactionData.date?.toDate() ||
+          transactionData.createdAt?.toDate() ||
+          new Date(),
+      },
+    };
+  } catch (error) {
+    console.error("Error getting transaction detail:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Tìm kiếm giao dịch theo từ khóa
+export async function searchTransactions(searchTerm, filters = {}) {
+  try {
+    // Lấy tất cả giao dịch trong khoảng thời gian
+    const baseFilters = {
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      paymentMethod: filters.paymentMethod,
+      limit: 200, // Tăng limit để tìm kiếm
+    };
+
+    const result = await getPaymentHistory(baseFilters);
+
+    if (!result.success) {
+      return result;
+    }
+
+    // Lọc theo từ khóa tìm kiếm
+    const searchTermLower = searchTerm.toLowerCase().trim();
+    const filteredTransactions = result.data.filter((transaction) => {
+      return (
+        transaction.orderId.toLowerCase().includes(searchTermLower) ||
+        transaction.table.toLowerCase().includes(searchTermLower) ||
+        transaction.cashier.toLowerCase().includes(searchTermLower) ||
+        transaction.paymentMethod.toLowerCase().includes(searchTermLower)
+      );
+    });
+
+    return { success: true, data: filteredTransactions };
+  } catch (error) {
+    console.error("Error searching transactions:", error);
+    return { success: false, error: error.message, data: [] };
+  }
+}
+
+// Get current user info from Firestore
+export async function getCurrentUserInfo() {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      return { success: false, error: "Người dùng chưa đăng nhập" };
+    }
+
+    const userDoc = await getDoc(doc(db, "users", user.uid));
+    if (!userDoc.exists()) {
+      return { success: false, error: "Không tìm thấy thông tin người dùng" };
+    }
+
+    const userData = userDoc.data();
+    return {
+      success: true,
+      data: {
+        uid: user.uid,
+        email: user.email,
+        displayName: userData.displayName || user.displayName,
+        role: userData.role,
+        phoneNumber: userData.phoneNumber,
+        profileImage: userData.profileImage,
+        status: userData.status,
+        salary: userData.salary,
+        startDate: userData.startDate,
+        createdAt: userData.createdAt,
+        updatedAt: userData.updatedAt,
+      },
+    };
+  } catch (error) {
+    console.error("Error getting current user info:", error);
     return { success: false, error: error.message };
   }
 }

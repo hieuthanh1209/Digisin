@@ -1,24 +1,64 @@
 // cashier-history.js - Script for handling payment history functionality
 
-document.addEventListener("DOMContentLoaded", function () {
+// Import Firebase functions
+import {
+  getPaymentHistory,
+  getPaymentStats,
+  searchTransactions,
+  getTransactionDetail,
+  getCurrentUserInfo,
+  checkAuthState,
+  logout,
+} from "../src/firebase.js";
+
+document.addEventListener("DOMContentLoaded", async function () {
   // Initialize Lucide icons
   lucide.createIcons();
+
+  // Check authentication state first
+  checkAuthState(async (authResult) => {
+    if (!authResult.loggedIn) {
+      // Redirect to login if not authenticated
+      window.location.href = "../index.html";
+      return;
+    }
+
+    // Check if user has cashier role
+    if (authResult.user && authResult.user.role !== "cashier") {
+      alert("Bạn không có quyền truy cập trang này!");
+      window.location.href = "../index.html";
+      return;
+    }
+
+    // Initialize user info with authenticated user data
+    if (authResult.user) {
+      localStorage.setItem(
+        "userInfo",
+        JSON.stringify({
+          uid: authResult.user.uid,
+          name: authResult.user.displayName || "Thu ngân",
+          email: authResult.user.email,
+          role: authResult.user.role,
+          phoneNumber: authResult.user.phoneNumber,
+          avatar: authResult.user.profileImage,
+        })
+      );
+    }
+
+    await initializeUserInfo();
+  });
 
   // Initialize date range picker
   initDateRangePicker();
 
-  // Mock payment history data for demonstration
-  const paymentHistoryData = generateMockPaymentHistory();
-
   // Initialize page variables
   let currentPage = 1;
   const recordsPerPage = 10;
-  let filteredData = [...paymentHistoryData];
+  let paymentHistoryData = [];
+  let filteredData = [];
 
-  // Apply initial rendering
-  renderSummaryStats(filteredData);
-  renderPaymentHistoryTable(filteredData, currentPage, recordsPerPage);
-  renderPagination(filteredData.length, currentPage, recordsPerPage);
+  // Load initial data from Firebase
+  await loadPaymentHistory();
 
   // Setup event listeners
   setupEventListeners();
@@ -82,40 +122,49 @@ document.addEventListener("DOMContentLoaded", function () {
    * Setup event listeners
    */
   function setupEventListeners() {
-    // Date range picker change
+    // Date range picker change - reload data for new range
     $("#dateRangePicker").on("apply.daterangepicker", function (ev, picker) {
-      applyFilters();
+      handleDateRangeChange();
     });
 
-    // Payment method filter change
+    // Other filters - just apply client-side filtering
     $("#paymentMethodFilter").on("change", function () {
       applyFilters();
     });
 
-    // Status filter change
     $("#statusFilter").on("change", function () {
       applyFilters();
     });
 
-    // Search input
+    // Search input with debounce
+    let searchTimeout;
     $("#historySearch").on("input", function () {
-      applyFilters();
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        applyFilters();
+      }, 300); // 300ms debounce
     });
 
     // Clear search button
     $("#clearHistorySearch").on("click", function () {
       $("#historySearch").val("");
       applyFilters();
-    });
-
-    // Export button
+    }); // Export button
     $("#exportBtn").on("click", function () {
       exportToExcel();
     });
 
-    // Print invoice button
+    // Refresh button
+    $("#refreshBtn").on("click", function () {
+      loadPaymentHistory();
+    }); // Print invoice button
     $("#printInvoiceBtn").on("click", function () {
       printInvoice();
+    });
+
+    // Logout button
+    $("#logoutButton").on("click", function () {
+      handleLogout();
     });
 
     // Delegate for invoice detail view
@@ -123,55 +172,186 @@ document.addEventListener("DOMContentLoaded", function () {
       const orderId = $(this).data("orderid");
       showInvoiceDetail(orderId);
     });
+
+    // Refresh button (optional - add to UI if needed)
+    $(document).on("keydown", function (e) {
+      if (e.key === "F5" || (e.ctrlKey && e.key === "r")) {
+        e.preventDefault();
+        loadPaymentHistory();
+      }
+    });
   }
 
   /**
+   * Load payment history from Firebase Firestore
+   */
+  async function loadPaymentHistory() {
+    try {
+      console.log("Starting to load payment history from Firebase...");
+
+      // Show loading state
+      showLoadingState();
+
+      // Get date range from picker
+      const dateRange = $("#dateRangePicker").data("daterangepicker");
+      const startDate = dateRange
+        ? dateRange.startDate.toDate()
+        : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const endDate = dateRange ? dateRange.endDate.toDate() : new Date();
+
+      console.log("Date range:", { startDate, endDate });
+
+      // Load payment history from Firebase
+      const result = await getPaymentHistory({
+        startDate,
+        endDate,
+        limit: 200,
+      });
+
+      console.log("Firebase result:", result);
+      if (result.success) {
+        paymentHistoryData = result.data;
+        filteredData = [...paymentHistoryData];
+
+        console.log(
+          "Loaded payment history from Firebase:",
+          paymentHistoryData.length,
+          "orders"
+        );
+        console.log("Sample data:", paymentHistoryData.slice(0, 2));
+
+        // Apply initial rendering
+        renderSummaryStats(filteredData);
+        renderPaymentHistoryTable(filteredData, currentPage, recordsPerPage);
+        renderPagination(filteredData.length, currentPage, recordsPerPage);
+      } else {
+        console.error("Error loading payment history:", result.error);
+        showErrorState("Không thể tải dữ liệu lịch sử thanh toán");
+        // Fallback to mock data for development
+        paymentHistoryData = generateMockPaymentHistory();
+        filteredData = [...paymentHistoryData];
+        renderSummaryStats(filteredData);
+        renderPaymentHistoryTable(filteredData, currentPage, recordsPerPage);
+        renderPagination(filteredData.length, currentPage, recordsPerPage);
+      }
+    } catch (error) {
+      console.error("Error in loadPaymentHistory:", error);
+      showErrorState("Có lỗi xảy ra khi tải dữ liệu");
+      // Fallback to mock data
+      paymentHistoryData = generateMockPaymentHistory();
+      filteredData = [...paymentHistoryData];
+      renderSummaryStats(filteredData);
+      renderPaymentHistoryTable(filteredData, currentPage, recordsPerPage);
+      renderPagination(filteredData.length, currentPage, recordsPerPage);
+    }
+  }
+
+  /**
+   * Show loading state
+   */
+  function showLoadingState() {
+    const tableBody = $("#paymentHistoryBody");
+    tableBody.html(`
+      <tr>
+        <td colspan="8" class="text-center py-5">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Đang tải...</span>
+          </div>
+          <p class="mt-2 text-muted">Đang tải dữ liệu...</p>
+        </td>
+      </tr>
+    `);
+  }
+
+  /**
+   * Show error state
+   */
+  function showErrorState(message) {
+    const tableBody = $("#paymentHistoryBody");
+    tableBody.html(`
+      <tr>
+        <td colspan="8" class="text-center py-5">
+          <div class="text-danger">
+            <i data-lucide="alert-circle" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i>
+            <p>${message}</p>
+            <button class="btn btn-outline-primary btn-sm" onclick="location.reload()">
+              Thử lại
+            </button>
+          </div>
+        </td>
+      </tr>
+    `);
+    lucide.createIcons();
+  }
+  /**
    * Apply all filters and search
    */
-  function applyFilters() {
-    // Get filter values
-    const dateRange = $("#dateRangePicker").data("daterangepicker");
-    const startDate = dateRange.startDate.startOf("day").valueOf();
-    const endDate = dateRange.endDate.endOf("day").valueOf();
-    const paymentMethod = $("#paymentMethodFilter").val();
-    const status = $("#statusFilter").val();
-    const searchTerm = $("#historySearch").val().toLowerCase().trim();
+  async function applyFilters() {
+    try {
+      // Show loading state
+      showLoadingState();
 
-    // Filter data
-    filteredData = paymentHistoryData.filter((payment) => {
-      // Date range filter
-      const paymentDate = moment(payment.timestamp).valueOf();
-      const dateInRange = paymentDate >= startDate && paymentDate <= endDate;
+      // Get filter values
+      const dateRange = $("#dateRangePicker").data("daterangepicker");
+      const startDate = dateRange.startDate.toDate();
+      const endDate = dateRange.endDate.toDate();
+      const paymentMethod = $("#paymentMethodFilter").val();
+      const status = $("#statusFilter").val();
+      const searchTerm = $("#historySearch").val().toLowerCase().trim();
 
-      // Payment method filter
-      const methodMatches =
-        paymentMethod === "all" ||
-        (paymentMethod === "cash" && payment.paymentMethod === "Tiền mặt") ||
-        (paymentMethod === "payos" && payment.paymentMethod.includes("PayOS"));
+      // Prepare filters for Firebase
+      const filters = {
+        startDate,
+        endDate,
+        limit: 200,
+      };
 
-      // Status filter
-      const statusMatches =
-        status === "all" ||
-        (status === "success" && payment.status === "Thành công") ||
-        (status === "refunded" && payment.status === "Hoàn tiền");
+      // Add payment method filter
+      if (paymentMethod !== "all") {
+        const methodMapping = {
+          cash: "Tiền mặt",
+          card: "Thẻ",
+          transfer: "Chuyển khoản",
+        };
+        filters.paymentMethod = methodMapping[paymentMethod];
+      }
 
-      // Search term
-      const searchMatches =
-        searchTerm === "" ||
-        payment.orderId.toLowerCase().includes(searchTerm) ||
-        payment.table.toLowerCase().includes(searchTerm) ||
-        payment.cashier.toLowerCase().includes(searchTerm);
+      let result;
 
-      return dateInRange && methodMatches && statusMatches && searchMatches;
-    });
+      // Use search function if there's a search term
+      if (searchTerm) {
+        result = await searchTransactions(searchTerm, filters);
+      } else {
+        result = await getPaymentHistory(filters);
+      }
 
-    // Reset to first page
-    currentPage = 1;
+      if (result.success) {
+        filteredData = result.data;
 
-    // Update UI
-    renderSummaryStats(filteredData);
-    renderPaymentHistoryTable(filteredData, currentPage, recordsPerPage);
-    renderPagination(filteredData.length, currentPage, recordsPerPage);
+        // Apply status filter (client-side since Firebase doesn't have status field)
+        if (status !== "all") {
+          filteredData = filteredData.filter((payment) => {
+            if (status === "success") return payment.status === "Thành công";
+            if (status === "refunded") return payment.status === "Hoàn tiền";
+            return true;
+          });
+        }
+
+        // Reset to first page
+        currentPage = 1;
+
+        // Update UI
+        renderSummaryStats(filteredData);
+        renderPaymentHistoryTable(filteredData, currentPage, recordsPerPage);
+        renderPagination(filteredData.length, currentPage, recordsPerPage);
+      } else {
+        console.error("Error filtering data:", result.error);
+        showErrorState("Không thể lọc dữ liệu");
+      }
+    } catch (error) {
+      console.error("Error in applyFilters:", error);
+      showErrorState("Có lỗi xảy ra khi lọc dữ liệu");
+    }
   }
 
   /**
@@ -182,21 +362,26 @@ document.addEventListener("DOMContentLoaded", function () {
     const totalOrders = data.length;
 
     // Calculate total revenue
-    const totalRevenue = data.reduce((sum, payment) => sum + payment.amount, 0);
-
-    // Calculate revenue by payment method
+    const totalRevenue = data.reduce((sum, payment) => sum + payment.amount, 0); // Calculate revenue by payment method
     const cashPayments = data.filter(
       (payment) => payment.paymentMethod === "Tiền mặt"
     );
-    const payosPayments = data.filter((payment) =>
-      payment.paymentMethod.includes("PayOS")
+    const cardPayments = data.filter(
+      (payment) => payment.paymentMethod === "Thẻ"
+    );
+    const transferPayments = data.filter(
+      (payment) => payment.paymentMethod === "Chuyển khoản"
     );
 
     const cashRevenue = cashPayments.reduce(
       (sum, payment) => sum + payment.amount,
       0
     );
-    const payosRevenue = payosPayments.reduce(
+    const cardRevenue = cardPayments.reduce(
+      (sum, payment) => sum + payment.amount,
+      0
+    );
+    const transferRevenue = transferPayments.reduce(
       (sum, payment) => sum + payment.amount,
       0
     );
@@ -205,7 +390,8 @@ document.addEventListener("DOMContentLoaded", function () {
     $("#totalOrdersCount").text(totalOrders);
     $("#totalRevenue").text(formatCurrency(totalRevenue));
     $("#cashRevenue").text(formatCurrency(cashRevenue));
-    $("#payosRevenue").text(formatCurrency(payosRevenue));
+    $("#cardRevenue").text(formatCurrency(cardRevenue));
+    $("#transferRevenue").text(formatCurrency(transferRevenue));
 
     // Update record counts in footer
     $("#displayedRecords").text(Math.min(totalOrders, recordsPerPage));
@@ -249,14 +435,12 @@ document.addEventListener("DOMContentLoaded", function () {
         statusBadgeClass = "bg-danger";
       } else if (payment.status === "Đang xử lý") {
         statusBadgeClass = "bg-warning text-dark";
-      }
-
-      // Payment method icon
+      } // Payment method icon
       let methodIcon = "cash";
-      if (payment.paymentMethod.includes("PayOS")) {
-        methodIcon = payment.paymentMethod.includes("QR")
-          ? "qr-code"
-          : "credit-card";
+      if (payment.paymentMethod === "Thẻ") {
+        methodIcon = "credit-card";
+      } else if (payment.paymentMethod === "Chuyển khoản") {
+        methodIcon = "smartphone";
       }
 
       // Create table row
@@ -400,25 +584,100 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
   }
-
   /**
    * Show invoice detail modal
-   */ // Store the currently active order ID for reference
+   */
+  // Store the currently active order ID for reference
   let activeOrderId = null;
 
-  function showInvoiceDetail(orderId) {
-    // Store the order ID as the active one
-    activeOrderId = orderId;
+  async function showInvoiceDetail(orderId) {
+    try {
+      // Store the order ID as the active one
+      activeOrderId = orderId;
 
-    // Update the modal title to include the order ID
-    $("#invoiceDetailModal .modal-title").text(`Chi tiết hóa đơn #${orderId}`);
+      // Update the modal title to include the order ID
+      $("#invoiceDetailModal .modal-title").text(
+        `Chi tiết hóa đơn #${orderId}`
+      );
 
-    // Find the payment in the data
-    const payment = paymentHistoryData.find((p) => p.orderId === orderId);
-    if (!payment) return;
+      // Show loading in modal
+      const modalBody = $("#invoiceDetailBody");
+      modalBody.html(`
+        <div class="text-center py-4">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Đang tải...</span>
+          </div>
+          <p class="mt-2 text-muted">Đang tải chi tiết hóa đơn...</p>
+        </div>
+      `);
 
-    // Generate invoice detail HTML
-    const modalBody = $("#invoiceDetailBody");
+      // Show modal first
+      const modal = new bootstrap.Modal(
+        document.getElementById("invoiceDetailModal")
+      );
+      modal.show();
+
+      // Find the payment in the filtered data first (faster)
+      let payment = filteredData.find((p) => p.orderId === orderId);
+
+      // If not found in filtered data, search in all data
+      if (!payment) {
+        payment = paymentHistoryData.find((p) => p.orderId === orderId);
+      }
+
+      // If still not found, try to get from Firebase
+      if (!payment) {
+        // Try to find transaction by orderId in Firebase
+        const result = await searchTransactions(orderId);
+        if (result.success && result.data.length > 0) {
+          payment = result.data[0];
+        }
+      }
+
+      if (!payment) {
+        modalBody.html(`
+          <div class="text-center py-4">
+            <div class="text-danger">
+              <i data-lucide="alert-circle" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i>
+              <p>Không tìm thấy thông tin hóa đơn</p>
+            </div>
+          </div>
+        `);
+        lucide.createIcons();
+        return;
+      }
+
+      // Generate invoice detail HTML
+      generateInvoiceHTML(payment, modalBody);
+    } catch (error) {
+      console.error("Error showing invoice detail:", error);
+      const modalBody = $("#invoiceDetailBody");
+      modalBody.html(`
+        <div class="text-center py-4">
+          <div class="text-danger">
+            <i data-lucide="alert-circle" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i>
+            <p>Có lỗi xảy ra khi tải chi tiết hóa đơn</p>
+          </div>
+        </div>
+      `);
+      lucide.createIcons();
+    }
+  }
+
+  /**
+   * Generate invoice HTML content
+   */
+  function generateInvoiceHTML(payment, modalBody) {
+    // Ensure items array exists
+    if (!payment.items || !Array.isArray(payment.items)) {
+      payment.items = [
+        {
+          name: "Sản phẩm",
+          quantity: 1,
+          price: payment.amount || 0,
+        },
+      ];
+    }
 
     // Invoice header
     let invoiceHTML = `
@@ -434,7 +693,7 @@ document.addEventListener("DOMContentLoaded", function () {
             <div class="row mb-3">
                 <div class="col-6">
                     <p class="mb-1"><span class="fw-medium">Bàn:</span> ${
-                      payment.table
+                      payment.table || "N/A"
                     }</p>
                     <p class="mb-1"><span class="fw-medium">Thời gian:</span> ${formatDateTime(
                       payment.timestamp
@@ -442,7 +701,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 </div>
                 <div class="col-6">
                     <p class="mb-1"><span class="fw-medium">Thu ngân:</span> ${
-                      payment.cashier
+                      payment.cashier || "N/A"
                     }</p>
                     <p class="mb-1"><span class="fw-medium">Trạng thái:</span> 
                         <span class="badge ${
@@ -450,7 +709,7 @@ document.addEventListener("DOMContentLoaded", function () {
                             ? "bg-success"
                             : "bg-danger"
                         }">
-                            ${payment.status}
+                            ${payment.status || "Thành công"}
                         </span>
                     </p>
                 </div>
@@ -491,7 +750,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const taxAmount = subtotal * taxRate;
     const discountPercent = payment.discount ? payment.discount.percent : 0;
     const discountAmount = subtotal * (discountPercent / 100);
-    const total = subtotal + taxAmount - discountAmount; // Invoice footer with totals
+    const total = subtotal + taxAmount - discountAmount;
+
+    // Invoice footer with totals
     invoiceHTML += `
                 </tbody>
                 <tfoot class="table-footer">
@@ -534,7 +795,7 @@ document.addEventListener("DOMContentLoaded", function () {
             <div class="row">
                 <div class="col-6">
                     <p class="fw-medium mb-1">Phương thức thanh toán:</p>
-                    <p>${payment.paymentMethod}</p>
+                    <p>${payment.paymentMethod || "Tiền mặt"}</p>
                 </div>
             </div>
             <div class="text-center mt-4">
@@ -542,12 +803,8 @@ document.addEventListener("DOMContentLoaded", function () {
             </div>
         `;
 
-    // Set content and show modal
+    // Set content
     modalBody.html(invoiceHTML);
-    const modal = new bootstrap.Modal(
-      document.getElementById("invoiceDetailModal")
-    );
-    modal.show();
   }
   /**
    * Export data to Excel
@@ -780,19 +1037,9 @@ document.addEventListener("DOMContentLoaded", function () {
                     <span>${formatCurrency(finalTotal)}</span>
                 </div>
             </div>
-            
-            <div style="text-align: center; font-size: 12px; border-top: 1px dashed #000; padding-top: 10px;">
+              <div style="text-align: center; font-size: 12px; border-top: 1px dashed #000; padding-top: 10px;">
                 <p style="margin: 0 0 5px 0;"><strong>CẢM ƠN QUÝ KHÁCH!</strong></p>
                 <p style="margin: 0;">Hẹn gặp lại!</p>
-                ${
-                  payment.paymentMethod.includes("PayOS")
-                    ? `
-                    <p style="margin: 5px 0 0 0; font-size: 10px; color: #666;">
-                        Thanh toán điện tử an toàn với PayOS
-                    </p>
-                `
-                    : ""
-                }
             </div>
         </div>
     `;
@@ -849,9 +1096,12 @@ document.addEventListener("DOMContentLoaded", function () {
     // Payment methods
     const paymentMethods = [
       "Tiền mặt",
-      "PayOS - Thẻ",
-      "PayOS - QR Code",
-      "PayOS - Banking",
+      "Tiền mặt",
+      "Thẻ",
+      "Chuyển khoản",
+      "Tiền mặt",
+      "Thẻ",
+      "Chuyển khoản",
     ];
 
     // Status options
@@ -980,13 +1230,295 @@ document.addEventListener("DOMContentLoaded", function () {
    * Format currency (VND)
    */
   function formatCurrency(amount) {
+    if (typeof amount !== "number" || isNaN(amount)) {
+      return "0₫";
+    }
     return amount.toLocaleString("vi-VN") + "₫";
   }
 
   /**
    * Format date and time
    */
-  function formatDateTime(isoString) {
-    return moment(isoString).format("DD/MM/YYYY HH:mm");
+  function formatDateTime(date) {
+    if (!date) return "N/A";
+
+    // Handle different date formats
+    if (typeof date === "string") {
+      date = new Date(date);
+    }
+
+    if (date instanceof Date && !isNaN(date)) {
+      return moment(date).format("DD/MM/YYYY HH:mm");
+    }
+
+    return "N/A";
+  }
+
+  /**
+   * Handle date range picker change with reload
+   */
+  function handleDateRangeChange() {
+    // Reload data when date range changes significantly
+    loadPaymentHistory();
+  }
+  /**
+   * Initialize user information
+   */
+  async function initializeUserInfo() {
+    try {
+      // First try to get user info from Firebase
+      const firebaseResult = await getCurrentUserInfo();
+
+      if (firebaseResult.success) {
+        const userData = firebaseResult.data;
+
+        // Save to localStorage for offline access
+        localStorage.setItem(
+          "userInfo",
+          JSON.stringify({
+            uid: userData.uid,
+            name: userData.displayName || "Thu ngân",
+            email: userData.email,
+            role: userData.role,
+            phoneNumber: userData.phoneNumber,
+            avatar: userData.profileImage,
+            status: userData.status,
+          })
+        );
+
+        // Update UI with Firebase data
+        updateUserUI(userData);
+
+        console.log("User info loaded from Firebase:", userData);
+        return;
+      }
+    } catch (error) {
+      console.error("Error loading user info from Firebase:", error);
+    }
+
+    // Fallback to localStorage
+    const userInfo = getUserInfo();
+    if (userInfo) {
+      updateUserUI(userInfo);
+    }
+  }
+
+  /**
+   * Update user interface with user data
+   */
+  function updateUserUI(userData) {
+    // Update user name
+    const displayName = userData.displayName || userData.name || "Thu ngân";
+    document.getElementById("userName").textContent = displayName;
+
+    // Set profile image if available
+    const profileImage = document.getElementById("userProfileImage");
+    const avatarUrl = userData.profileImage || userData.avatar;
+
+    if (avatarUrl) {
+      profileImage.style.backgroundImage = `url(${avatarUrl})`;
+      profileImage.style.backgroundSize = "cover";
+      profileImage.style.backgroundPosition = "center";
+      profileImage.innerHTML = ""; // Clear any existing content
+    } else {
+      // Default profile icon
+      profileImage.style.backgroundImage = "none";
+      profileImage.innerHTML =
+        '<i data-lucide="user" style="width: 20px; height: 20px; color: white; margin: 10px;"></i>';
+    }
+
+    // Re-initialize Lucide icons
+    lucide.createIcons();
+  }
+
+  /**
+   * Get user information from storage
+   */
+  function getUserInfo() {
+    try {
+      // Try to get from localStorage first
+      const userInfo = localStorage.getItem("userInfo");
+      if (userInfo) {
+        return JSON.parse(userInfo);
+      }
+
+      // Try to get from sessionStorage
+      const sessionUserInfo = sessionStorage.getItem("userInfo");
+      if (sessionUserInfo) {
+        return JSON.parse(sessionUserInfo);
+      }
+
+      // Default fallback
+      return {
+        id: "cashier_001",
+        name: "Thu ngân",
+        role: "cashier",
+        department: "Thanh toán",
+      };
+    } catch (error) {
+      console.error("Error getting user info:", error);
+      return {
+        id: "cashier_001",
+        name: "Thu ngân",
+        role: "cashier",
+        department: "Thanh toán",
+      };
+    }
+  }
+
+  /**
+   * Set user information
+   */
+  function setUserInfo(userInfo) {
+    try {
+      // Save to localStorage for persistence
+      localStorage.setItem("userInfo", JSON.stringify(userInfo));
+
+      // Update UI immediately
+      initializeUserInfo();
+
+      console.log("User info updated:", userInfo);
+    } catch (error) {
+      console.error("Error setting user info:", error);
+    }
+  }
+  /**
+   * Update user information from external source
+   */
+  async function updateUserInfoFromSource() {
+    try {
+      // Fetch fresh user data from Firebase
+      const firebaseResult = await getCurrentUserInfo();
+
+      if (firebaseResult.success) {
+        const userData = firebaseResult.data;
+
+        // Update localStorage with fresh data
+        setUserInfo({
+          uid: userData.uid,
+          name: userData.displayName || "Thu ngân",
+          email: userData.email,
+          role: userData.role,
+          phoneNumber: userData.phoneNumber,
+          avatar: userData.profileImage,
+          status: userData.status,
+        });
+
+        return userData;
+      } else {
+        console.warn(
+          "Could not fetch user info from Firebase:",
+          firebaseResult.error
+        );
+        return getUserInfo(); // Return cached data
+      }
+    } catch (error) {
+      console.error("Error updating user info from source:", error);
+      return getUserInfo(); // Return fallback
+    }
+  }
+
+  /**
+   * Refresh user information from Firebase
+   */
+  async function refreshUserInfo() {
+    try {
+      showNotification("Đang cập nhật thông tin người dùng...", "info");
+
+      const userData = await updateUserInfoFromSource();
+      if (userData) {
+        updateUserUI(userData);
+        showNotification("Cập nhật thông tin thành công!", "success");
+      }
+    } catch (error) {
+      console.error("Error refreshing user info:", error);
+      showNotification("Không thể cập nhật thông tin người dùng", "error");
+    }
+  }
+
+  // Make refresh function available globally for debugging
+  window.refreshUserInfo = refreshUserInfo;
+
+  // Make functions available globally for testing/debugging
+  window.setUserInfo = setUserInfo;
+  window.getUserInfo = getUserInfo;
+  window.updateUserInfoFromSource = updateUserInfoFromSource;
+  /**
+   * Handle logout functionality
+   */
+  async function handleLogout() {
+    // Show confirmation dialog
+    if (confirm("Bạn có chắc chắn muốn đăng xuất không?")) {
+      try {
+        // Show loading notification
+        showNotification("Đang đăng xuất...", "info");
+
+        // Logout from Firebase
+        await logout();
+
+        // Clear user session data
+        localStorage.removeItem("userInfo");
+        sessionStorage.removeItem("userInfo");
+        localStorage.removeItem("authToken");
+        sessionStorage.removeItem("authToken");
+
+        // Clear any cached data
+        localStorage.removeItem("paymentHistory");
+        localStorage.removeItem("orderCache");
+
+        // Show logout success message
+        showNotification("Đăng xuất thành công!", "success");
+
+        // Redirect to login page or main page after a short delay
+        setTimeout(() => {
+          window.location.href = "../index.html";
+        }, 1000);
+      } catch (error) {
+        console.error("Error during logout:", error);
+        showNotification("Có lỗi xảy ra khi đăng xuất", "error");
+
+        // Still redirect even if there's an error
+        setTimeout(() => {
+          window.location.href = "../index.html";
+        }, 1000);
+      }
+    }
+  }
+
+  /**
+   * Show notification message
+   */
+  function showNotification(message, type = "info") {
+    // Create notification element
+    const notification = document.createElement("div");
+    notification.className = `alert alert-${
+      type === "success" ? "success" : type === "error" ? "danger" : "info"
+    } alert-dismissible fade show position-fixed`;
+    notification.style.cssText =
+      "top: 20px; right: 20px; z-index: 9999; min-width: 300px;";
+    notification.innerHTML = `
+      <i data-lucide="${
+        type === "success"
+          ? "check-circle"
+          : type === "error"
+          ? "alert-circle"
+          : "info"
+      }" style="width: 16px; height: 16px; margin-right: 8px;"></i>
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+    // Add to page
+    document.body.appendChild(notification);
+
+    // Re-initialize Lucide icons
+    lucide.createIcons();
+
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.remove();
+      }
+    }, 3000);
   }
 });
