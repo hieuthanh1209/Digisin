@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="vi">
-<head>    <meta charset="UTF-8">
+<head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Đăng nhập - Hệ thống Quản lý Nhà hàng</title>
     <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
@@ -9,68 +10,91 @@
     <script type="module" src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"></script>
 </head>
 <body>
-    <div class="flex h-screen w-full items-center justify-center bg-gray-100">
-        <div class="card">
-            <div class="card-header">
-                <h1 class="card-title">Đăng nhập hệ thống</h1>
-                <p class="card-description">Nhập thông tin đăng nhập để vào hệ thống</p>
-            </div>
-            <div class="card-content">
-                <form id="loginForm">
-                    <div class="grid gap-4">
-                        <div class="text-center">
-                            <img src="https://cdn-icons-png.flaticon.com/512/2555/2555072.png" alt="Restaurant Management System" class="mx-auto" style="width: 100px; height: 100px; margin-bottom: 1.5rem;">
-                        </div>
-                        
-                        <div class="grid gap-2">
-                            <label class="label" for="username">Tên đăng nhập</label>
-                            <input class="input" id="username" type="text" placeholder="Nhập tên đăng nhập" required>
-                        </div>
-                        <div class="grid gap-2">
-                            <label class="label" for="password">Mật khẩu</label>
-                            <input class="input" id="password" type="password" placeholder="Nhập mật khẩu" required>
-                        </div>
-                        
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center">
-                                <input type="checkbox" id="remember" class="mr-2">
-                                <label for="remember" class="text-sm text-gray-500">Ghi nhớ đăng nhập</label>
-                            </div>
-                            <a href="#" class="text-sm text-blue-600 hover:underline">Quên mật khẩu?</a>
-                        </div>
-                        
-                        <div id="loginError" class="text-center text-red-500 text-sm" style="display: none;">
-                            Thông tin đăng nhập không chính xác
+    <div class="login-container">
+        <div class="login-card">
+            <!-- Left side: Demo accounts -->
+            <div class="demo-section">
+                <div class="demo-header">
+                    <img src="https://cdn-icons-png.flaticon.com/512/2555/2555072.png" alt="Restaurant Management System" class="logo">
+                    <h2 class="demo-title">Tài khoản demo</h2>
+                </div>
+                
+                <div class="demo-grid">
+                    <div class="demo-card">
+                        <div class="demo-role">Thu ngân</div>
+                        <div class="demo-credentials">
+                            <div>thanhhieu@gmail.com / 123456</div>
+                            <div>tiendung@yahoo.com / 56789</div>
                         </div>
                     </div>
-                </form>
-            </div>
-            <div class="card-footer">
-                <button class="button" type="submit" form="loginForm">Đăng nhập</button>
-            </div>
-              <div class="p-4 bg-gray-50 rounded-b-lg">
-                <div class="text-center text-sm text-gray-500">
-                    <p class="mb-2">Tài khoản demo:</p>
-                    <div class="grid grid-cols-1 gap-2 text-xs">
-                        <div class="bg-white p-2 rounded border">
-                            <strong>Thu ngân:</strong> thanhhieu@gmail.com / 123456 | tiendung@yahoo.com / 56789
+                    <div class="demo-card">
+                        <div class="demo-role">Phục vụ</div>
+                        <div class="demo-credentials">
+                            <div>ngochoa@gmail.com / 123456</div>
+                            <div>thuytien@yahoo.com / 56789</div>
                         </div>
-                        <div class="bg-white p-2 rounded border">
-                            <strong>Phục vụ:</strong> ngochoa@gmail.com / 123456 | thuytien@yahoo.com / 56789
+                    </div>
+                    <div class="demo-card">
+                        <div class="demo-role">Đầu bếp</div>
+                        <div class="demo-credentials">
+                            <div>minhtri@gmail.com / 123456</div>
+                            <div>vietanh@yahoo.com / 56789</div>
                         </div>
-                        <div class="bg-white p-2 rounded border">
-                            <strong>Đầu bếp:</strong> minhtri@gmail.com / 123456 | vietanh@yahoo.com / 56789
-                        </div>
-                        <div class="bg-white p-2 rounded border">
-                            <strong>Quản lý:</strong> quocminh@gmail.com / 123456 | thanhtrung@yahoo.com / 56789
+                    </div>
+                    <div class="demo-card">
+                        <div class="demo-role">Quản lý</div>
+                        <div class="demo-credentials">
+                            <div>quocminh@gmail.com / 123456</div>
+                            <div>thanhtrung@yahoo.com / 56789</div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>    </div>
+            
+            <!-- Right side: Login form -->
+            <div class="login-section">
+                <div class="card-header">
+                    <h1 class="card-title">Đăng nhập hệ thống</h1>
+                    <p class="card-description">Nhập thông tin đăng nhập để vào hệ thống</p>
+                </div>
+                
+                <div class="card-content">
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label class="label" for="username">Tên đăng nhập</label>
+                            <input class="input" id="username" type="text" placeholder="Nhập tên đăng nhập" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="label" for="password">Mật khẩu</label>
+                            <input class="input" id="password" type="password" placeholder="Nhập mật khẩu" required>
+                        </div>
+                        
+                        <div class="form-options">
+                            <div class="remember-me">
+                                <input type="checkbox" id="remember" class="checkbox">
+                                <label for="remember" class="checkbox-label">Ghi nhớ đăng nhập</label>
+                            </div>
+                            <a href="#" class="forgot-password">Quên mật khẩu?</a>
+                        </div>
+                        
+                        <div id="loginError" class="error-message" style="display: none;">
+                            Thông tin đăng nhập không chính xác
+                        </div>
+                        
+                        <div class="card-footer">
+                            <button class="login-button" type="submit" form="loginForm">
+                                <span>Đăng nhập</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
     
-    <div class="fixed bottom-4 right-4">
-        <a href="./admin/initialize-firebase.html" class="text-xs text-gray-500 hover:underline">Khởi tạo dữ liệu Firebase</a>
+    <div class="firebase-link">
+        <a href="./admin/initialize-firebase.html">Khởi tạo dữ liệu Firebase</a>
     </div>
     
     <!-- Firebase SDK -->
