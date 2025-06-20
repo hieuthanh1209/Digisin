@@ -7,43 +7,44 @@ Hệ thống quản lý nhà hàng hoàn chỉnh với giao diện web responsiv
 - **4 Dashboard riêng biệt**: Waiter, Chef, Cashier, Manager
 - **Giao diện responsive**: Hoạt động tốt trên mọi thiết bị
 - **Quản lý đơn hàng real-time**: Theo dõi trạng thái đơn hàng trực tiếp
-- **Hệ thống thanh toán**: Với PayOS QR, mã giảm giá và in hóa đơn
-- **🆕 PayOS QR Payment**: Thanh toán bằng VietQR tích hợp PayOS
-- **Báo cáo và thống kê**: Export Excel, analytics chi tiết
+- **Hệ thống thanh toán**: Tiền mặt, mã giảm giá và in hóa đơn
+- **⚠️ PayOS QR Payment**: (Tạm thời gỡ bỏ, sẽ tích hợp lại sau)
+- **Báo cáo và thống kê**: Export Excel, PDF và analytics chi tiết
 - **Quản lý nhân viên**: CRUD operations hoàn chỉnh
-- **Kiểm soát kho**: Theo dõi nguyên liệu với cảnh báo
+- **Kiểm soát kho**: Theo dõi nguyên liệu với cảnh báo tự động
+- **Performance optimizations**: Tăng tốc độ xử lý đơn hàng
 
 ## 🏗️ Cấu trúc dự án
 
 ```
 CNPMLT/
-├── public/                          # Static assets & entry points
-│   ├── index.html                   # Landing page chính
-│   └── images/                      # Hình ảnh public
+├── index.html                      # Landing page chính
+├── script.js                       # Main JavaScript file
+├── styles.css                      # Main CSS file
+├── assets/                         # Static assets
+│   ├── favicon.ico                 # Website favicon
+│   └── placeholder-food.jpg        # Placeholder image
+├── dashboard/                      # Dashboard interfaces
+│   ├── cashier-dashboard.html      # Cashier interface
+│   ├── cashier-dashboard.js        # Cashier logic
+│   ├── chef-dashboard.html         # Chef interface
+│   ├── chef-dashboard.js           # Chef logic
+│   ├── manager-dashboard.html      # Manager interface
+│   ├── manager-dashboard.js        # Manager logic
+│   ├── waiter-dashboard.html       # Waiter interface
+│   └── waiter-dashboard.js         # Waiter logic
 ├── src/                            # Source code
-│   ├── assets/                     # Shared assets
-│   │   ├── css/                    # Global styles
-│   │   ├── js/                     # Shared JavaScript
-│   │   └── images/                 # Shared images
 │   ├── components/                 # Reusable components
-│   │   ├── ui/                     # UI components (Toast, Loading...)
-│   │   ├── modals/                 # Modal components
-│   │   ├── charts/                 # Chart components
-│   │   └── forms/                  # Form components
-│   ├── dashboards/                 # Dashboard-specific code
-│   │   ├── waiter/                 # Waiter dashboard
-│   │   ├── chef/                   # Chef dashboard
-│   │   ├── cashier/                # Cashier dashboard (🆕 PayOS QR)
-│   │   └── manager/                # Manager dashboard
-│   ├── data/                       # Data models & mock data
-│   │   ├── models/                 # Data models
-│   │   ├── mock/                   # Mock data for development
-│   │   └── schemas/                # Firebase schemas
+│   │   └── ui/                     # UI components (Toast, etc.)
 │   └── utils/                      # Utility functions
+├── api/                            # API endpoints
+│   └── payos/                      # PayOS integration endpoints
 ├── config/                         # Configuration files
-├── docs/                          # Documentation
-├── scripts/                       # Build & utility scripts
-└── tests/                         # Testing (future)
+│   ├── app-config.js               # App configuration
+│   └── payos-config.js             # PayOS configuration
+├── admin/                          # Admin tools
+├── docs/                           # Documentation
+└── scripts/                        # Build & utility scripts
 ```
 
 ## 🚀 Bắt đầu
@@ -100,24 +101,18 @@ CNPMLT/
 
 **Truy cập**: `/src/dashboards/chef/index.html`
 
-### 💰 Cashier Dashboard 🆕
+### 💰 Cashier Dashboard
 
-- **Payment processing**: Tiền mặt, thẻ, PayOS QR
-- **🔥 PayOS QR Payment**: Thanh toán VietQR tích hợp PayOS
-- **Discount codes**: 5 mã giảm giá predefined
-- **🆕 Invoice printing**: In hóa đơn tạm với PayOS QR code
-- **Order search**: Tìm kiếm đơn hàng nhanh
-- **Real-time payment**: Theo dõi trạng thái thanh toán PayOS
+- **Payment processing**: Tiền mặt, thẻ (PayOS QR tạm thời gỡ bỏ)
+- **Discount codes**: 10 mã giảm giá với tùy chỉnh linh hoạt
+- **Invoice printing**: In hóa đơn chính thức
+- **Order search**: Tìm kiếm đơn hàng nhanh với bộ lọc nâng cao
+- **🆕 Multi-payment**: Hỗ trợ thanh toán nhiều đơn hàng cùng lúc
+- **🆕 Payment history**: Lịch sử giao dịch chi tiết với báo cáo
 
 **Truy cập**: `/dashboard/cashier-dashboard.html`
 
-**Tính năng PayOS QR mới**:
-
-- ✅ **In hóa đơn tạm**: Với mã QR PayOS để khách thanh toán
-- ✅ **VietQR Integration**: Khách quét QR bằng app ngân hàng
-- ✅ **Payment Modal**: Nút "In hóa đơn tạm" ngay trong popup
-- ✅ **Real-time status**: Theo dõi trạng thái thanh toán
-- ✅ **Bank Integration**: Tích hợp KIENLONGBANK
+**⚠️ Lưu ý về PayOS QR**: Tính năng thanh toán PayOS QR đã tạm thời bị gỡ bỏ do một số lỗi kỹ thuật. Chúng tôi đang làm việc để khắc phục và sẽ tích hợp lại trong các bản cập nhật tương lai.
 
 ### 📊 Manager Dashboard
 
@@ -129,53 +124,42 @@ CNPMLT/
 
 **Truy cập**: `/src/dashboards/manager/index.html`
 
-## 💳 PayOS QR Payment System
+## 💳 PayOS QR Payment System (⚠️ Tạm thời không khả dụng)
 
-### 🎯 Tính năng PayOS QR
+### ⚠️ Thông báo quan trọng
 
-```javascript
-// Cấu hình PayOS
-const PAYOS_SETTINGS = {
-  CLIENT_ID: "your-payos-client-id",
-  API_KEY: "your-payos-api-key",
-  CHECKSUM_KEY: "your-payos-checksum-key",
-  BANK: "KIENLONGBANK",
-  ACCOUNT: "0969864739",
-};
-```
+Tính năng PayOS QR Payment System đã tạm thời được gỡ bỏ khỏi hệ thống do một số lỗi kỹ thuật. Chúng tôi đang làm việc để khắc phục các vấn đề và sẽ tích hợp lại trong tương lai.
 
-### 🔄 Luồng thanh toán PayOS
+Hiện tại, vui lòng sử dụng các phương thức thanh toán thay thế như tiền mặt hoặc thẻ.
 
-1. **Khách gọi món** → Waiter tạo đơn hàng
-2. **Đơn hàng sẵn sàng** → Chuyển sang Cashier
-3. **Cashier mở Payment Modal** → Chọn PayOS payment
-4. **In hóa đơn tạm** với PayOS QR code
-5. **Khách quét QR** bằng app ngân hàng → Thanh toán
-6. **System nhận webhook** → Cập nhật trạng thái
-7. **In hóa đơn chính thức** → Hoàn tất
+### 📋 File PayOS liên quan (tham khảo)
 
-### 📋 File PayOS liên quan
-
-- `dashboard/cashier-dashboard.html` - Giao diện thanh toán
-- `dashboard/cashier-script.js` - Logic PayOS QR
-- `dashboard/qr-demo-simple.html` - Demo QR PayOS (retired)
+- `dashboard/cashier-dashboard.html` - Giao diện thanh toán (đã cập nhật)
+- `dashboard/cashier-script.js` - Logic thanh toán (đã cập nhật)
+- `config/payos-config.js` - Cấu hình PayOS (đã vô hiệu hóa)
 
 ## 🔧 Scripts có sẵn
 
 ```bash
 # Development
 npm run start        # Khởi động Python server
-npm run dev         # Khởi động live-server với auto-reload
-npm run serve       # Alternative Python server
+npm run dev          # Khởi động live-server với auto-reload
+npm run serve        # Alternative Python server
 
-# Build & Deploy (future)
-npm run build       # Build for production
-npm run deploy      # Deploy to Firebase
-npm run clean       # Clean build folders
+# Build & Deploy
+npm run build        # Build for production
+npm run deploy       # Deploy to Firebase
+npm run clean        # Clean build folders
+npm run vercel:deploy # Deploy to Vercel
 
-# Testing (future)
-npm run test        # Run tests
-npm run test:payos  # Test PayOS integration
+# Testing
+npm run test         # Run tests
+npm run test:payos   # Test PayOS integration
+npm run test:ui      # Test UI components
+
+# Data Management
+npm run init:menu    # Initialize menu data
+npm run init:inventory # Initialize inventory data
 ```
 
 ## 🛠️ Công nghệ sử dụng
@@ -183,12 +167,16 @@ npm run test:payos  # Test PayOS integration
 - **Frontend**: HTML5, CSS3, JavaScript (ES6+)
 - **UI Framework**: Bootstrap 5.3
 - **Icons**: FontAwesome 6, Lucide Icons
-- **Charts**: Chart.js
-- **Payment**: PayOS Checkout SDK
+- **Charts**: Chart.js 4.0
+- **Payment**: PayOS Checkout SDK 2.0
 - **QR Generator**: qrcode.js library
 - **Date/Time**: Native JavaScript Intl API
-- **Export**: SheetJS (for Excel)
+- **Export**: SheetJS (Excel), jsPDF (PDF)
 - **Print**: Browser native print API
+- **HTTP Client**: Axios
+- **Animations**: GSAP (GreenSock)
+- **State Management**: Custom Pub/Sub system
+- **PDF Generation**: jsPDF with AutoTable plugin
 
 ## 📁 File quan trọng
 
@@ -221,26 +209,39 @@ Nếu gặp vấn đề, vui lòng:
 
 ## 📈 Roadmap
 
-- [x] **PayOS QR Payment Integration** ✅
-- [x] **Invoice printing with QR codes** ✅
-- [ ] Firebase integration
+- [ ] **Khắc phục và tái tích hợp PayOS QR Payment** (Ưu tiên cao)
+- [x] ~~PayOS QR Payment Integration~~ (Tạm thời gỡ bỏ)
+- [x] ~~Invoice printing with QR codes~~ (Tạm thời gỡ bỏ)
+- [x] ~~PayOS webhook integration~~ (Tạm thời gỡ bỏ)
+- [ ] Firebase integration (In Progress)
 - [ ] Offline support
 - [ ] Mobile app
 - [ ] Multi-language support
-- [ ] Advanced analytics
+- [ ] Advanced analytics dashboard
 - [ ] API documentation
 - [ ] Unit testing
 - [ ] E2E testing
-- [ ] PayOS webhook integration
-- [ ] Multiple payment gateway support
+- [ ] Alternative payment gateway integration
+- [ ] Customer loyalty program
+- [ ] Table reservation system
 
 ---
 
-**Phiên bản**: 1.1.0  
-**Cập nhật cuối**: December 2024  
+**Phiên bản**: 1.2.0  
+**Cập nhật cuối**: June 2025  
 **Team**: Restaurant Management Development Team
 
-### 🆕 Changelog v1.1.0
+### 🆕 Changelog v1.2.0
+
+- ⚠️ **Tạm thời gỡ bỏ PayOS QR Payment System do lỗi kỹ thuật**
+- ✅ **Enhanced UI/UX across all dashboards**
+- ✅ **Added export options for financial reports**
+- ✅ **Optimized loading times on all pages**
+- ✅ **Improved mobile responsiveness**
+- ✅ **Bug fixes and stability improvements**
+- ✅ **Cập nhật cashier dashboard để hỗ trợ thanh toán không có PayOS**
+
+### Changelog v1.1.0
 
 - ✅ **Added PayOS QR Payment System**
 - ✅ **Enhanced Cashier Dashboard with PayOS integration**
