@@ -18,11 +18,15 @@ import {
   Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import firebaseConfig from "../config/firebase-config.js";
+import { updateInventoryFromReadyOrder } from "./firebase-manager.js";
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// Make function available globally for chef-script.js
+window.updateInventoryFromReadyOrder = updateInventoryFromReadyOrder;
 
 document.addEventListener("DOMContentLoaded", function () {
   // DOM elements

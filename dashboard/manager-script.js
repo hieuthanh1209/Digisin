@@ -250,21 +250,65 @@ let managerFinanceData = [
 let revenueChart, topDishesChart, categoryRevenueChart;
 
 // Initialize when page loads
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", async function () {
   lucide.createIcons();
   showTab("dashboard");
-  updateDashboardStats();
-  initializeCharts();
-  renderStaffTable();
-  renderMenuItems();
-  renderInventoryTable();
-  updateAnalytics();
-  updateInventoryAlerts();
-  setupEventListeners();
 
-  // Initialize finance management
-  renderFinanceTable();
-  setupFinanceEventListeners();
+  // Wait for Firebase functions to be available
+  const checkFirebaseFunctions = () => {
+    const requiredFunctions = [
+      "getAllStaff",
+      "getActiveStaffCount",
+      "getAllMenuItems",
+      "getAllInventoryItems",
+      "getLowStockItems",
+      "getHighVarianceItems",
+    ];
+
+    const missingFunctions = requiredFunctions.filter(
+      (fn) => typeof window[fn] !== "function"
+    );
+
+    if (missingFunctions.length > 0) {
+      console.log(
+        `Waiting for Firebase functions: ${missingFunctions.join(", ")}`
+      );
+      setTimeout(checkFirebaseFunctions, 100);
+      return false;
+    }
+
+    return true;
+  };
+
+  // Wait for Firebase functions to be available before initializing
+  const initApp = async () => {
+    if (!checkFirebaseFunctions()) return;
+
+    console.log("All Firebase functions are available, initializing app");
+
+    // Initialize Firebase-connected components
+    try {
+      await renderStaffTable();
+      await updateDashboardStats();
+    } catch (error) {
+      console.error("Error initializing Firebase components:", error);
+    }
+
+    // Initialize other components
+    initializeCharts();
+    renderMenuItems();
+    renderInventoryTable(); // Uses Firestore
+    updateAnalytics();
+    updateInventoryAlerts(); // Uses Firestore
+    setupEventListeners();
+
+    // Initialize finance management
+    renderFinanceTable();
+    setupFinanceEventListeners();
+  };
+
+  // Start initialization
+  initApp();
 
   // Set current date as default for new finance transactions
   const financeForm = document.getElementById("financeForm");
@@ -324,7 +368,7 @@ function showTab(tabName) {
 }
 
 // Dashboard Functions
-function updateDashboardStats() {
+async function updateDashboardStats() {
   const todayRevenue = document.getElementById("todayRevenue");
   const todayOrders = document.getElementById("todayOrders");
   const activeStaff = document.getElementById("activeStaff");
@@ -337,10 +381,17 @@ function updateDashboardStats() {
     todayOrders.textContent = managerSalesData.today.orders.toString();
   }
   if (activeStaff) {
-    const activeStaffCount = managerStaffData.filter(
-      (staff) => staff.status === "active"
-    ).length;
-    activeStaff.textContent = activeStaffCount.toString();
+    try {
+      const activeStaffCount = await getActiveStaffCount();
+      activeStaff.textContent = activeStaffCount.toString();
+    } catch (error) {
+      console.error("Error getting active staff count:", error);
+      // Fallback to local data if Firebase call fails
+      const activeStaffCount = managerStaffData.filter(
+        (staff) => staff.status === "active"
+      ).length;
+      activeStaff.textContent = activeStaffCount.toString();
+    }
   }
   if (activeTables) {
     activeTables.textContent = managerSalesData.today.activeTables.toString();
@@ -416,40 +467,83 @@ function initializeCharts() {
 }
 
 // Staff Management Functions
-function renderStaffTable() {
+async function renderStaffTable() {
   const tbody = document.getElementById("staffTableBody");
   if (!tbody) return;
 
   tbody.innerHTML = "";
 
-  managerStaffData.forEach((staff) => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-            <td>${staff.id}</td>
-            <td>${staff.name}</td>
-            <td>${staff.position}</td>
-            <td>${staff.phone}</td>
-            <td>${staff.email}</td>
+  try {
+    // Show loading indicator
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" class="text-center">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Đang tải...</span>
+          </div>
+        </td>
+      </tr>
+    `;
+
+    // Get staff data from Firestore
+    const staffList = await getAllStaff();
+
+    // Clear loading indicator
+    tbody.innerHTML = "";
+
+    if (staffList.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="7" class="text-center">Không có dữ liệu nhân viên</td>
+        </tr>
+      `;
+      return;
+    }
+
+    // Render staff data
+    staffList.forEach((staff) => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+            <td>${staff.uid || staff.id}</td>
+            <td>${staff.displayName || staff.name || ""}</td>
+            <td>${staff.role || staff.position || ""}</td>
+            <td>${staff.phoneNumber || staff.phone || ""}</td>
+            <td>${staff.email || ""}</td>
             <td>
-                <span class="badge ${getStatusClass(staff.status)}">
-                    ${getStatusText(staff.status)}
+                <span class="badge ${getStatusClass(
+                  staff.status || "inactive"
+                )}">
+                    ${getStatusText(staff.status || "inactive")}
                 </span>
             </td>
             <td>
                 <button class="btn btn-sm btn-outline-primary me-1" onclick="editStaff('${
-                  staff.id
+                  staff.uid || staff.id
                 }')">
                     <i data-lucide="edit" style="width: 14px; height: 14px;"></i>
                 </button>
                 <button class="btn btn-sm btn-outline-danger" onclick="deleteStaff('${
-                  staff.id
+                  staff.uid || staff.id
                 }')">
                     <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
                 </button>
             </td>
         `;
-    tbody.appendChild(row);
-  });
+      tbody.appendChild(row);
+    });
+
+    // Update dashboard stats
+    updateDashboardStats();
+  } catch (error) {
+    console.error("Error loading staff data:", error);
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" class="text-center text-danger">
+          Lỗi khi tải dữ liệu: ${error.message || "Không xác định"}
+        </td>
+      </tr>
+    `;
+  }
 
   lucide.createIcons();
 }
@@ -483,67 +577,96 @@ function showAddStaffModal() {
   modal.show();
 }
 
-function editStaff(staffId) {
-  const staff = managerStaffData.find((s) => s.id === staffId);
-  if (!staff) return;
+async function editStaff(staffId) {
+  try {
+    // Get staff data from Firestore
+    const staff = await getStaffById(staffId);
+    if (!staff) {
+      showToast("Không tìm thấy thông tin nhân viên", "error");
+      return;
+    }
 
-  const modal = new bootstrap.Modal(document.getElementById("staffModal"));
-  const title = document.getElementById("staffModalTitle");
+    const modal = new bootstrap.Modal(document.getElementById("staffModal"));
+    const title = document.getElementById("staffModalTitle");
 
-  title.textContent = "Chỉnh sửa nhân viên";
-  document.getElementById("editStaffId").value = staff.id;
-  document.getElementById("staffId").value = staff.id;
-  document.getElementById("staffName").value = staff.name;
-  document.getElementById("staffPosition").value = staff.position;
-  document.getElementById("staffPhone").value = staff.phone;
-  document.getElementById("staffEmail").value = staff.email;
-  document.getElementById("staffStartDate").value = staff.startDate;
-  document.getElementById("staffSalary").value = staff.salary;
+    title.textContent = "Chỉnh sửa nhân viên";
+    document.getElementById("editStaffId").value = staff.uid || staff.id;
+    document.getElementById("staffId").value = staff.uid || staff.id;
+    document.getElementById("staffName").value =
+      staff.displayName || staff.name || "";
+    document.getElementById("staffPosition").value =
+      staff.role || staff.position || "";
+    document.getElementById("staffPhone").value =
+      staff.phoneNumber || staff.phone || "";
+    document.getElementById("staffEmail").value = staff.email || "";
 
-  modal.show();
+    // Format date if it's a Date object or timestamp
+    let startDate = "";
+    if (staff.startDate instanceof Date) {
+      startDate = staff.startDate.toISOString().split("T")[0];
+    } else if (typeof staff.startDate === "string") {
+      startDate = new Date(staff.startDate).toISOString().split("T")[0];
+    }
+    document.getElementById("staffStartDate").value = startDate;
+
+    document.getElementById("staffSalary").value = staff.salary || 0;
+
+    modal.show();
+  } catch (error) {
+    console.error("Error loading staff details:", error);
+    showToast("Lỗi khi tải thông tin nhân viên: " + error.message, "error");
+  }
 }
 
-function deleteStaff(staffId) {
+async function deleteStaff(staffId) {
   if (confirm("Bạn có chắc chắn muốn xóa nhân viên này?")) {
-    const index = managerStaffData.findIndex((s) => s.id === staffId);
-    if (index > -1) {
-      managerStaffData.splice(index, 1);
+    try {
+      await deleteStaffMember(staffId);
       renderStaffTable();
       updateDashboardStats();
       showToast("Đã xóa nhân viên thành công!", "success");
+    } catch (error) {
+      console.error("Error deleting staff member:", error);
+      showToast("Lỗi khi xóa nhân viên: " + error.message, "error");
     }
   }
 }
 
-function saveStaff() {
-  const editId = document.getElementById("editStaffId").value;
-  const staffData = {
-    id: document.getElementById("staffId").value,
-    name: document.getElementById("staffName").value,
-    position: document.getElementById("staffPosition").value,
-    phone: document.getElementById("staffPhone").value,
-    email: document.getElementById("staffEmail").value,
-    startDate: document.getElementById("staffStartDate").value,
-    salary: parseInt(document.getElementById("staffSalary").value),
-    status: "active",
-  };
+async function saveStaff() {
+  try {
+    const editId = document.getElementById("editStaffId").value;
+    const staffData = {
+      displayName: document.getElementById("staffName").value,
+      role: document.getElementById("staffPosition").value,
+      phoneNumber: document.getElementById("staffPhone").value,
+      email: document.getElementById("staffEmail").value,
+      startDate: document.getElementById("staffStartDate").value,
+      salary: parseInt(document.getElementById("staffSalary").value) || 0,
+      status: "active",
+    };
 
-  if (editId) {
-    // Edit existing staff
-    const index = managerStaffData.findIndex((s) => s.id === editId);
-    if (index > -1) {
-      managerStaffData[index] = { ...managerStaffData[index], ...staffData };
+    if (editId) {
+      // Edit existing staff
+      await updateStaffMember(editId, staffData);
       showToast("Cập nhật nhân viên thành công!", "success");
+    } else {
+      // Add new staff
+      const staffId = document.getElementById("staffId").value;
+      // Create a new user document with the specified ID
+      await addStaffMember({
+        ...staffData,
+        uid: staffId,
+      });
+      showToast("Thêm nhân viên thành công!", "success");
     }
-  } else {
-    // Add new staff
-    managerStaffData.push(staffData);
-    showToast("Thêm nhân viên thành công!", "success");
-  }
 
-  renderStaffTable();
-  updateDashboardStats();
-  bootstrap.Modal.getInstance(document.getElementById("staffModal")).hide();
+    await renderStaffTable();
+    updateDashboardStats();
+    bootstrap.Modal.getInstance(document.getElementById("staffModal")).hide();
+  } catch (error) {
+    console.error("Error saving staff member:", error);
+    showToast("Lỗi khi lưu thông tin nhân viên: " + error.message, "error");
+  }
 }
 
 // Reports Functions
@@ -714,98 +837,122 @@ function renderDailyItemsTable() {
 }
 
 // Menu Management Functions
-function renderMenuItems() {
+async function renderMenuItems() {
   const container = document.getElementById("menuItemsGrid");
   if (!container) return;
 
-  container.innerHTML = "";
+  container.innerHTML =
+    '<div class="text-center my-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Đang tải dữ liệu...</p></div>';
 
-  managerMenuData.forEach((item) => {
-    const col = document.createElement("div");
-    col.className = "col-lg-4 col-md-6";
+  try {
+    // Get menu items from Firestore
+    const menuItems = await getAllMenuItems();
 
-    // Format ingredients list for display
-    let ingredientsHtml = '<ul class="ps-3 mb-0 text-muted small">';
-    if (item.ingredients && item.ingredients.length > 0) {
-      item.ingredients.forEach((ing) => {
-        if (typeof ing === "object" && ing.name) {
-          ingredientsHtml += `<li>${ing.name}: ${ing.amount} ${ing.unit}</li>`;
-        } else if (typeof ing === "string") {
-          ingredientsHtml += `<li>${ing}</li>`;
-        }
-      });
-    } else {
-      ingredientsHtml += "<li>Không có nguyên liệu</li>";
+    container.innerHTML = "";
+
+    if (menuItems.length === 0) {
+      container.innerHTML =
+        '<div class="text-center my-5"><p>Không có món ăn nào. Hãy thêm món mới!</p></div>';
+      return;
     }
-    ingredientsHtml += "</ul>";
 
-    col.innerHTML = `
+    // Populate category filter if it exists
+    const categoryFilter = document.getElementById("menuCategoryFilter");
+    if (categoryFilter) {
+      const categories = await getMenuCategories();
+      categoryFilter.innerHTML = '<option value="all">Tất cả danh mục</option>';
+      categories.forEach((category) => {
+        categoryFilter.innerHTML += `<option value="${category}">${category}</option>`;
+      });
+    }
+
+    menuItems.forEach((item) => {
+      const col = document.createElement("div");
+      col.className = "col-lg-4 col-md-6";
+
+      // Format ingredients list for display
+      let ingredientsHtml = '<ul class="ps-3 mb-0 text-muted small">';
+      if (item.ingredients && item.ingredients.length > 0) {
+        item.ingredients.forEach((ing) => {
+          if (typeof ing === "object" && ing.name) {
+            ingredientsHtml += `<li>${ing.name}: ${ing.amount || ""} ${
+              ing.unit || ""
+            }</li>`;
+          } else if (typeof ing === "string") {
+            ingredientsHtml += `<li>${ing}</li>`;
+          }
+        });
+      } else {
+        ingredientsHtml += "<li>Không có nguyên liệu</li>";
+      }
+      ingredientsHtml += "</ul>";
+
+      col.innerHTML = `
             <div class="card border-0 shadow-sm h-100">
                 <img src="${
-                  item.image
+                  item.image || "../assets/placeholder-food.jpg"
                 }" class="card-img-top" style="height: 200px; object-fit: cover;" alt="${
-      item.name
-    }">
+        item.name
+      }">
                 <div class="card-body d-flex flex-column">
                     <div class="d-flex justify-content-between align-items-start mb-2">
-                        <h5 class="card-title mb-0">${item.name}</h5>
+                        <h5 class="card-title mb-0 fw-bold">${item.name}</h5>
+                        <span class="badge bg-primary rounded-pill">${formatCurrency(
+                          item.price
+                        )}</span>
+                    </div>
+                    <p class="text-muted mb-1 small">Danh mục: ${
+                      item.category || "Chưa phân loại"
+                    }</p>
+                    <div class="mb-3">
+                        <p class="mb-1 fw-medium small">Nguyên liệu:</p>
+                        ${ingredientsHtml}
+                    </div>
+                    <div class="mt-auto d-flex justify-content-between align-items-center">
                         <span class="badge ${
                           item.status === "active"
                             ? "bg-success"
                             : "bg-secondary"
-                        }">
-                            ${
-                              item.status === "active"
-                                ? "Đang bán"
-                                : "Ngừng bán"
-                            }
-                        </span>
-                    </div>
-                    <p class="text-muted small mb-2">${item.category}</p>
-                    <p class="text-primary fw-bold fs-5 mb-2">${formatCurrency(
-                      item.price
-                    )}</p>
-                    <p class="text-muted small mb-2">Giá vốn: ${formatCurrency(
-                      item.cost
-                    )}</p>
-                    
-                    <div class="small mb-3">
-                      <p class="mb-1 fw-medium">Nguyên liệu:</p>
-                      ${ingredientsHtml}
-                    </div>
-                    
-                    <div class="mt-auto">
-                        <div class="btn-group w-100">
+                        }">${
+        item.status === "active" ? "Đang bán" : "Ngưng bán"
+      }</span>
+                        <div>
                             <button class="btn btn-outline-primary btn-sm" onclick="editMenuItem('${
                               item.id
                             }')">
-                                <i data-lucide="edit" style="width: 14px; height: 14px;"></i>
+                                <i data-lucide="edit" class="icon-sm"></i>
                             </button>
                             <button class="btn btn-outline-danger btn-sm" onclick="deleteMenuItem('${
                               item.id
                             }')">
-                                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                                <i data-lucide="trash-2" class="icon-sm"></i>
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
         `;
-    container.appendChild(col);
-  });
+      container.appendChild(col);
+    });
 
-  lucide.createIcons();
+    lucide.createIcons();
+  } catch (error) {
+    console.error("Error rendering menu items:", error);
+    container.innerHTML =
+      '<div class="text-center my-5"><p class="text-danger">Đã xảy ra lỗi khi tải dữ liệu. Vui lòng thử lại sau.</p></div>';
+    showToast("Lỗi khi tải dữ liệu thực đơn: " + error.message, "danger");
+  }
 }
 
-function filterMenuByCategory() {
+async function filterMenuByCategory() {
   const category = document.getElementById("menuCategoryFilter").value;
   const searchTerm = document
     .getElementById("menuSearchInput")
     .value.toLowerCase();
-  filterMenuItems(searchTerm, category);
+  await filterMenuItems(searchTerm, category);
 }
 
-function filterMenuItems(searchTerm = "", category = "") {
+async function filterMenuItems(searchTerm = "", category = "") {
   if (!searchTerm) {
     searchTerm = document.getElementById("menuSearchInput")
       ? document.getElementById("menuSearchInput").value.toLowerCase()
@@ -820,265 +967,490 @@ function filterMenuItems(searchTerm = "", category = "") {
   const container = document.getElementById("menuItemsGrid");
   if (!container) return;
 
-  const filteredItems = managerMenuData.filter((item) => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm);
-    const matchesCategory = !category || item.category === category;
-    return matchesSearch && matchesCategory;
-  });
+  container.innerHTML =
+    '<div class="text-center my-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Đang lọc dữ liệu...</p></div>';
 
-  container.innerHTML = "";
-  filteredItems.forEach((item) => {
-    const col = document.createElement("div");
-    col.className = "col-lg-4 col-md-6";
+  try {
+    // Get menu items filtered by category from Firestore
+    let menuItems = await filterMenuItemsByCategory(
+      category !== "all" ? category : null
+    );
 
-    // Format ingredients list for display
-    let ingredientsHtml = '<ul class="ps-3 mb-0 text-muted small">';
-    if (item.ingredients && item.ingredients.length > 0) {
-      item.ingredients.forEach((ing) => {
-        if (typeof ing === "object" && ing.name) {
-          ingredientsHtml += `<li>${ing.name}: ${ing.amount} ${ing.unit}</li>`;
-        } else if (typeof ing === "string") {
-          ingredientsHtml += `<li>${ing}</li>`;
-        }
-      });
-    } else {
-      ingredientsHtml += "<li>Không có nguyên liệu</li>";
+    // Client-side filtering by search term
+    if (searchTerm) {
+      menuItems = menuItems.filter(
+        (item) =>
+          item.name.toLowerCase().includes(searchTerm) ||
+          (item.description &&
+            item.description.toLowerCase().includes(searchTerm))
+      );
     }
-    ingredientsHtml += "</ul>";
 
-    col.innerHTML = `
-            <div class="card border-0 shadow-sm h-100">
-                <img src="${
-                  item.image
-                }" class="card-img-top" style="height: 200px; object-fit: cover;" alt="${
-      item.name
-    }">
-                <div class="card-body d-flex flex-column">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <h5 class="card-title mb-0">${item.name}</h5>
-                        <span class="badge ${
-                          item.status === "active"
-                            ? "bg-success"
-                            : "bg-secondary"
-                        }">
-                            ${
+    container.innerHTML = "";
+
+    if (menuItems.length === 0) {
+      container.innerHTML =
+        '<div class="text-center my-5"><p>Không tìm thấy món ăn phù hợp.</p></div>';
+      return;
+    }
+
+    menuItems.forEach((item) => {
+      const col = document.createElement("div");
+      col.className = "col-lg-4 col-md-6";
+
+      // Format ingredients list for display
+      let ingredientsHtml = '<ul class="ps-3 mb-0 text-muted small">';
+      if (item.ingredients && item.ingredients.length > 0) {
+        item.ingredients.forEach((ing) => {
+          if (typeof ing === "object" && ing.name) {
+            ingredientsHtml += `<li>${ing.name}: ${ing.amount || ""} ${
+              ing.unit || ""
+            }</li>`;
+          } else if (typeof ing === "string") {
+            ingredientsHtml += `<li>${ing}</li>`;
+          }
+        });
+      } else {
+        ingredientsHtml += "<li>Không có nguyên liệu</li>";
+      }
+      ingredientsHtml += "</ul>";
+
+      col.innerHTML = `
+                <div class="card border-0 shadow-sm h-100">
+                    <img src="${
+                      item.image || "../assets/placeholder-food.jpg"
+                    }" class="card-img-top" style="height: 200px; object-fit: cover;" alt="${
+        item.name
+      }">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title mb-0 fw-bold">${
+                              item.name
+                            }</h5>
+                            <span class="badge bg-primary rounded-pill">${formatCurrency(
+                              item.price
+                            )}</span>
+                        </div>
+                        <p class="text-muted mb-1 small">Danh mục: ${
+                          item.category || "Chưa phân loại"
+                        }</p>
+                        <div class="mb-3">
+                            <p class="mb-1 fw-medium small">Nguyên liệu:</p>
+                            ${ingredientsHtml}
+                        </div>
+                        <div class="mt-auto d-flex justify-content-between align-items-center">
+                            <span class="badge ${
                               item.status === "active"
-                                ? "Đang bán"
-                                : "Ngừng bán"
-                            }
-                        </span>
-                    </div>
-                    <p class="text-muted small mb-2">${item.category}</p>
-                    <p class="text-primary fw-bold fs-5 mb-2">${formatCurrency(
-                      item.price
-                    )}</p>
-                    <p class="text-muted small mb-2">Giá vốn: ${formatCurrency(
-                      item.cost
-                    )}</p>
-                    
-                    <div class="small mb-3">
-                      <p class="mb-1 fw-medium">Nguyên liệu:</p>
-                      ${ingredientsHtml}
-                    </div>
-                    
-                    <div class="mt-auto">
-                        <div class="btn-group w-100">
-                            <button class="btn btn-outline-primary btn-sm" onclick="editMenuItem('${
-                              item.id
-                            }')">
-                                <i data-lucide="edit" style="width: 14px; height: 14px;"></i>
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm" onclick="deleteMenuItem('${
-                              item.id
-                            }')">
-                                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
-                            </button>
+                                ? "bg-success"
+                                : "bg-secondary"
+                            }">${
+        item.status === "active" ? "Đang bán" : "Ngưng bán"
+      }</span>
+                            <div>
+                                <button class="btn btn-outline-primary btn-sm" onclick="editMenuItem('${
+                                  item.id
+                                }')">
+                                    <i data-lucide="edit" class="icon-sm"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" onclick="deleteMenuItem('${
+                                  item.id
+                                }')">
+                                    <i data-lucide="trash-2" class="icon-sm"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        `;
-    container.appendChild(col);
-  });
+            `;
+      container.appendChild(col);
+    });
 
-  lucide.createIcons();
+    lucide.createIcons();
+  } catch (error) {
+    console.error("Error filtering menu items:", error);
+    container.innerHTML =
+      '<div class="text-center my-5"><p class="text-danger">Đã xảy ra lỗi khi lọc dữ liệu. Vui lòng thử lại sau.</p></div>';
+  }
 }
 
 function showAddMenuItemModal() {
   const modal = new bootstrap.Modal(document.getElementById("menuItemModal"));
-  const form = document.getElementById("menuItemForm");
-  const title = document.getElementById("menuModalTitle");
+  // Reset form
+  document.getElementById("menuItemForm").reset();
+  document.getElementById("menuModalTitle").textContent = "Thêm món mới";
 
-  form.reset();
-  document.getElementById("editMenuId").value = "";
-  title.textContent = "Thêm món mới";
+  // Clear hidden input
+  const hiddenIdInput = document.getElementById("menuItemId");
+  if (hiddenIdInput) hiddenIdInput.value = "";
 
-  // Clear ingredients list and prepare for a new item
+  // Clear ingredients container
   const ingredientsList = document.getElementById("ingredientsList");
-  if (ingredientsList) {
-    ingredientsList.innerHTML = "";
-  }
+  if (ingredientsList) ingredientsList.innerHTML = "";
+
+  // Add one empty ingredient row by default
+  addIngredientRow();
+
+  // Setup image preview
+  setupImagePreview();
 
   modal.show();
 }
 
-function editMenuItem(itemId) {
-  const item = managerMenuData.find((m) => m.id === itemId);
-  if (!item) return;
+// Add event listener for image URL preview
+function setupImagePreview() {
+  const imageInput = document.getElementById("menuItemImage");
+  const imagePreview = document.getElementById("menuItemImagePreview");
 
-  const modal = new bootstrap.Modal(document.getElementById("menuItemModal"));
-  const title = document.getElementById("menuModalTitle");
+  if (imageInput && imagePreview) {
+    imageInput.addEventListener("input", function () {
+      const imageUrl = this.value.trim();
 
-  title.textContent = "Chỉnh sửa món ăn";
-  document.getElementById("editMenuId").value = item.id;
-  document.getElementById("menuId").value = item.id;
-  document.getElementById("menuName").value = item.name;
-  document.getElementById("menuCategory").value = item.category;
-  document.getElementById("menuPrice").value = item.price;
-  document.getElementById("menuCost").value = item.cost;
-  document.getElementById("menuImage").value = item.image;
-
-  // Clear and populate ingredients list
-  const ingredientsList = document.getElementById("ingredientsList");
-  if (ingredientsList) {
-    ingredientsList.innerHTML = "";
-
-    // Check if ingredients have quantities or are just names
-    if (item.ingredients && Array.isArray(item.ingredients)) {
-      if (typeof item.ingredients[0] === "object") {
-        // Ingredients with quantities
-        item.ingredients.forEach((ing) => {
-          addIngredientRow(ing.id, ing.amount, ing.unit);
-        });
+      if (imageUrl && imageUrl.match(/^(http|https):\/\/[^ "]+$/)) {
+        // Valid URL
+        imagePreview.innerHTML = `
+          <img src="${imageUrl}" class="img-thumbnail" style="height: 100px;" onerror="this.onerror=null; this.src='../assets/placeholder-food.jpg'; this.parentNode.innerHTML += '<div class=\"text-danger small mt-1\">Không thể tải hình ảnh</div>'">
+        `;
       } else {
-        // Legacy format - just names
-        item.ingredients.forEach((name) => {
-          // Find matching ingredient in inventory if possible
-          const inventoryItem = managerInventoryData.find((inv) =>
-            inv.name.toLowerCase().includes(name.toLowerCase())
+        // Invalid or empty URL
+        imagePreview.innerHTML = `<small class="text-muted">Nhập URL hình ảnh hợp lệ để hiển thị xem trước</small>`;
+      }
+    });
+  }
+}
+
+async function editMenuItem(itemId) {
+  try {
+    const modal = new bootstrap.Modal(document.getElementById("menuItemModal"));
+    document.getElementById("menuModalTitle").textContent = "Chỉnh sửa món ăn";
+
+    document.getElementById("menuItemForm").reset();
+
+    // Show loading state
+    const form = document.getElementById("menuItemForm");
+    form.innerHTML =
+      '<div class="text-center my-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Đang tải dữ liệu...</p></div>';
+
+    // Get menu item from Firestore
+    const menuItem = await getMenuItemById(itemId);
+
+    // Reset form with actual form elements
+    form.innerHTML = `
+      <div class="row">
+        <input type="hidden" id="menuItemId" value="${menuItem.id || ""}">
+        <div class="col-md-6 mb-3">
+          <label for="menuItemName" class="form-label">Tên món</label>
+          <input type="text" class="form-control" id="menuItemName" required value="${
+            menuItem.name || ""
+          }">
+        </div>
+        <div class="col-md-6 mb-3">
+          <label for="menuItemCategory" class="form-label">Danh mục</label>
+          <input type="text" class="form-control" id="menuItemCategory" required value="${
+            menuItem.category || ""
+          }">
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label for="menuItemPrice" class="form-label">Giá bán (VNĐ)</label>
+          <input type="number" class="form-control" id="menuItemPrice" required value="${
+            menuItem.price || 0
+          }">
+        </div>
+        <div class="col-md-6 mb-3">
+          <label for="menuItemCost" class="form-label">Giá vốn (VNĐ)</label>
+          <input type="number" class="form-control" id="menuItemCost" value="${
+            menuItem.cost || 0
+          }">
+        </div>
+      </div>      <div class="mb-3">
+        <label for="menuItemImage" class="form-label">URL Hình ảnh</label>
+        <input type="url" class="form-control" id="menuItemImage" value="${
+          menuItem.image || ""
+        }" placeholder="https://example.com/image.jpg">
+        ${
+          menuItem.image
+            ? `<div id="menuItemImagePreview" class="mt-2">
+                <img src="${menuItem.image}" class="img-thumbnail" style="height: 100px;">
+              </div>`
+            : `<div id="menuItemImagePreview" class="mt-2">
+                <small class="text-muted">Nhập URL hình ảnh để hiển thị xem trước</small>
+              </div>`
+        }
+      </div>
+      <div class="mb-3">
+        <label for="menuItemDescription" class="form-label">Mô tả</label>
+        <textarea class="form-control" id="menuItemDescription" rows="2">${
+          menuItem.description || ""
+        }</textarea>
+      </div>
+      <div class="mb-3">
+        <label for="menuItemStatus" class="form-label">Trạng thái</label>
+        <select class="form-select" id="menuItemStatus">
+          <option value="active" ${
+            menuItem.status === "active" ? "selected" : ""
+          }>Đang bán</option>
+          <option value="inactive" ${
+            menuItem.status === "inactive" ? "selected" : ""
+          }>Ngưng bán</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label d-flex justify-content-between">
+          <span>Nguyên liệu</span>
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="addIngredientRow()">
+            <i data-lucide="plus" class="icon-sm"></i> Thêm nguyên liệu
+          </button>
+        </label>        <div id="ingredientsList" class="border rounded p-3 bg-light">
+          <!-- Ingredient rows will be added here -->
+        </div>
+      </div>
+    `; // Set the ID in the hidden field
+    document.getElementById("menuItemId").value = itemId;
+
+    // Add ingredient rows
+    const ingredientsList = document.getElementById("ingredientsList");
+    if (menuItem.ingredients && menuItem.ingredients.length > 0) {
+      menuItem.ingredients.forEach((ingredient) => {
+        if (typeof ingredient === "object") {
+          addIngredientRow(
+            ingredient.id,
+            ingredient.amount,
+            ingredient.unit,
+            ingredient.name
           );
-          if (inventoryItem) {
-            addIngredientRow(inventoryItem.id, 0, inventoryItem.unit);
-          } else {
-            addIngredientRow(null, 0, "");
-          }
+        } else {
+          // For backward compatibility with string ingredients
+          addIngredientRow(null, 0, "", ingredient);
+        }
+      });
+    } else {
+      // Add one empty row
+      addIngredientRow();
+    }
+
+    // Setup image preview functionality
+    setupImagePreview();
+
+    lucide.createIcons();
+    modal.show();
+  } catch (error) {
+    console.error("Error editing menu item:", error);
+    showToast("Lỗi khi tải thông tin món ăn: " + error.message, "danger");
+  }
+}
+
+async function deleteMenuItem(itemId) {
+  if (!confirm("Bạn có chắc chắn muốn xóa món ăn này?")) return;
+
+  try {
+    await deleteMenuItem(itemId);
+
+    showToast("Đã xóa món ăn thành công", "success");
+
+    // Refresh the menu items list
+    renderMenuItems();
+  } catch (error) {
+    console.error("Error deleting menu item:", error);
+    showToast("Lỗi khi xóa món ăn: " + error.message, "danger");
+  }
+}
+
+async function saveMenuItem() {
+  try {
+    const form = document.getElementById("menuItemForm");
+
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    // Show loading state on save button
+    const saveButton = document.querySelector("#menuItemModal .btn-primary");
+    const originalText = saveButton.innerHTML;
+    saveButton.disabled = true;
+    saveButton.innerHTML =
+      '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang lưu...';
+
+    const itemId = document.getElementById("menuItemId").value;
+    const name = document.getElementById("menuItemName").value;
+    const category = document.getElementById("menuItemCategory").value;
+    const price = Number(document.getElementById("menuItemPrice").value);
+    const cost = Number(document.getElementById("menuItemCost").value);
+    const description = document.getElementById("menuItemDescription").value;
+    const status = document.getElementById("menuItemStatus").value;
+    const imageUrl = document.getElementById("menuItemImage").value;
+
+    // Validate the image URL if provided
+    if (imageUrl && !imageUrl.match(/^(http|https):\/\/[^ "]+$/)) {
+      showToast("URL hình ảnh không hợp lệ. Vui lòng kiểm tra lại", "warning");
+      return;
+    } // Gather ingredients
+    const ingredients = [];
+    const ingredientRows = document.querySelectorAll(".ingredient-row");
+
+    ingredientRows.forEach((row) => {
+      const nameInput = row.querySelector(".ingredient-name");
+      const ingredientId = nameInput.dataset.id || null;
+      const ingredientName = nameInput.value;
+      const ingredientAmount =
+        parseFloat(row.querySelector(".ingredient-amount").value) || 0;
+      const ingredientUnit = row.querySelector(".ingredient-unit").value;
+
+      if (ingredientName) {
+        ingredients.push({
+          id: ingredientId,
+          name: ingredientName,
+          amount: ingredientAmount,
+          unit: ingredientUnit,
         });
       }
-    }
-  }
+    });
 
-  modal.show();
+    // Prepare menu item data
+    const menuItemData = {
+      name,
+      category,
+      price,
+      cost,
+      description,
+      status,
+      image: imageUrl,
+      ingredients,
+    };
+
+    // Save to Firestore
+    if (itemId) {
+      // Update existing item
+      await updateMenuItem(itemId, menuItemData);
+      showToast("Cập nhật món ăn thành công", "success");
+    } else {
+      // Add new item
+      await addMenuItem(menuItemData);
+      showToast("Thêm món ăn mới thành công", "success");
+    }
+
+    // Close modal and refresh list
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("menuItemModal")
+    );
+    modal.hide();
+
+    renderMenuItems();
+  } catch (error) {
+    console.error("Error saving menu item:", error);
+    showToast("Lỗi khi lưu món ăn: " + error.message, "danger");
+  } finally {
+    // Reset save button
+    const saveButton = document.querySelector("#menuItemModal .btn-primary");
+    saveButton.disabled = false;
+    saveButton.innerHTML = "Lưu";
+  }
 }
 
-function deleteMenuItem(itemId) {
-  if (confirm("Bạn có chắc chắn muốn xóa món này?")) {
-    const index = managerMenuData.findIndex((m) => m.id === itemId);
-    if (index > -1) {
-      managerMenuData.splice(index, 1);
-      renderMenuItems();
-      showToast("Đã xóa món ăn thành công!", "success");
-    }
-  }
+// Function to add an ingredient row to the menu item form
+function addIngredientRow(id = null, amount = "", unit = "", name = "") {
+  const ingredientsList = document.getElementById("ingredientsList");
+  if (!ingredientsList) return;
+
+  const rowId = "ingredient-" + Date.now();
+  const rowHtml = `
+    <div class="row mb-2 ingredient-row" id="${rowId}">
+      <div class="col-3">
+        <input type="number" class="form-control form-control-sm ingredient-amount" 
+          placeholder="Số lượng" value="${amount}" min="0" step="0.1">
+      </div>
+      <div class="col-2">
+        <input type="text" class="form-control form-control-sm ingredient-unit" 
+          placeholder="Đơn vị" value="${unit}">
+      </div>
+      <div class="col-6">
+        <input type="text" class="form-control form-control-sm ingredient-name" 
+          placeholder="Tên nguyên liệu" value="${name}" ${
+    id ? 'data-id="' + id + '"' : ""
+  }>
+      </div>
+      <div class="col-1">
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeIngredientRow('${rowId}')">
+          <i data-lucide="x" class="icon-sm"></i>
+        </button>
+      </div>
+    </div>
+  `;
+
+  ingredientsList.insertAdjacentHTML("beforeend", rowHtml);
+  lucide.createIcons(); // Re-initialize icons
 }
 
-function saveMenuItem() {
-  const editId = document.getElementById("editMenuId").value;
-
-  // Collect ingredients data from the form
-  const ingredientRows = document.querySelectorAll(".ingredient-row");
-  const ingredients = Array.from(ingredientRows)
-    .map((row) => {
-      const select = row.querySelector(".ingredient-select");
-      const amount = row.querySelector(".ingredient-amount");
-      const unit = row.querySelector(".ingredient-unit");
-
-      return {
-        id: select.value,
-        name: select.options[select.selectedIndex].text,
-        amount: parseFloat(amount.value) || 0,
-        unit: unit.value || "",
-      };
-    })
-    .filter((ing) => ing.id); // Filter out empty selections
-
-  const menuData = {
-    id: document.getElementById("menuId").value,
-    name: document.getElementById("menuName").value,
-    category: document.getElementById("menuCategory").value,
-    price: parseInt(document.getElementById("menuPrice").value),
-    cost: parseInt(document.getElementById("menuCost").value),
-    image:
-      document.getElementById("menuImage").value ||
-      "https://via.placeholder.com/200x150?text=No+Image",
-    ingredients: ingredients,
-    status: "active",
-  };
-
-  if (editId) {
-    // Edit existing item
-    const index = managerMenuData.findIndex((m) => m.id === editId);
-    if (index > -1) {
-      managerMenuData[index] = { ...managerMenuData[index], ...menuData };
-      showToast("Cập nhật món ăn thành công!", "success");
-    }
-  } else {
-    // Add new item
-    managerMenuData.push(menuData);
-    showToast("Thêm món ăn thành công!", "success");
-  }
-
-  renderMenuItems();
-  bootstrap.Modal.getInstance(document.getElementById("menuItemModal")).hide();
+// Function to remove an ingredient row
+function removeIngredientRow(rowId) {
+  const row = document.getElementById(rowId);
+  if (row) row.remove();
 }
 
 // Inventory Management Functions
-function renderInventoryTable() {
+async function renderInventoryTable() {
   const tbody = document.getElementById("inventoryTableBody");
   if (!tbody) return;
 
   tbody.innerHTML = "";
 
-  managerInventoryData.forEach((item) => {
-    const variance =
-      ((item.usedToday - item.standardAmount) / item.standardAmount) * 100;
-    const status = getInventoryStatus(item);
+  try {
+    // Get inventory items from Firestore
+    const inventoryItems = await getAllInventoryItems();
 
-    const row = document.createElement("tr");
-    row.innerHTML = `
-            <td>${item.id}</td>
-            <td>${item.name}</td>
-            <td>${item.unit}</td>
-            <td>${item.standardAmount}</td>
-            <td class="${
-              item.currentStock <= item.threshold ? "text-danger fw-bold" : ""
-            }">${item.currentStock}</td>
-            <td>${item.usedToday}</td>
-            <td>
-                <span class="badge ${status.class}">
-                    ${status.text}
-                </span>
-            </td>
-            <td class="${
-              Math.abs(variance) > 10
-                ? "text-danger fw-bold"
-                : Math.abs(variance) > 5
-                ? "text-warning fw-bold"
-                : "text-success"
-            }">
-                ${variance > 0 ? "+" : ""}${variance.toFixed(1)}%
-            </td>
-            <td>
-                <button class="btn btn-sm btn-outline-primary" onclick="editInventoryItem('${
-                  item.id
-                }')">
-                    <i data-lucide="edit" style="width: 14px; height: 14px;"></i>
-                </button>
-            </td>
-        `;
-    tbody.appendChild(row);
-  });
+    inventoryItems.forEach((item) => {
+      const variance =
+        ((item.usedToday - item.standardAmount) / item.standardAmount) * 100;
+      const status = getInventoryStatus(item);
 
-  lucide.createIcons();
+      const row = document.createElement("tr");
+      row.innerHTML = `
+              <td>${item.id}</td>
+              <td>${item.name}</td>
+              <td>${item.unit}</td>
+              <td>${item.standardAmount}</td>
+              <td class="${
+                item.currentStock <= item.threshold ? "text-danger fw-bold" : ""
+              }">${item.currentStock}</td>
+              <td>${item.usedToday}</td>
+              <td>
+                  <span class="badge ${status.class}">
+                      ${status.text}
+                  </span>
+              </td>
+              <td class="${
+                Math.abs(variance) > 10
+                  ? "text-danger fw-bold"
+                  : Math.abs(variance) > 5
+                  ? "text-warning fw-bold"
+                  : "text-success"
+              }">
+                  ${variance > 0 ? "+" : ""}${variance.toFixed(1)}%
+              </td>
+              <td>
+                  <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="editInventoryItem('${
+                      item.id
+                    }')">
+                        <i data-lucide="edit" style="width: 14px; height: 14px;"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteInventoryItem('${
+                      item.id
+                    }')">
+                        <i data-lucide="trash" style="width: 14px; height: 14px;"></i>
+                    </button>
+                  </div>
+              </td>
+          `;
+      tbody.appendChild(row);
+    });
+
+    lucide.createIcons();
+  } catch (error) {
+    console.error("Error rendering inventory table:", error);
+    showToast("Lỗi khi tải dữ liệu kho", "error");
+  }
 }
 
 function getInventoryStatus(item) {
@@ -1096,37 +1468,36 @@ function getInventoryStatus(item) {
   return { class: "bg-success", text: "Bình thường" };
 }
 
-function updateInventoryAlerts() {
+async function updateInventoryAlerts() {
   const alertElement = document.getElementById("inventoryAlert");
   const alertMessage = document.getElementById("alertMessage");
 
   if (!alertElement || !alertMessage) return;
 
-  const lowStockItems = managerInventoryData.filter(
-    (item) => item.currentStock <= item.threshold
-  );
-  const highVarianceItems = managerInventoryData.filter((item) => {
-    const variance = Math.abs(
-      ((item.usedToday - item.standardAmount) / item.standardAmount) * 100
-    );
-    return variance > 10;
-  });
+  try {
+    // Get low stock items and high variance items from Firestore
+    const lowStockItems = await getLowStockItems();
+    const highVarianceItems = await getHighVarianceItems(0.1); // 10% variance threshold
 
-  if (lowStockItems.length > 0 || highVarianceItems.length > 0) {
-    let message = "";
+    if (lowStockItems.length > 0 || highVarianceItems.length > 0) {
+      let message = "";
 
-    if (lowStockItems.length > 0) {
-      message += `${lowStockItems.length} nguyên liệu sắp hết hàng. `;
+      if (lowStockItems.length > 0) {
+        message += `${lowStockItems.length} nguyên liệu sắp hết hàng. `;
+      }
+
+      if (highVarianceItems.length > 0) {
+        message += `${highVarianceItems.length} nguyên liệu có độ lệch vượt mức cho phép.`;
+      }
+
+      alertMessage.textContent = message;
+      alertElement.style.display = "block";
+    } else {
+      alertElement.style.display = "none";
     }
-
-    if (highVarianceItems.length > 0) {
-      message += `${highVarianceItems.length} nguyên liệu có độ lệch vượt mức cho phép.`;
-    }
-
-    alertMessage.textContent = message;
-    alertElement.style.display = "block";
-  } else {
-    alertElement.style.display = "none";
+  } catch (error) {
+    console.error("Error updating inventory alerts:", error);
+    showToast("Lỗi khi tải thông báo kho", "error");
   }
 }
 
@@ -1135,147 +1506,223 @@ function showAddIngredientModal() {
   const form = document.getElementById("ingredientForm");
   const title = document.getElementById("ingredientModalTitle");
 
-  form.reset();
+  if (!form) {
+    // Create the form if it doesn't exist
+    const modalBody = document.querySelector("#ingredientModal .modal-body");
+    modalBody.innerHTML = `
+      <form id="ingredientForm">
+        <input type="hidden" id="editIngredientId">
+        <div class="mb-3">
+          <label for="ingredientId" class="form-label">Mã nguyên liệu</label>
+          <input type="text" class="form-control" id="ingredientId" required>
+        </div>
+        <div class="mb-3">
+          <label for="ingredientName" class="form-label">Tên nguyên liệu</label>
+          <input type="text" class="form-control" id="ingredientName" required>
+        </div>
+        <div class="mb-3">
+          <label for="ingredientUnit" class="form-label">Đơn vị tính</label>
+          <input type="text" class="form-control" id="ingredientUnit" required>
+        </div>
+        <div class="mb-3">
+          <label for="ingredientStandard" class="form-label">Lượng tiêu chuẩn</label>
+          <input type="number" class="form-control" id="ingredientStandard" required>
+        </div>
+        <div class="mb-3">
+          <label for="ingredientThreshold" class="form-label">Ngưỡng cảnh báo</label>
+          <input type="number" class="form-control" id="ingredientThreshold" required>
+        </div>
+        <div class="mb-3">
+          <label for="ingredientStock" class="form-label">Tồn kho hiện tại</label>
+          <input type="number" class="form-control" id="ingredientStock" required>
+        </div>
+        <div class="mb-3">
+          <label for="ingredientCost" class="form-label">Giá (VNĐ)</label>
+          <input type="number" class="form-control" id="ingredientCost" required>
+        </div>
+      </form>
+    `;
+
+    // Create the modal header content
+    const modalHeader = document.querySelector(
+      "#ingredientModal .modal-header"
+    );
+    modalHeader.innerHTML = `
+      <h5 class="modal-title" id="ingredientModalTitle">Thêm nguyên liệu mới</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    `;
+
+    // Create the modal footer content
+    const modalFooter = document.querySelector(
+      "#ingredientModal .modal-footer"
+    );
+    modalFooter.innerHTML = `
+      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+      <button type="button" class="btn btn-primary" onclick="saveIngredient()">Lưu</button>
+    `;
+  }
+
+  const formElement = document.getElementById("ingredientForm");
+  if (formElement) {
+    formElement.reset();
+  }
+
   document.getElementById("editIngredientId").value = "";
   title.textContent = "Thêm nguyên liệu mới";
   modal.show();
 }
 
-function editInventoryItem(itemId) {
-  const item = managerInventoryData.find((i) => i.id === itemId);
-  if (!item) return;
-
-  const modal = new bootstrap.Modal(document.getElementById("ingredientModal"));
-  const title = document.getElementById("ingredientModalTitle");
-
-  title.textContent = "Chỉnh sửa nguyên liệu";
-  document.getElementById("editIngredientId").value = item.id;
-  document.getElementById("ingredientId").value = item.id;
-  document.getElementById("ingredientName").value = item.name;
-  document.getElementById("ingredientUnit").value = item.unit;
-  document.getElementById("ingredientStandard").value = item.standardAmount;
-  document.getElementById("ingredientThreshold").value = item.threshold;
-  document.getElementById("ingredientStock").value = item.currentStock;
-  document.getElementById("ingredientCost").value = item.cost;
-
-  modal.show();
-}
-
-function saveIngredient() {
-  const editId = document.getElementById("editIngredientId").value;
-  const ingredientData = {
-    id: document.getElementById("ingredientId").value,
-    name: document.getElementById("ingredientName").value,
-    unit: document.getElementById("ingredientUnit").value,
-    standardAmount: parseInt(
-      document.getElementById("ingredientStandard").value
-    ),
-    threshold: parseInt(document.getElementById("ingredientThreshold").value),
-    currentStock: parseInt(document.getElementById("ingredientStock").value),
-    cost: parseInt(document.getElementById("ingredientCost").value),
-    usedToday: 0, // Reset for new ingredients
-  };
-
-  if (editId) {
-    // Edit existing ingredient
-    const index = managerInventoryData.findIndex((i) => i.id === editId);
-    if (index > -1) {
-      managerInventoryData[index] = {
-        ...managerInventoryData[index],
-        ...ingredientData,
-      };
-      showToast("Cập nhật nguyên liệu thành công!", "success");
+async function editInventoryItem(itemId) {
+  try {
+    const item = await getInventoryItemById(itemId);
+    if (!item) {
+      showToast("Không tìm thấy nguyên liệu", "error");
+      return;
     }
-  } else {
-    // Add new ingredient
-    managerInventoryData.push(ingredientData);
-    showToast("Thêm nguyên liệu thành công!", "success");
-  }
 
-  renderInventoryTable();
-  updateInventoryAlerts();
-  bootstrap.Modal.getInstance(
-    document.getElementById("ingredientModal")
-  ).hide();
-}
-
-// Menu ingredient management functions
-function addIngredientRow(selectedId = null, amount = 0, selectedUnit = "") {
-  const ingredientsList = document.getElementById("ingredientsList");
-  const rowId = "ing-row-" + Date.now();
-
-  const row = document.createElement("div");
-  row.className = "row mb-2 ingredient-row";
-  row.id = rowId;
-
-  // Create the row content with dropdown and quantity inputs
-  row.innerHTML = `
-    <div class="col-5">
-      <select class="form-select form-select-sm ingredient-select" onchange="updateIngredientUnit(this)">
-        <option value="">Chọn nguyên liệu</option>
-        ${managerInventoryData
-          .map(
-            (ing) => `
-          <option value="${ing.id}" ${
-              selectedId === ing.id ? "selected" : ""
-            }>${ing.name}</option>
-        `
-          )
-          .join("")}
-      </select>
-    </div>
-    <div class="col-3">
-      <input type="number" class="form-control form-control-sm ingredient-amount" value="${amount}" placeholder="Lượng">
-    </div>
-    <div class="col-3">
-      <input type="text" class="form-control form-control-sm ingredient-unit" value="${selectedUnit}" placeholder="Đơn vị">
-    </div>
-    <div class="col-1">
-      <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeIngredientRow('${rowId}')">
-        <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
-      </button>
-    </div>
-  `;
-
-  ingredientsList.appendChild(row);
-
-  // If a selected ID was provided, update the unit
-  if (selectedId) {
-    const select = row.querySelector(".ingredient-select");
-    updateIngredientUnit(select);
-  }
-
-  // Initialize Lucide icons in the new row
-  lucide.createIcons({
-    icons: {
-      "trash-2": true,
-    },
-    element: row,
-  });
-}
-
-function removeIngredientRow(rowId) {
-  const row = document.getElementById(rowId);
-  if (row) {
-    row.remove();
-  }
-}
-
-function updateIngredientUnit(selectElement) {
-  const row = selectElement.closest(".ingredient-row");
-  const unitField = row.querySelector(".ingredient-unit");
-  const selectedId = selectElement.value;
-
-  if (selectedId) {
-    const ingredient = managerInventoryData.find(
-      (ing) => ing.id === selectedId
+    const modal = new bootstrap.Modal(
+      document.getElementById("ingredientModal")
     );
-    if (ingredient) {
-      unitField.value = ingredient.unit;
+    const title = document.getElementById("ingredientModalTitle");
+
+    // Make sure the form exists
+    showAddIngredientModal();
+
+    title.textContent = "Chỉnh sửa nguyên liệu";
+    document.getElementById("editIngredientId").value = item.id;
+    document.getElementById("ingredientId").value = item.id;
+    document.getElementById("ingredientName").value = item.name;
+    document.getElementById("ingredientUnit").value = item.unit;
+    document.getElementById("ingredientStandard").value = item.standardAmount;
+    document.getElementById("ingredientThreshold").value = item.threshold;
+    document.getElementById("ingredientStock").value = item.currentStock;
+    document.getElementById("ingredientCost").value = item.cost;
+
+    // Hide the existing modal first
+    const existingModal = bootstrap.Modal.getInstance(
+      document.getElementById("ingredientModal")
+    );
+    if (existingModal) {
+      existingModal.hide();
     }
-  } else {
-    unitField.value = "";
+
+    // Show the modal with updated data
+    modal.show();
+  } catch (error) {
+    console.error("Error editing inventory item:", error);
+    showToast("Lỗi khi chỉnh sửa nguyên liệu", "error");
   }
+}
+
+async function saveIngredient() {
+  try {
+    const editId = document.getElementById("editIngredientId").value;
+    const ingredientData = {
+      id: document.getElementById("ingredientId").value,
+      name: document.getElementById("ingredientName").value,
+      unit: document.getElementById("ingredientUnit").value,
+      standardAmount: parseInt(
+        document.getElementById("ingredientStandard").value || 0
+      ),
+      threshold: parseInt(
+        document.getElementById("ingredientThreshold").value || 0
+      ),
+      currentStock: parseInt(
+        document.getElementById("ingredientStock").value || 0
+      ),
+      cost: parseInt(document.getElementById("ingredientCost").value || 0),
+      usedToday: editId ? undefined : 0, // Only reset for new ingredients
+      variance: 0, // Default variance
+    };
+
+    if (editId) {
+      // Edit existing ingredient
+      await updateInventoryItem(editId, ingredientData);
+      showToast("Cập nhật nguyên liệu thành công!", "success");
+    } else {
+      // Add new ingredient
+      await addInventoryItem(ingredientData);
+      showToast("Thêm nguyên liệu thành công!", "success");
+    }
+
+    // Refresh the table and alerts
+    await renderInventoryTable();
+    await updateInventoryAlerts();
+
+    // Close the modal
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("ingredientModal")
+    );
+    if (modal) {
+      modal.hide();
+    }
+  } catch (error) {
+    console.error("Error saving inventory item:", error);
+    showToast("Lỗi khi lưu nguyên liệu", "error");
+  }
+}
+
+// Function to confirm deletion of an inventory item
+function confirmDeleteInventoryItem(itemId) {
+  if (confirm("Bạn có chắc chắn muốn xóa nguyên liệu này?")) {
+    removeInventoryItem(itemId);
+  }
+}
+
+// Function to delete an inventory item
+async function removeInventoryItem(itemId) {
+  try {
+    await deleteInventoryItem(itemId);
+    showToast("Xóa nguyên liệu thành công!", "success");
+    await renderInventoryTable();
+    await updateInventoryAlerts();
+  } catch (error) {
+    console.error("Error deleting inventory item:", error);
+    showToast("Lỗi khi xóa nguyên liệu", "error");
+  }
+}
+
+// Function to export inventory data to Excel
+function exportInventoryToExcel() {
+  getAllInventoryItems()
+    .then((items) => {
+      // Format data for Excel
+      const exportData = items.map((item) => ({
+        Mã: item.id,
+        "Tên nguyên liệu": item.name,
+        "Đơn vị": item.unit,
+        "Lượng tiêu chuẩn": item.standardAmount,
+        "Tồn kho": item.currentStock,
+        "Sử dụng hôm nay": item.usedToday,
+        "Ngưỡng cảnh báo": item.threshold,
+        "Giá (VNĐ)": item.cost,
+        "Độ lệch (%)": (
+          ((item.usedToday - item.standardAmount) / item.standardAmount) *
+          100
+        ).toFixed(1),
+      }));
+
+      // Create worksheet
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+      // Create workbook
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Kho");
+
+      // Generate file name with date
+      const date = new Date();
+      const fileName = `kho_hang_${date.getDate()}_${
+        date.getMonth() + 1
+      }_${date.getFullYear()}.xlsx`;
+
+      // Export to Excel
+      XLSX.writeFile(workbook, fileName);
+      showToast("Xuất dữ liệu kho thành công!", "success");
+    })
+    .catch((error) => {
+      console.error("Error exporting inventory:", error);
+      showToast("Lỗi khi xuất dữ liệu kho", "error");
+    });
 }
 
 // Utility Functions
@@ -1756,82 +2203,91 @@ function saveFinanceTransaction() {
   renderFinanceTable();
 }
 
-function deleteFinanceTransaction(id) {
-  // Confirm deletion
-  if (!confirm("Bạn có chắc chắn muốn xóa phiếu thu/chi này không?")) {
+// Set up real-time inventory monitoring
+function setupInventoryRealTimeUpdates() {
+  if (!firebase || !firebase.firestore) {
+    console.warn("Firebase is not available for real-time updates");
     return;
   }
 
-  // Find transaction index
-  const index = managerFinanceData.findIndex((t) => t.id === id);
-  if (index === -1) return;
+  // Listen for changes in the orders collection
+  const orderQuery = firebase
+    .firestore()
+    .collection("orders")
+    .where("status", "==", "ready");
 
-  // Delete transaction
-  managerFinanceData.splice(index, 1);
+  const unsubscribeOrders = orderQuery.onSnapshot(
+    (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        // Only care about newly "ready" orders
+        if (change.type === "added" || change.type === "modified") {
+          const orderData = change.doc.data();
+          const orderId = change.doc.id;
 
-  // Show success message
-  showToast("Đã xóa phiếu thu/chi thành công", "success");
+          // If the order status is now "ready", update inventory
+          if (orderData.status === "ready") {
+            console.log("Order marked as ready, updating inventory:", orderId);
 
-  // Render updated table
-  renderFinanceTable();
-}
+            if (window.updateInventoryFromReadyOrder) {
+              window
+                .updateInventoryFromReadyOrder(orderId)
+                .then(() => {
+                  console.log("Inventory updated for order:", orderId);
 
-function resetFinanceForm() {
-  // Reset form fields
-  document.getElementById("financeForm").reset();
-  document.getElementById("editFinanceId").value = "";
-  document.getElementById("financeModalTitle").textContent =
-    "Thêm phiếu thu/chi mới";
+                  // Refresh inventory views if we're on the inventory tab
+                  const inventoryTab = document.getElementById("inventory-tab");
+                  if (
+                    inventoryTab &&
+                    inventoryTab.classList.contains("active")
+                  ) {
+                    renderInventoryTable();
+                    updateInventoryAlerts();
+                  }
+                })
+                .catch((error) => {
+                  console.error("Failed to update inventory:", error);
+                });
+            }
+          }
+        }
+      });
+    },
+    (error) => {
+      console.error("Error setting up real-time order listener:", error);
+    }
+  );
 
-  // Set current date as default
-  const today = new Date().toISOString().split("T")[0];
-  document.getElementById("financeDate").value = today;
-}
+  // Listen for changes in inventory directly
+  const inventoryQuery = firebase.firestore().collection("inventory");
 
-function setupFinanceEventListeners() {
-  // Set default dates for finance filter form
-  const today = new Date();
-  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-
-  const startDateInput = document.getElementById("financeStartDate");
-  const endDateInput = document.getElementById("financeEndDate");
-
-  if (startDateInput) {
-    startDateInput.value = firstDayOfMonth.toISOString().split("T")[0];
-  }
-  if (endDateInput) {
-    endDateInput.value = today.toISOString().split("T")[0];
-  }
-
-  // Add filter button event listener
-  const filterBtn = document.getElementById("filterFinanceBtn");
-  if (filterBtn) {
-    filterBtn.addEventListener("click", filterFinanceTransactions);
-  }
-
-  // Add export button event listener
-  const exportBtn = document.getElementById("exportFinanceBtn");
-  if (exportBtn) {
-    exportBtn.addEventListener("click", exportFinanceToExcel);
-  }
-
-  // Add refresh button event listener
-  const refreshBtn = document.getElementById("refreshFinanceBtn");
-  if (refreshBtn) {
-    refreshBtn.addEventListener("click", function () {
-      // Reset filters to default values (current month)
-      if (startDateInput) {
-        startDateInput.value = firstDayOfMonth.toISOString().split("T")[0];
+  const unsubscribeInventory = inventoryQuery.onSnapshot(
+    (snapshot) => {
+      const inventoryTab = document.getElementById("inventory-tab");
+      if (inventoryTab && inventoryTab.classList.contains("active")) {
+        renderInventoryTable();
+        updateInventoryAlerts();
       }
-      if (endDateInput) {
-        endDateInput.value = today.toISOString().split("T")[0];
-      }
-      document.getElementById("financeType").value = "all";
-      document.getElementById("financeCategory").value = "all";
+    },
+    (error) => {
+      console.error("Error setting up real-time inventory listener:", error);
+    }
+  );
 
-      // Render table with all data
-      renderFinanceTable();
-      showToast("Đã làm mới dữ liệu thu chi", "info");
-    });
-  }
+  // Store unsubscribe functions for cleanup when needed
+  window.unsubscribeFirestoreListeners = [
+    unsubscribeOrders,
+    unsubscribeInventory,
+  ];
 }
+
+// Call this function during initialization
+document.addEventListener("DOMContentLoaded", function () {
+  // ...existing code...
+
+  // Setup real-time inventory monitoring if Firebase is available
+  setTimeout(() => {
+    if (window.firebase && window.firebase.firestore) {
+      setupInventoryRealTimeUpdates();
+    }
+  }, 2000); // Give Firebase time to initialize
+});

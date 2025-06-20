@@ -299,8 +299,7 @@
                     </div>
                 </div>
 
-                <!-- Menu Management Tab -->
-                <div id="menu-tab" class="tab-content">
+                <!-- Menu Management Tab -->                <div id="menu-tab" class="tab-content">
                     <div class="row">
                         <div class="col-12">
                             <div class="card border-0 shadow-sm">
@@ -327,25 +326,17 @@
                                         </div>
                                         <div class="col-md-3">
                                             <select class="form-select" id="menuCategoryFilter" onchange="filterMenuByCategory()">
-                                                <option value="">Tất cả danh mục</option>
-                                                <option value="Mì & Phở">Mì & Phở</option>
-                                                <option value="Cơm">Cơm</option>
-                                                <option value="Đồ uống">Đồ uống</option>
-                                                <option value="Tráng miệng">Tráng miệng</option>
+                                                <option value="all">Tất cả danh mục</option>
+                                                <!-- Categories loaded from Firestore -->
                                             </select>
                                         </div>
                                         <div class="col-md-3">
                                             <select class="form-select" id="menuStatusFilter" onchange="filterMenuItems()">
-                                                <option value="">Tất cả trạng thái</option>
+                                                <option value="all">Tất cả trạng thái</option>
                                                 <option value="active">Đang bán</option>
                                                 <option value="inactive">Ngừng bán</option>
                                             </select>
                                         </div>
-                                    </div>
-
-                                    <!-- Menu Categories -->
-                                    <div id="menuCategories" class="mb-4">
-                                        <!-- Categories will be rendered here -->
                                     </div>
 
                                     <!-- Menu Items Grid -->
@@ -375,16 +366,21 @@
                         </div>
 
                         <div class="col-12">
-                            <div class="card border-0 shadow-sm">
-                                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <div class="card border-0 shadow-sm">                                <div class="card-header bg-white d-flex justify-content-between align-items-center">
                                     <div>
                                         <h5 class="card-title mb-0">Kiểm soát định lượng nguyên liệu</h5>
                                         <small class="text-muted">Theo dõi mức tiêu thụ với độ lệch cho phép 5-10%</small>
                                     </div>
-                                    <button class="btn btn-primary" onclick="showAddIngredientModal()">
-                                        <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
-                                        Thêm nguyên liệu
-                                    </button>
+                                    <div>
+                                        <button class="btn btn-outline-success me-2" onclick="exportInventoryToExcel()">
+                                            <i data-lucide="file-spreadsheet" style="width: 16px; height: 16px;"></i>
+                                            Xuất Excel
+                                        </button>
+                                        <button class="btn btn-primary" onclick="showAddIngredientModal()">
+                                            <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                                            Thêm nguyên liệu
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="card-body p-0">
                                     <div class="table-responsive">
@@ -596,9 +592,7 @@
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- Menu Item Modal -->
+    </div>    <!-- Menu Item Modal -->
     <div class="modal fade" id="menuItemModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -608,49 +602,55 @@
                 </div>
                 <div class="modal-body">
                     <form id="menuItemForm">
-                        <input type="hidden" id="editMenuId">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Mã món</label>
-                                <input type="text" class="form-control" id="menuId" required>
+                        <div class="row">
+                            <input type="hidden" id="menuItemId" value="">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label" for="menuItemName">Tên món</label>
+                                <input type="text" class="form-control" id="menuItemName" required>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Tên món</label>
-                                <input type="text" class="form-control" id="menuName" required>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label" for="menuItemCategory">Danh mục</label>
+                                <input type="text" class="form-control" id="menuItemCategory" required>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Danh mục</label>
-                                <select class="form-select" id="menuCategory" required>
-                                    <option value="">Chọn danh mục</option>
-                                    <option value="Mì & Phở">Mì & Phở</option>
-                                    <option value="Cơm">Cơm</option>
-                                    <option value="Đồ uống">Đồ uống</option>
-                                    <option value="Tráng miệng">Tráng miệng</option>
-                                </select>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label" for="menuItemPrice">Giá bán (VNĐ)</label>
+                                <input type="number" class="form-control" id="menuItemPrice" required>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Giá bán (VNĐ)</label>
-                                <input type="number" class="form-control" id="menuPrice" required>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label" for="menuItemCost">Giá vốn (VNĐ)</label>
+                                <input type="number" class="form-control" id="menuItemCost">
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Giá vốn (VNĐ)</label>
-                                <input type="number" class="form-control" id="menuCost" required>
+                        </div>                        <div class="mb-3">
+                            <label class="form-label" for="menuItemImage">URL Hình ảnh</label>
+                            <input type="url" class="form-control" id="menuItemImage" placeholder="https://example.com/image.jpg">
+                            <div id="menuItemImagePreview" class="mt-2">
+                                <small class="text-muted">Nhập URL hình ảnh để hiển thị xem trước</small>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Hình ảnh URL</label>
-                                <input type="url" class="form-control" id="menuImage">
-                            </div>                            <div class="col-12">
-                                <label class="form-label">Nguyên liệu và định lượng</label>
-                                <div class="mb-2">
-                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addIngredientRow()">
-                                        <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Thêm nguyên liệu
-                                    </button>
-                                </div>
-                                <div id="ingredientsList" class="mb-2">
-                                    <!-- Ingredient rows will be added here -->
-                                </div>
-                                <div class="text-muted small">Chọn nguyên liệu và nhập định lượng cần thiết cho món ăn này</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="menuItemDescription">Mô tả</label>
+                            <textarea class="form-control" id="menuItemDescription" rows="2"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="menuItemStatus">Trạng thái</label>
+                            <select class="form-select" id="menuItemStatus">
+                                <option value="active">Đang bán</option>
+                                <option value="inactive">Ngưng bán</option>
+                            </select>
+                        </div>                        <div class="mb-3">
+                            <label class="form-label d-flex justify-content-between">
+                                <span>Nguyên liệu</span>
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addIngredientRow()">
+                                    <i data-lucide="plus" class="icon-sm"></i> Thêm nguyên liệu
+                                </button>
+                            </label>
+                            <div id="ingredientsList" class="border rounded p-3 bg-light">
+                                <!-- Ingredient rows will be added here -->
+                                <div class="text-muted small mt-2">Chọn nguyên liệu và nhập định lượng cần thiết cho món ăn này</div>
                             </div>
+                        </div>
                         </div>
                     </form>
                 </div>
@@ -787,9 +787,62 @@
     <!-- Toast Container -->
     <div class="position-fixed top-0 end-0 p-3" style="z-index: 9999;">
         <div id="toastContainer"></div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    </div>    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+      <!-- Firebase -->    <script type="module">        // Import Firebase functions
+        import { 
+            getAllMenuItems,
+            getMenuItemById,
+            addMenuItem,
+            updateMenuItem,
+            deleteMenuItem,
+            uploadMenuImage,
+            filterMenuItemsByCategory,
+            getMenuCategories,
+            getAllStaff,
+            getStaffById,
+            addStaffMember,
+            updateStaffMember,
+            deleteStaffMember,
+            getActiveStaffCount,
+            // Inventory Functions
+            getAllInventoryItems,
+            getInventoryItemById,
+            addInventoryItem,
+            updateInventoryItem, 
+            deleteInventoryItem,
+            getLowStockItems,
+            getHighVarianceItems,
+            updateInventoryFromReadyOrder
+        } from './firebase-manager.js';
+        
+        // Make Firebase functions globally available
+        window.getAllMenuItems = getAllMenuItems;
+        window.getMenuItemById = getMenuItemById;
+        window.addMenuItem = addMenuItem;
+        window.updateMenuItem = updateMenuItem;
+        window.deleteMenuItem = deleteMenuItem;
+        window.uploadMenuImage = uploadMenuImage;
+        window.filterMenuItemsByCategory = filterMenuItemsByCategory;
+        window.getMenuCategories = getMenuCategories;
+        
+        // Make Staff functions globally available
+        window.getAllStaff = getAllStaff;
+        window.getStaffById = getStaffById;
+        window.addStaffMember = addStaffMember;
+        window.updateStaffMember = updateStaffMember;
+        window.deleteStaffMember = deleteStaffMember;
+        window.getActiveStaffCount = getActiveStaffCount;
+          // Make Inventory functions globally available
+        window.getAllInventoryItems = getAllInventoryItems;
+        window.getInventoryItemById = getInventoryItemById;
+        window.addInventoryItem = addInventoryItem;
+        window.updateInventoryItem = updateInventoryItem;
+        window.deleteInventoryItem = deleteInventoryItem;        
+        window.getLowStockItems = getLowStockItems;
+        window.getHighVarianceItems = getHighVarianceItems;
+        window.updateInventoryFromReadyOrder = updateInventoryFromReadyOrder;
+    </script>
+    
     <script src="manager-script.js"></script>
 </body>
 </html>
