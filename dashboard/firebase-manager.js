@@ -21,6 +21,10 @@ import {
   uploadBytes,
   getDownloadURL,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 import firebaseConfig from "../config/firebase-config.js";
 
@@ -28,6 +32,7 @@ import firebaseConfig from "../config/firebase-config.js";
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const storage = getStorage(app);
+const auth = getAuth(app);
 
 // Staff Management Functions
 export async function getAllStaff() {
@@ -75,6 +80,21 @@ export async function getStaffById(staffId) {
     }
   } catch (error) {
     console.error("Error getting staff member:", error);
+    throw error;
+  }
+}
+
+export async function createFirebaseUser(email, password) {
+  try {
+    // Create user with Firebase Authentication
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+    return userCredential.user;
+  } catch (error) {
+    console.error("Error creating Firebase Authentication user:", error);
     throw error;
   }
 }
@@ -582,4 +602,648 @@ export async function updateInventoryFromReadyOrder(orderId) {
     console.error("Error updating inventory from ready order:", error);
     return false;
   }
+}
+
+// Finance Management Functions
+export async function getAllFinanceTransactions() {
+  try {
+    const financeCollection = collection(db, "finance_transactions");
+    const q = query(financeCollection, orderBy("date", "desc"));
+    const querySnapshot = await getDocs(q);
+
+    const transactions = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      transactions.push({
+        id: doc.id,
+        ...data,
+        // Convert Firestore Timestamp to Date if needed
+        date: data.date
+          ? data.date.toDate
+            ? data.date.toDate()
+            : new Date(data.date)
+          : null,
+        createdAt: data.createdAt
+          ? data.createdAt.toDate
+            ? data.createdAt.toDate()
+            : new Date(data.createdAt)
+          : null,
+        updatedAt: data.updatedAt
+          ? data.updatedAt.toDate
+            ? data.updatedAt.toDate()
+            : new Date(data.updatedAt)
+          : null,
+      });
+    });
+
+    // Enhance transactions with cashier names for transactions that have invoices
+    const enhancedTransactions = await Promise.all(
+      transactions.map(async (transaction) => {
+        if (
+          transaction.invoice &&
+          transaction.invoice.cashierId &&
+          !transaction.invoice.cashierName
+        ) {
+          return await enhanceFinanceTransactionWithCashierName(transaction);
+        }
+        return transaction;
+      })
+    );
+
+    return enhancedTransactions;
+  } catch (error) {
+    console.error("Error getting finance transactions:", error);
+    return [];
+  }
+}
+
+export async function getFinanceTransactionById(transactionId) {
+  try {
+    const transactionDoc = doc(db, "finance_transactions", transactionId);
+    const docSnap = await getDoc(transactionDoc);
+
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      let transaction = {
+        id: docSnap.id,
+        ...data,
+        date: data.date
+          ? data.date.toDate
+            ? data.date.toDate()
+            : new Date(data.date)
+          : null,
+        createdAt: data.createdAt
+          ? data.createdAt.toDate
+            ? data.createdAt.toDate()
+            : new Date(data.createdAt)
+          : null,
+        updatedAt: data.updatedAt
+          ? data.updatedAt.toDate
+            ? data.updatedAt.toDate()
+            : new Date(data.updatedAt)
+          : null,
+      };
+
+      // Enhance with cashier name if needed
+      if (
+        transaction.invoice &&
+        transaction.invoice.cashierId &&
+        !transaction.invoice.cashierName
+      ) {
+        transaction = await enhanceFinanceTransactionWithCashierName(
+          transaction
+        );
+      }
+
+      return transaction;
+    } else {
+      console.log("No such finance transaction!");
+      return null;
+    }
+  } catch (error) {
+    console.error("Error getting finance transaction:", error);
+    return null;
+  }
+}
+
+export async function addFinanceTransaction(transactionData) {
+  try {
+    // Generate transaction code if not provided
+    if (!transactionData.code) {
+      const prefix = transactionData.type === "income" ? "PT" : "PC";
+      const year = new Date().getFullYear();
+
+      // Get the count of transactions for this year
+      const existingTransactions = await getAllFinanceTransactions();
+      const thisYearTransactions = existingTransactions.filter(
+        (t) => t.code && t.code.includes(year.toString())
+      );
+      const nextNumber = thisYearTransactions.length + 1;
+
+      transactionData.code = `${prefix}${year}${nextNumber
+        .toString()
+        .padStart(3, "0")}`;
+    }
+    const docData = {
+      ...transactionData,
+      date: transactionData.date
+        ? Timestamp.fromDate(new Date(transactionData.date))
+        : Timestamp.now(),
+      amount: parseFloat(transactionData.amount) || 0,
+      // Use provided createdAt if available (for preserving original when editing), otherwise use current time
+      createdAt: transactionData.createdAt
+        ? transactionData.createdAt instanceof Timestamp
+          ? transactionData.createdAt
+          : Timestamp.fromDate(new Date(transactionData.createdAt))
+        : Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    };
+
+    const docRef = await addDoc(
+      collection(db, "finance_transactions"),
+      docData
+    );
+    console.log("Finance transaction added with ID: ", docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error("Error adding finance transaction:", error);
+    throw error;
+  }
+}
+
+export async function updateFinanceTransaction(transactionId, transactionData) {
+  try {
+    const transactionRef = doc(db, "finance_transactions", transactionId);
+
+    const updateData = {
+      ...transactionData,
+      amount: parseFloat(transactionData.amount) || 0,
+      updatedAt: Timestamp.now(),
+    };
+
+    // Convert date to Timestamp if it's a string or Date object
+    if (transactionData.date) {
+      updateData.date = Timestamp.fromDate(new Date(transactionData.date));
+    }
+
+    await updateDoc(transactionRef, updateData);
+    console.log("Finance transaction updated successfully");
+    return true;
+  } catch (error) {
+    console.error("Error updating finance transaction:", error);
+    throw error;
+  }
+}
+
+export async function deleteFinanceTransaction(transactionId) {
+  try {
+    await deleteDoc(doc(db, "finance_transactions", transactionId));
+    console.log("Finance transaction deleted successfully");
+    return true;
+  } catch (error) {
+    console.error("Error deleting finance transaction:", error);
+    throw error;
+  }
+}
+
+export async function getFinanceTransactionsByDateRange(startDate, endDate) {
+  try {
+    const financeCollection = collection(db, "finance_transactions");
+    const q = query(
+      financeCollection,
+      where("date", ">=", Timestamp.fromDate(new Date(startDate))),
+      where("date", "<=", Timestamp.fromDate(new Date(endDate))),
+      orderBy("date", "desc")
+    );
+
+    const querySnapshot = await getDocs(q);
+    const transactions = [];
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      transactions.push({
+        id: doc.id,
+        ...data,
+        date: data.date ? data.date.toDate() : null,
+        createdAt: data.createdAt ? data.createdAt.toDate() : null,
+        updatedAt: data.updatedAt ? data.updatedAt.toDate() : null,
+      });
+    });
+
+    // Enhance transactions with cashier names for transactions that have invoices
+    const enhancedTransactions = await Promise.all(
+      transactions.map(async (transaction) => {
+        if (
+          transaction.invoice &&
+          transaction.invoice.cashierId &&
+          !transaction.invoice.cashierName
+        ) {
+          return await enhanceFinanceTransactionWithCashierName(transaction);
+        }
+        return transaction;
+      })
+    );
+
+    return enhancedTransactions;
+  } catch (error) {
+    console.error("Error getting finance transactions by date range:", error);
+    return [];
+  }
+}
+
+export async function getFinanceTransactionsByType(type) {
+  try {
+    const financeCollection = collection(db, "finance_transactions");
+    const q = query(
+      financeCollection,
+      where("type", "==", type),
+      orderBy("date", "desc")
+    );
+
+    const querySnapshot = await getDocs(q);
+    const transactions = [];
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      transactions.push({
+        id: doc.id,
+        ...data,
+        date: data.date ? data.date.toDate() : null,
+        createdAt: data.createdAt ? data.createdAt.toDate() : null,
+        updatedAt: data.updatedAt ? data.updatedAt.toDate() : null,
+      });
+    });
+
+    // Enhance transactions with cashier names for transactions that have invoices
+    const enhancedTransactions = await Promise.all(
+      transactions.map(async (transaction) => {
+        if (
+          transaction.invoice &&
+          transaction.invoice.cashierId &&
+          !transaction.invoice.cashierName
+        ) {
+          return await enhanceFinanceTransactionWithCashierName(transaction);
+        }
+        return transaction;
+      })
+    );
+
+    return enhancedTransactions;
+  } catch (error) {
+    console.error("Error getting finance transactions by type:", error);
+    return [];
+  }
+}
+
+export async function getFinanceTransactionsByCategory(category) {
+  try {
+    const financeCollection = collection(db, "finance_transactions");
+    const q = query(
+      financeCollection,
+      where("category", "==", category),
+      orderBy("date", "desc")
+    );
+    const querySnapshot = await getDocs(q);
+    const transactions = [];
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      transactions.push({
+        id: doc.id,
+        ...data,
+        date: data.date ? data.date.toDate() : null,
+        createdAt: data.createdAt ? data.createdAt.toDate() : null,
+        updatedAt: data.updatedAt ? data.updatedAt.toDate() : null,
+      });
+    });
+
+    // Enhance transactions with cashier names for transactions that have invoices
+    const enhancedTransactions = await Promise.all(
+      transactions.map(async (transaction) => {
+        if (
+          transaction.invoice &&
+          transaction.invoice.cashierId &&
+          !transaction.invoice.cashierName
+        ) {
+          return await enhanceFinanceTransactionWithCashierName(transaction);
+        }
+        return transaction;
+      })
+    );
+
+    return enhancedTransactions;
+  } catch (error) {
+    console.error("Error getting finance transactions by category:", error);
+    return [];
+  }
+}
+
+export async function getFinanceSummary(startDate = null, endDate = null) {
+  try {
+    let transactions;
+
+    if (startDate && endDate) {
+      transactions = await getFinanceTransactionsByDateRange(
+        startDate,
+        endDate
+      );
+    } else {
+      transactions = await getAllFinanceTransactions();
+    }
+
+    const summary = {
+      totalIncome: 0,
+      totalExpenses: 0,
+      netProfit: 0,
+      transactionCount: transactions.length,
+      incomeTransactions: 0,
+      expenseTransactions: 0,
+      categories: {},
+    };
+
+    transactions.forEach((transaction) => {
+      const amount = parseFloat(transaction.amount) || 0;
+
+      if (transaction.type === "income") {
+        summary.totalIncome += amount;
+        summary.incomeTransactions++;
+      } else if (transaction.type === "expense") {
+        summary.totalExpenses += amount;
+        summary.expenseTransactions++;
+      }
+
+      // Group by category
+      const category = transaction.category || "other";
+      if (!summary.categories[category]) {
+        summary.categories[category] = {
+          income: 0,
+          expenses: 0,
+          count: 0,
+        };
+      }
+
+      summary.categories[category].count++;
+      if (transaction.type === "income") {
+        summary.categories[category].income += amount;
+      } else {
+        summary.categories[category].expenses += amount;
+      }
+    });
+
+    summary.netProfit = summary.totalIncome - summary.totalExpenses;
+
+    return summary;
+  } catch (error) {
+    console.error("Error getting finance summary:", error);
+    return {
+      totalIncome: 0,
+      totalExpenses: 0,
+      netProfit: 0,
+      transactionCount: 0,
+      incomeTransactions: 0,
+      expenseTransactions: 0,
+      categories: {},
+    };
+  }
+}
+
+// Order Management Functions
+export async function getAllOrders() {
+  try {
+    const ordersCollection = collection(db, "orders");
+    const q = query(ordersCollection, orderBy("createdAt", "desc"));
+    const querySnapshot = await getDocs(q);
+
+    const orders = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      orders.push({
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt ? data.createdAt.toDate() : null,
+        updatedAt: data.updatedAt ? data.updatedAt.toDate() : null,
+      });
+    });
+
+    return orders;
+  } catch (error) {
+    console.error("Error getting orders:", error);
+    return [];
+  }
+}
+
+export async function getOrderById(orderId) {
+  try {
+    const orderDoc = doc(db, "orders", orderId);
+    const docSnap = await getDoc(orderDoc);
+
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        ...data,
+        createdAt: data.createdAt ? data.createdAt.toDate() : null,
+        updatedAt: data.updatedAt ? data.updatedAt.toDate() : null,
+      };
+    } else {
+      return null;
+    }
+  } catch (error) {
+    console.error("Error getting order:", error);
+    return null;
+  }
+}
+
+export async function getPaidOrders() {
+  try {
+    const ordersCollection = collection(db, "orders");
+    const q = query(
+      ordersCollection,
+      where("paymentStatus", "==", "paid"),
+      orderBy("createdAt", "desc")
+    );
+    const querySnapshot = await getDocs(q);
+
+    const paidOrders = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      paidOrders.push({
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt ? data.createdAt.toDate() : null,
+        updatedAt: data.updatedAt ? data.updatedAt.toDate() : null,
+      });
+    });
+
+    return paidOrders;
+  } catch (error) {
+    console.error("Error getting paid orders:", error);
+    return [];
+  }
+}
+
+// Function to check if an order has already been recorded in finance_transactions
+export async function isOrderRecordedInFinance(orderId) {
+  try {
+    const financeCollection = collection(db, "finance_transactions");
+    const q = query(financeCollection, where("orderId", "==", orderId));
+    const querySnapshot = await getDocs(q);
+
+    return !querySnapshot.empty;
+  } catch (error) {
+    console.error("Error checking if order is recorded in finance:", error);
+    return false;
+  }
+}
+
+// Function to create finance transaction from paid order
+export async function createFinanceTransactionFromOrder(order) {
+  try {
+    // Check if this order has already been recorded
+    const isAlreadyRecorded = await isOrderRecordedInFinance(order.id);
+    if (isAlreadyRecorded) {
+      console.log(
+        `Order ${order.id} has already been recorded in finance transactions`
+      );
+      return null;
+    } // Get cashier name
+    const cashierName = await getCashierNameById(order.cashierId);
+
+    // Create finance transaction data
+    const financeData = {
+      type: "income",
+      category: "sales",
+      amount: order.total || 0,
+      description: `Doanh thu từ đơn hàng #${order.id}`,
+      date: order.createdAt || new Date(),
+      paymentMethod: order.paymentMethod || "Tiền mặt",
+      orderId: order.id,
+      tableId: order.tableId || null,
+      invoice: {
+        cashierId: order.cashierId || "system",
+        cashierName: cashierName,
+        tableId: order.tableId || null,
+        tableNumber: order.tableNumber || null,
+        items: order.items || [],
+        subtotal: order.subtotal || 0,
+        vat: order.vat || order.tax || 0,
+        discount: order.discount || 0,
+        total: order.total || 0,
+        paymentMethod: order.paymentMethod || "Tiền mặt",
+        customerInfo: order.customerInfo || null,
+      },
+      notes: `Đơn hàng bàn ${order.tableId || order.tableNumber || "N/A"} - ${
+        order.customerInfo?.name || "Khách lẻ"
+      }`,
+      createdBy: "system",
+    };
+
+    // Add the finance transaction
+    const transactionId = await addFinanceTransaction(financeData);
+    console.log(
+      `Created finance transaction ${transactionId} for order ${order.id}`
+    );
+
+    return transactionId;
+  } catch (error) {
+    console.error("Error creating finance transaction from order:", error);
+    throw error;
+  }
+}
+
+// Function to sync all paid orders to finance transactions
+export async function syncPaidOrdersToFinance() {
+  try {
+    const paidOrders = await getPaidOrders();
+    console.log(`Found ${paidOrders.length} paid orders`);
+
+    const results = {
+      total: paidOrders.length,
+      processed: 0,
+      skipped: 0,
+      errors: 0,
+    };
+
+    for (const order of paidOrders) {
+      try {
+        const transactionId = await createFinanceTransactionFromOrder(order);
+        if (transactionId) {
+          results.processed++;
+        } else {
+          results.skipped++;
+        }
+      } catch (error) {
+        console.error(`Error processing order ${order.id}:`, error);
+        results.errors++;
+      }
+    }
+
+    console.log("Sync results:", results);
+    return results;
+  } catch (error) {
+    console.error("Error syncing paid orders to finance:", error);
+    throw error;
+  }
+}
+
+// Function to automatically sync new paid orders (can be called periodically)
+export async function autoSyncNewPaidOrders() {
+  try {
+    // Get paid orders from the last 24 hours to avoid processing too many old orders
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const ordersCollection = collection(db, "orders");
+    const q = query(
+      ordersCollection,
+      where("paymentStatus", "==", "paid"),
+      where("createdAt", ">=", Timestamp.fromDate(yesterday)),
+      orderBy("createdAt", "desc")
+    );
+
+    const querySnapshot = await getDocs(q);
+    const recentPaidOrders = [];
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      recentPaidOrders.push({
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt ? data.createdAt.toDate() : null,
+        updatedAt: data.updatedAt ? data.updatedAt.toDate() : null,
+      });
+    });
+
+    const results = {
+      total: recentPaidOrders.length,
+      processed: 0,
+      skipped: 0,
+      errors: 0,
+    };
+
+    for (const order of recentPaidOrders) {
+      try {
+        const transactionId = await createFinanceTransactionFromOrder(order);
+        if (transactionId) {
+          results.processed++;
+        } else {
+          results.skipped++;
+        }
+      } catch (error) {
+        console.error(`Error processing order ${order.id}:`, error);
+        results.errors++;
+      }
+    }
+
+    return results;
+  } catch (error) {
+    console.error("Error auto-syncing new paid orders:", error);
+    throw error;
+  }
+}
+
+// Function to get cashier name from cashier ID
+export async function getCashierNameById(cashierId) {
+  try {
+    if (!cashierId || cashierId === "system") {
+      return "Hệ thống";
+    }
+
+    const cashier = await getStaffById(cashierId);
+    return cashier
+      ? cashier.displayName || cashier.name || cashierId
+      : cashierId;
+  } catch (error) {
+    console.error("Error getting cashier name:", error);
+    return cashierId;
+  }
+}
+
+// Function to enhance finance transaction with cashier name
+export async function enhanceFinanceTransactionWithCashierName(transaction) {
+  if (transaction.invoice && transaction.invoice.cashierId) {
+    const cashierName = await getCashierNameById(transaction.invoice.cashierId);
+    transaction.invoice.cashierName = cashierName;
+  }
+  return transaction;
 }

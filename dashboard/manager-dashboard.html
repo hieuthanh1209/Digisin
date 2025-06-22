@@ -5,10 +5,178 @@
     <title>Quản lý - Hệ thống Quản lý Nhà hàng</title>
     <link rel="icon" href="../assets/favicon.ico" type="image/x-icon">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="manager-styles.css">
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <link rel="stylesheet" href="manager-styles.css">    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- Password Management JavaScript -->
+    <script>
+        // Password management functions
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('staffPassword');
+            const toggleIcon = document.getElementById('passwordToggleIcon');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.setAttribute('data-lucide', 'eye-off');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.setAttribute('data-lucide', 'eye');
+            }
+            
+            // Refresh lucide icons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+
+        function generateRandomPassword() {
+            const length = 12;
+            const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+            let password = "";
+            
+            // Ensure at least one character from each category
+            const lowercase = "abcdefghijklmnopqrstuvwxyz";
+            const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            const numbers = "0123456789";
+            const symbols = "!@#$%^&*";
+            
+            password += lowercase[Math.floor(Math.random() * lowercase.length)];
+            password += uppercase[Math.floor(Math.random() * uppercase.length)];
+            password += numbers[Math.floor(Math.random() * numbers.length)];
+            password += symbols[Math.floor(Math.random() * symbols.length)];
+            
+            // Fill the rest randomly
+            for (let i = 4; i < length; i++) {
+                password += charset[Math.floor(Math.random() * charset.length)];
+            }
+            
+            // Shuffle the password
+            password = password.split('').sort(() => Math.random() - 0.5).join('');
+            
+            document.getElementById('staffPassword').value = password;
+            checkPasswordStrength(password);
+            
+            // Show a toast notification
+            if (typeof showToast === 'function') {
+                showToast('Mật khẩu đã được tạo tự động!', 'success');
+            }
+        }
+
+        function togglePasswordChange() {
+            const checkbox = document.getElementById('changePasswordCheckbox');
+            const passwordInput = document.getElementById('staffPassword');
+            const generateBtn = document.getElementById('generatePasswordBtn');
+            const passwordHelp = document.getElementById('passwordHelp');
+            
+            if (checkbox.checked) {
+                passwordInput.disabled = false;
+                passwordInput.required = true;
+                generateBtn.disabled = false;
+                passwordHelp.textContent = 'Nhập mật khẩu mới cho nhân viên này. Mật khẩu nên có ít nhất 6 ký tự.';
+                passwordInput.focus();
+            } else {
+                passwordInput.disabled = true;
+                passwordInput.required = false;
+                passwordInput.value = '';
+                generateBtn.disabled = true;
+                passwordHelp.textContent = 'Chọn "Đổi mật khẩu" để cập nhật mật khẩu cho nhân viên này.';
+                document.getElementById('passwordStrength').style.display = 'none';
+            }
+        }
+
+        function checkPasswordStrength(password) {
+            const strengthDiv = document.getElementById('passwordStrength');
+            const strengthBar = document.getElementById('passwordStrengthBar');
+            const strengthText = document.getElementById('passwordStrengthText');
+            
+            if (!password || password.length === 0) {
+                strengthDiv.style.display = 'none';
+                return;
+            }
+            
+            strengthDiv.style.display = 'block';
+            
+            let score = 0;
+            let feedback = [];
+            
+            // Length check
+            if (password.length >= 8) score += 25;
+            else if (password.length >= 6) score += 15;
+            else feedback.push('ít nhất 6 ký tự');
+            
+            // Character variety checks
+            if (/[a-z]/.test(password)) score += 15;
+            else feedback.push('chữ thường');
+            
+            if (/[A-Z]/.test(password)) score += 15;
+            else feedback.push('chữ hoa');
+            
+            if (/[0-9]/.test(password)) score += 15;
+            else feedback.push('số');
+            
+            if (/[^A-Za-z0-9]/.test(password)) score += 30;
+            else feedback.push('ký tự đặc biệt');
+            
+            // Update progress bar
+            strengthBar.style.width = score + '%';
+            
+            // Update color and text
+            if (score >= 80) {
+                strengthBar.className = 'progress-bar bg-success';
+                strengthText.textContent = 'Mật khẩu mạnh';
+                strengthText.className = 'text-success small';
+            } else if (score >= 60) {
+                strengthBar.className = 'progress-bar bg-warning';
+                strengthText.textContent = 'Mật khẩu trung bình';
+                strengthText.className = 'text-warning small';
+            } else {
+                strengthBar.className = 'progress-bar bg-danger';
+                strengthText.textContent = 'Mật khẩu yếu - Cần: ' + feedback.join(', ');
+                strengthText.className = 'text-danger small';
+            }
+        }
+
+        // Function to setup staff modal for add/edit mode
+        function setupStaffModalMode(isEdit = false) {
+            const changePasswordCheck = document.getElementById('changePasswordCheck');
+            const changePasswordCheckbox = document.getElementById('changePasswordCheckbox');
+            const passwordInput = document.getElementById('staffPassword');
+            const generateBtn = document.getElementById('generatePasswordBtn');
+            const passwordHelp = document.getElementById('passwordHelp');
+            
+            if (isEdit) {
+                // Edit mode - show change password option
+                changePasswordCheck.style.display = 'block';
+                changePasswordCheckbox.checked = false;
+                passwordInput.disabled = true;
+                passwordInput.required = false;
+                passwordInput.value = '';
+                generateBtn.disabled = true;
+                passwordHelp.textContent = 'Chọn "Đổi mật khẩu" để cập nhật mật khẩu cho nhân viên này.';
+                document.getElementById('passwordStrength').style.display = 'none';
+            } else {
+                // Add mode - password is required
+                changePasswordCheck.style.display = 'none';
+                passwordInput.disabled = false;
+                passwordInput.required = true;
+                passwordInput.value = '';
+                generateBtn.disabled = false;
+                passwordHelp.textContent = 'Khi thêm nhân viên mới, mật khẩu là bắt buộc để tạo tài khoản đăng nhập. Mật khẩu nên có ít nhất 6 ký tự.';
+                document.getElementById('passwordStrength').style.display = 'none';
+            }
+        }
+
+        // Setup password input event listener when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            const passwordInput = document.getElementById('staffPassword');
+            if (passwordInput) {
+                passwordInput.addEventListener('input', function() {
+                    checkPasswordStrength(this.value);
+                });
+            }
+        });
+    </script>
 </head>
 <body>
     <div class="d-flex vh-100">
@@ -417,11 +585,14 @@
                             <div class="card border-0 shadow-sm">
                                 <div class="card-body">
                                     <div class="d-flex align-items-center justify-content-between mb-4">
-                                        <h4 class="card-title mb-0">Tổng quan thu chi</h4>
-                                        <div>
+                                        <h4 class="card-title mb-0">Tổng quan thu chi</h4>                                        <div>
                                             <button class="btn btn-sm btn-outline-secondary me-2" id="refreshFinanceBtn">
                                                 <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
                                                 Cập nhật
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-success me-2" id="syncOrdersBtn">
+                                                <i data-lucide="database" style="width: 16px; height: 16px;"></i>
+                                                Đồng bộ orders
                                             </button>
                                             <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#financeTransactionModal">
                                                 <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
@@ -570,10 +741,33 @@
                             <div class="col-md-6">
                                 <label class="form-label">Số điện thoại</label>
                                 <input type="tel" class="form-control" id="staffPhone" required>
-                            </div>
-                            <div class="col-12">
+                            </div>                            <div class="col-12">
                                 <label class="form-label">Email</label>
                                 <input type="email" class="form-control" id="staffEmail" required>
+                            </div>                            <div class="col-12" id="passwordSection">
+                                <label class="form-label">Mật khẩu</label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="staffPassword" placeholder="Nhập mật khẩu">
+                                    <button type="button" class="btn btn-outline-secondary" id="generatePasswordBtn" onclick="generateRandomPassword()">
+                                        <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+                                        Tạo tự động
+                                    </button>
+                                </div>
+                                <div class="form-check mt-2" id="changePasswordCheck" style="display: none;">
+                                    <input class="form-check-input" type="checkbox" id="changePasswordCheckbox" onchange="togglePasswordChange()">
+                                    <label class="form-check-label" for="changePasswordCheckbox">
+                                        Đổi mật khẩu cho nhân viên này
+                                    </label>
+                                </div>
+                                <small class="text-muted" id="passwordHelp">
+                                    Khi thêm nhân viên mới, mật khẩu là bắt buộc để tạo tài khoản đăng nhập. Mật khẩu nên có ít nhất 6 ký tự.
+                                </small>
+                                <div id="passwordStrength" class="mt-1" style="display: none;">
+                                    <div class="progress" style="height: 4px;">
+                                        <div class="progress-bar" id="passwordStrengthBar" role="progressbar" style="width: 0%"></div>
+                                    </div>
+                                    <small class="text-muted" id="passwordStrengthText"></small>
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Ngày bắt đầu</label>
@@ -711,11 +905,9 @@
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- Finance Transaction Modal -->
+    </div>    <!-- Finance Transaction Modal -->
     <div class="modal fade" id="financeTransactionModal" tabindex="-1">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="financeModalTitle">Thêm phiếu thu/chi mới</h5>
@@ -768,13 +960,17 @@
                                     <option value="transfer">Chuyển khoản</option>
                                     <option value="card">Thẻ</option>
                                 </select>
-                            </div>
-                            <div class="col-12">
+                            </div>                            <div class="col-12">
                                 <label class="form-label">Ghi chú</label>
                                 <textarea class="form-control" id="financeNote" rows="3"></textarea>
                             </div>
                         </div>
                     </form>
+                    
+                    <!-- Additional Information Section (shown only when editing) -->
+                    <div id="financeAdditionalInfo" style="display: none;" class="mt-4 p-3 bg-light rounded">
+                        <!-- Additional info content will be populated by JavaScript -->
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
@@ -782,12 +978,12 @@
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- Toast Container -->
+    </div>    <!-- Toast Container -->
     <div class="position-fixed top-0 end-0 p-3" style="z-index: 9999;">
         <div id="toastContainer"></div>
-    </div>    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
       <!-- Firebase -->    <script type="module">        // Import Firebase functions
         import { 
             getAllMenuItems,
@@ -812,7 +1008,26 @@
             deleteInventoryItem,
             getLowStockItems,
             getHighVarianceItems,
-            updateInventoryFromReadyOrder
+            updateInventoryFromReadyOrder,            // Finance Functions
+            getAllFinanceTransactions,
+            getFinanceTransactionById,
+            addFinanceTransaction,
+            updateFinanceTransaction,
+            deleteFinanceTransaction,
+            getFinanceTransactionsByDateRange,
+            getFinanceTransactionsByType,
+            getFinanceTransactionsByCategory,
+            getFinanceSummary,            // Order Functions
+            getAllOrders,
+            getOrderById,
+            getPaidOrders,
+            isOrderRecordedInFinance,
+            createFinanceTransactionFromOrder,
+            syncPaidOrdersToFinance,
+            autoSyncNewPaidOrders,
+            getCashierNameById,
+            enhanceFinanceTransactionWithCashierName,
+            createFirebaseUser
         } from './firebase-manager.js';
         
         // Make Firebase functions globally available
@@ -832,7 +1047,8 @@
         window.updateStaffMember = updateStaffMember;
         window.deleteStaffMember = deleteStaffMember;
         window.getActiveStaffCount = getActiveStaffCount;
-          // Make Inventory functions globally available
+        
+        // Make Inventory functions globally available
         window.getAllInventoryItems = getAllInventoryItems;
         window.getInventoryItemById = getInventoryItemById;
         window.addInventoryItem = addInventoryItem;
@@ -841,6 +1057,28 @@
         window.getLowStockItems = getLowStockItems;
         window.getHighVarianceItems = getHighVarianceItems;
         window.updateInventoryFromReadyOrder = updateInventoryFromReadyOrder;
+          // Make Finance functions globally available
+        window.getAllFinanceTransactions = getAllFinanceTransactions;
+        window.getFinanceTransactionById = getFinanceTransactionById;
+        window.addFinanceTransaction = addFinanceTransaction;
+        window.updateFinanceTransaction = updateFinanceTransaction;
+        window.deleteFinanceTransaction = deleteFinanceTransaction;
+        window.getFinanceTransactionsByDateRange = getFinanceTransactionsByDateRange;
+        window.getFinanceTransactionsByType = getFinanceTransactionsByType;
+        window.getFinanceTransactionsByCategory = getFinanceTransactionsByCategory;
+        window.getFinanceSummary = getFinanceSummary;
+          // Make Order functions globally available
+        window.getAllOrders = getAllOrders;
+        window.getOrderById = getOrderById;
+        window.getPaidOrders = getPaidOrders;
+        window.isOrderRecordedInFinance = isOrderRecordedInFinance;
+        window.createFinanceTransactionFromOrder = createFinanceTransactionFromOrder;
+        window.syncPaidOrdersToFinance = syncPaidOrdersToFinance;
+        window.autoSyncNewPaidOrders = autoSyncNewPaidOrders;
+        window.getCashierNameById = getCashierNameById;
+        window.enhanceFinanceTransactionWithCashierName = enhanceFinanceTransactionWithCashierName;
+        
+        window.createFirebaseUser = createFirebaseUser;
     </script>
     
     <script src="manager-script.js"></script>

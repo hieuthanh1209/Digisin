@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Khởi tạo dữ liệu Thu Chi - Hệ thống Quản lý Nhà hàng</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" href="../assets/favicon.ico" type="image/x-icon">
+</head>
+<body class="bg-light">
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="card-title mb-0">Khởi tạo dữ liệu Thu Chi</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <h5>Thông tin quan trọng:</h5>
+                            <ul class="mb-0">
+                                <li>Tool này sẽ khởi tạo dữ liệu thu chi mẫu vào Firestore</li>
+                                <li>Bao gồm các phiếu thu và chi từ tháng 5-6/2025</li>
+                                <li>Chỉ chạy một lần để tránh trùng lặp dữ liệu</li>
+                                <li>Đảm bảo bạn đã cấu hình Firebase Config đúng</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <strong>Lưu ý:</strong> Công cụ này chỉ dành cho việc phát triển và testing.
+                            Không sử dụng trong môi trường production.
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="button" class="btn btn-primary btn-lg" id="initFinanceBtn">
+                                Khởi tạo dữ liệu Thu Chi
+                            </button>
+                            <a href="../dashboard/manager-dashboard.html" class="btn btn-outline-secondary">
+                                Về trang quản lý
+                            </a>
+                        </div>
+
+                        <div class="mt-4">
+                            <h5>Dữ liệu sẽ được khởi tạo:</h5>
+                            <ul class="small">
+                                <li>10 phiếu thu/chi mẫu</li>
+                                <li>Các loại: Thu (sales), Chi (inventory, salary, utilities, rent, other)</li>
+                                <li>Thời gian: Tháng 5-6/2025</li>
+                                <li>Phương thức thanh toán: Tiền mặt, chuyển khoản</li>
+                                <li>Tổng thu: ~42.200.000 VNĐ</li>
+                                <li>Tổng chi: ~62.000.000 VNĐ</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="../scripts/init-finance-data.js"></script>
+</body>
+</html>

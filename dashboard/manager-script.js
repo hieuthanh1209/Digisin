@@ -1,6 +1,8 @@
 // Manager Dashboard JavaScript
 
 // Global Variables & Data
+let isEditingFinanceTransaction = false; // Flag to track if we're editing a transaction
+
 let managerStaffData = [
   {
     id: "NV001",
@@ -279,7 +281,6 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     return true;
   };
-
   // Wait for Firebase functions to be available before initializing
   const initApp = async () => {
     if (!checkFirebaseFunctions()) return;
@@ -300,16 +301,29 @@ document.addEventListener("DOMContentLoaded", async function () {
     renderInventoryTable(); // Uses Firestore
     updateAnalytics();
     updateInventoryAlerts(); // Uses Firestore
-    setupEventListeners();
-
-    // Initialize finance management
-    renderFinanceTable();
+    setupEventListeners(); // Initialize finance management
+    await renderFinanceTable();
     setupFinanceEventListeners();
+
+    // Setup auto-sync for orders
+    setupAutoSyncOrders();
+
+    // Auto sync new paid orders on startup
+    try {
+      console.log("Auto-syncing new paid orders...");
+      const results = await autoSyncNewPaidOrders();
+      if (results.processed > 0) {
+        console.log(`Auto-synced ${results.processed} new orders to finance`);
+        // Refresh finance table if any orders were processed
+        await renderFinanceTable();
+      }
+    } catch (error) {
+      console.error("Error auto-syncing orders:", error);
+    }
   };
 
   // Start initialization
   initApp();
-
   // Set current date as default for new finance transactions
   const financeForm = document.getElementById("financeForm");
   if (financeForm) {
@@ -318,6 +332,14 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (dateInput) {
       dateInput.value = today;
     }
+  }
+
+  // Setup password input event listener for strength checking
+  const passwordInput = document.getElementById("staffPassword");
+  if (passwordInput) {
+    passwordInput.addEventListener("input", function () {
+      checkPasswordStrength(this.value);
+    });
   }
 });
 
@@ -360,10 +382,21 @@ function showTab(tabName) {
     inventory: "Quản lý kho",
     finance: "Quản lý thu chi",
   };
-
   const titleElement = document.getElementById("pageTitle");
   if (titleElement) {
     titleElement.textContent = titles[tabName] || "Hệ thống quản lý";
+  }
+
+  // Load data for specific tabs
+  if (tabName === "finance") {
+    renderFinanceTable();
+  } else if (tabName === "inventory") {
+    renderInventoryTable();
+    updateInventoryAlerts();
+  } else if (tabName === "staff") {
+    renderStaffTable();
+  } else if (tabName === "menu") {
+    renderMenuItems();
   }
 }
 
@@ -504,9 +537,10 @@ async function renderStaffTable() {
     staffList.forEach((staff) => {
       const row = document.createElement("tr");
       row.innerHTML = `
-            <td>${staff.uid || staff.id}</td>
-            <td>${staff.displayName || staff.name || ""}</td>
-            <td>${staff.role || staff.position || ""}</td>
+            <td>${staff.uid || staff.id}</td>            <td>${
+        staff.displayName || staff.name || ""
+      }</td>
+            <td>${displayPositionInVietnamese(staff)}</td>
             <td>${staff.phoneNumber || staff.phone || ""}</td>
             <td>${staff.email || ""}</td>
             <td>
@@ -566,6 +600,23 @@ function getStatusText(status) {
   return texts[status] || "Không xác định";
 }
 
+// Helper function to display Vietnamese position name based on role
+function displayPositionInVietnamese(staff) {
+  // If positionDisplay is available, use that
+  if (staff.positionDisplay) return staff.positionDisplay;
+
+  // Otherwise map from English role to Vietnamese
+  const roleMap = {
+    waiter: "Phục vụ",
+    cashier: "Thu ngân",
+    manager: "Quản lý",
+    chef: "Đầu bếp",
+  };
+
+  // Use the mapped value or fallback to original role/position
+  return roleMap[staff.role] || staff.role || staff.position || "";
+}
+
 function showAddStaffModal() {
   const modal = new bootstrap.Modal(document.getElementById("staffModal"));
   const form = document.getElementById("staffForm");
@@ -574,6 +625,12 @@ function showAddStaffModal() {
   form.reset();
   document.getElementById("editStaffId").value = "";
   title.textContent = "Thêm nhân viên mới";
+
+  // Setup password management for add mode
+  if (typeof setupStaffModalMode === "function") {
+    setupStaffModalMode(false); // false = add mode
+  }
+
   modal.show();
 }
 
@@ -594,8 +651,29 @@ async function editStaff(staffId) {
     document.getElementById("staffId").value = staff.uid || staff.id;
     document.getElementById("staffName").value =
       staff.displayName || staff.name || "";
-    document.getElementById("staffPosition").value =
-      staff.role || staff.position || "";
+
+    // Map English role back to Vietnamese for the dropdown
+    let positionDisplay = staff.positionDisplay;
+    if (!positionDisplay) {
+      // Convert English role to Vietnamese if positionDisplay is not set
+      switch (staff.role) {
+        case "waiter":
+          positionDisplay = "Phục vụ";
+          break;
+        case "cashier":
+          positionDisplay = "Thu ngân";
+          break;
+        case "manager":
+          positionDisplay = "Quản lý";
+          break;
+        case "chef":
+          positionDisplay = "Đầu bếp";
+          break;
+        default:
+          positionDisplay = staff.role || staff.position || "";
+      }
+    }
+    document.getElementById("staffPosition").value = positionDisplay;
     document.getElementById("staffPhone").value =
       staff.phoneNumber || staff.phone || "";
     document.getElementById("staffEmail").value = staff.email || "";
@@ -608,8 +686,12 @@ async function editStaff(staffId) {
       startDate = new Date(staff.startDate).toISOString().split("T")[0];
     }
     document.getElementById("staffStartDate").value = startDate;
-
     document.getElementById("staffSalary").value = staff.salary || 0;
+
+    // Setup password management for edit mode
+    if (typeof setupStaffModalMode === "function") {
+      setupStaffModalMode(true); // true = edit mode
+    }
 
     modal.show();
   } catch (error) {
@@ -635,29 +717,127 @@ async function deleteStaff(staffId) {
 async function saveStaff() {
   try {
     const editId = document.getElementById("editStaffId").value;
+
+    // Map Vietnamese position to English for Firestore
+    const positionValue = document.getElementById("staffPosition").value;
+    let roleForFirestore = positionValue;
+
+    // Map Vietnamese position to English role value
+    switch (positionValue) {
+      case "Phục vụ":
+        roleForFirestore = "waiter";
+        break;
+      case "Thu ngân":
+        roleForFirestore = "cashier";
+        break;
+      case "Quản lý":
+        roleForFirestore = "manager";
+        break;
+      case "Đầu bếp":
+        roleForFirestore = "chef";
+        break;
+      default:
+        roleForFirestore = positionValue;
+    }
+
     const staffData = {
       displayName: document.getElementById("staffName").value,
-      role: document.getElementById("staffPosition").value,
+      role: roleForFirestore, // Use the mapped English value
+      positionDisplay: positionValue, // Keep original Vietnamese value for display
       phoneNumber: document.getElementById("staffPhone").value,
       email: document.getElementById("staffEmail").value,
       startDate: document.getElementById("staffStartDate").value,
       salary: parseInt(document.getElementById("staffSalary").value) || 0,
       status: "active",
     };
-
     if (editId) {
       // Edit existing staff
+      const changePasswordCheckbox = document.getElementById(
+        "changePasswordCheckbox"
+      );
+      const password = document.getElementById("staffPassword").value;
+
+      // Check if password change is requested
+      if (changePasswordCheckbox && changePasswordCheckbox.checked) {
+        if (!password) {
+          showToast("Vui lòng nhập mật khẩu mới", "error");
+          return;
+        }
+
+        if (password.length < 6) {
+          showToast("Mật khẩu phải có ít nhất 6 ký tự", "error");
+          return;
+        }
+
+        try {
+          // Update password in Firebase Authentication
+          // Note: This would require admin SDK or re-authentication in a real implementation
+          // For now, we'll just show a message about password change
+          showToast(
+            "Cập nhật nhân viên thành công! Lưu ý: Để đổi mật khẩu, nhân viên cần đăng nhập và đổi mật khẩu thông qua tính năng quên mật khẩu.",
+            "warning"
+          );
+        } catch (error) {
+          console.error("Error updating password:", error);
+          showToast("Lỗi khi cập nhật mật khẩu: " + error.message, "error");
+        }
+      }
+
       await updateStaffMember(editId, staffData);
       showToast("Cập nhật nhân viên thành công!", "success");
     } else {
       // Add new staff
       const staffId = document.getElementById("staffId").value;
-      // Create a new user document with the specified ID
-      await addStaffMember({
-        ...staffData,
-        uid: staffId,
-      });
-      showToast("Thêm nhân viên thành công!", "success");
+      const password = document.getElementById("staffPassword").value;
+
+      // Validate password when creating a new staff
+      if (!password) {
+        showToast(
+          "Vui lòng nhập mật khẩu để tạo tài khoản đăng nhập cho nhân viên mới",
+          "error"
+        );
+        return;
+      }
+
+      try {
+        // Step 1: Create Firebase Authentication account
+        const firebaseUser = await createFirebaseUser(
+          staffData.email,
+          password
+        );
+
+        // Step 2: Use the Authentication UID for the Firestore document
+        await addStaffMember({
+          ...staffData,
+          uid: firebaseUser.uid, // Use the UID from Firebase Auth
+          profileImage: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+            staffData.displayName
+          )}&background=random`,
+        });
+
+        showToast(
+          "Thêm nhân viên và tạo tài khoản đăng nhập thành công!",
+          "success"
+        );
+      } catch (authError) {
+        // Handle specific Firebase Authentication errors
+        if (authError.code === "auth/email-already-in-use") {
+          showToast(
+            "Email này đã được sử dụng, vui lòng chọn email khác",
+            "error"
+          );
+          return;
+        } else if (authError.code === "auth/weak-password") {
+          showToast(
+            "Mật khẩu quá yếu, vui lòng sử dụng mật khẩu mạnh hơn",
+            "error"
+          );
+          return;
+        } else {
+          showToast(`Lỗi tạo tài khoản: ${authError.message}`, "error");
+          return;
+        }
+      }
     }
 
     await renderStaffTable();
@@ -1340,11 +1520,6 @@ async function saveMenuItem() {
   } catch (error) {
     console.error("Error saving menu item:", error);
     showToast("Lỗi khi lưu món ăn: " + error.message, "danger");
-  } finally {
-    // Reset save button
-    const saveButton = document.querySelector("#menuItemModal .btn-primary");
-    saveButton.disabled = false;
-    saveButton.innerHTML = "Lưu";
   }
 }
 
@@ -1742,7 +1917,7 @@ function formatDate(dateString) {
   });
 }
 
-function showToast(message, type = "info") {
+function showToast(message, type = "info", duration = 4000) {
   const toastContainer = document.getElementById("toastContainer");
   if (!toastContainer) return;
 
@@ -1769,7 +1944,7 @@ function showToast(message, type = "info") {
   toastContainer.insertAdjacentHTML("beforeend", toastHtml);
 
   const toastElement = document.getElementById(toastId);
-  const toast = new bootstrap.Toast(toastElement, { delay: 4000 });
+  const toast = new bootstrap.Toast(toastElement, { delay: duration });
   toast.show();
 
   // Clean up after toast is hidden
@@ -1804,7 +1979,7 @@ function setupEventListeners() {
 }
 
 // Finance Management Functions
-function renderFinanceTable(data = null) {
+async function renderFinanceTable(data = null) {
   const tableBody = document.getElementById("financeTableBody");
   const emptyState = document.getElementById("financeEmptyState");
 
@@ -1814,7 +1989,18 @@ function renderFinanceTable(data = null) {
   tableBody.innerHTML = "";
 
   // Get data to render
-  const financeData = data || managerFinanceData;
+  let financeData;
+  if (data) {
+    financeData = data;
+  } else {
+    try {
+      financeData = await getAllFinanceTransactions();
+    } catch (error) {
+      console.error("Error loading finance transactions:", error);
+      showToast("Không thể tải dữ liệu thu chi!", "error");
+      return;
+    }
+  }
 
   // Check if data is empty
   if (financeData.length === 0) {
@@ -1853,10 +2039,24 @@ function renderFinanceTable(data = null) {
       other: "Khác",
     };
 
+    // Format date
+    const transactionDate =
+      transaction.date instanceof Date
+        ? transaction.date
+        : new Date(transaction.date); // Add invoice button if transaction has orderId
+    let invoiceButton = "";
+    if (transaction.orderId) {
+      invoiceButton = `
+        <button type="button" class="btn btn-outline-info btn-sm me-1" onclick="viewInvoiceDetails('${transaction.id}')" title="Xem hóa đơn">
+          <i data-lucide="receipt" style="width: 14px; height: 14px;"></i>
+        </button>
+      `;
+    }
+
     row.innerHTML = `
       <td>${index + 1}</td>
       <td>${transaction.code}</td>
-      <td>${formatDate(transaction.date)}</td>
+      <td>${formatDate(transactionDate)}</td>
       <td>${typeDisplay}</td>
       <td>${categoryMap[transaction.category] || transaction.category}</td>
       <td>${transaction.description}</td>
@@ -1864,12 +2064,13 @@ function renderFinanceTable(data = null) {
       <td>${transaction.note || "-"}</td>
       <td>
         <div class="btn-group btn-group-sm">
+          ${invoiceButton}
           <button type="button" class="btn btn-outline-primary" onclick="editFinanceTransaction('${
             transaction.id
           }')">
             <i data-lucide="edit" style="width: 16px; height: 16px;"></i>
           </button>
-          <button type="button" class="btn btn-outline-danger" onclick="deleteFinanceTransaction('${
+          <button type="button" class="btn btn-outline-danger" onclick="confirmDeleteFinanceTransaction('${
             transaction.id
           }')">
             <i data-lucide="trash" style="width: 16px; height: 16px;"></i>
@@ -1888,8 +2089,18 @@ function renderFinanceTable(data = null) {
   updateFinanceSummary(financeData);
 }
 
-function updateFinanceSummary(data = null) {
-  const financeData = data || managerFinanceData;
+async function updateFinanceSummary(data = null) {
+  let financeData;
+  if (data) {
+    financeData = data;
+  } else {
+    try {
+      financeData = await getAllFinanceTransactions();
+    } catch (error) {
+      console.error("Error loading finance data for summary:", error);
+      return;
+    }
+  }
 
   // Get current date
   const now = new Date();
@@ -1903,7 +2114,10 @@ function updateFinanceSummary(data = null) {
   let yearlyExpense = 0;
 
   financeData.forEach((transaction) => {
-    const transDate = new Date(transaction.date);
+    const transDate =
+      transaction.date instanceof Date
+        ? transaction.date
+        : new Date(transaction.date);
     const amount = parseFloat(transaction.amount);
 
     if (transDate.getFullYear() === currentYear) {
@@ -1952,184 +2166,444 @@ function updateFinanceSummary(data = null) {
   }
 }
 
-function filterFinanceTransactions() {
+async function filterFinanceTransactions() {
   const startDate = document.getElementById("financeStartDate").value;
   const endDate = document.getElementById("financeEndDate").value;
   const type = document.getElementById("financeType").value;
   const category = document.getElementById("financeCategory").value;
 
-  // Filter data
-  let filteredData = [...managerFinanceData];
+  try {
+    let filteredData;
 
-  // Filter by date range
-  if (startDate) {
-    filteredData = filteredData.filter(
-      (transaction) => transaction.date >= startDate
-    );
+    // Get data based on filters
+    if (startDate && endDate) {
+      filteredData = await getFinanceTransactionsByDateRange(
+        startDate,
+        endDate
+      );
+    } else {
+      filteredData = await getAllFinanceTransactions();
+    }
+
+    // Apply additional filters
+    if (type && type !== "all") {
+      filteredData = filteredData.filter(
+        (transaction) => transaction.type === type
+      );
+    }
+
+    if (category && category !== "all") {
+      filteredData = filteredData.filter(
+        (transaction) => transaction.category === category
+      );
+    }
+
+    // Apply date range filter if only one date is provided
+    if (startDate && !endDate) {
+      filteredData = filteredData.filter((transaction) => {
+        const transDate =
+          transaction.date instanceof Date
+            ? transaction.date
+            : new Date(transaction.date);
+        return transDate >= new Date(startDate);
+      });
+    }
+
+    if (endDate && !startDate) {
+      filteredData = filteredData.filter((transaction) => {
+        const transDate =
+          transaction.date instanceof Date
+            ? transaction.date
+            : new Date(transaction.date);
+        return transDate <= new Date(endDate);
+      });
+    }
+
+    // Render filtered data
+    renderFinanceTable(filteredData);
+  } catch (error) {
+    console.error("Error filtering finance transactions:", error);
+    showToast("Không thể lọc dữ liệu thu chi!", "error");
   }
-
-  if (endDate) {
-    filteredData = filteredData.filter(
-      (transaction) => transaction.date <= endDate
-    );
-  }
-
-  // Filter by type
-  if (type && type !== "all") {
-    filteredData = filteredData.filter(
-      (transaction) => transaction.type === type
-    );
-  }
-
-  // Filter by category
-  if (category && category !== "all") {
-    filteredData = filteredData.filter(
-      (transaction) => transaction.category === category
-    );
-  }
-
-  // Render filtered data
-  renderFinanceTable(filteredData);
 }
 
-function exportFinanceToExcel() {
-  // Filter data first (use current filter settings)
-  filterFinanceTransactions();
+async function exportFinanceToExcel() {
+  try {
+    // Get filtered data
+    const startDate = document.getElementById("financeStartDate").value;
+    const endDate = document.getElementById("financeEndDate").value;
+    const type = document.getElementById("financeType").value;
+    const category = document.getElementById("financeCategory").value;
 
-  // Get filtered data
-  const startDate = document.getElementById("financeStartDate").value;
-  const endDate = document.getElementById("financeEndDate").value;
-  const type = document.getElementById("financeType").value;
-  const category = document.getElementById("financeCategory").value;
+    let filteredData;
 
-  // Filter data
-  let filteredData = [...managerFinanceData];
+    // Get data based on filters
+    if (startDate && endDate) {
+      filteredData = await getFinanceTransactionsByDateRange(
+        startDate,
+        endDate
+      );
+    } else {
+      filteredData = await getAllFinanceTransactions();
+    }
 
-  // Filter by date range
-  if (startDate) {
-    filteredData = filteredData.filter(
-      (transaction) => transaction.date >= startDate
-    );
-  }
+    // Apply additional filters
+    if (type && type !== "all") {
+      filteredData = filteredData.filter(
+        (transaction) => transaction.type === type
+      );
+    }
 
-  if (endDate) {
-    filteredData = filteredData.filter(
-      (transaction) => transaction.date <= endDate
-    );
-  }
+    if (category && category !== "all") {
+      filteredData = filteredData.filter(
+        (transaction) => transaction.category === category
+      );
+    }
 
-  // Filter by type
-  if (type && type !== "all") {
-    filteredData = filteredData.filter(
-      (transaction) => transaction.type === type
-    );
-  }
+    // Apply date range filter if only one date is provided
+    if (startDate && !endDate) {
+      filteredData = filteredData.filter((transaction) => {
+        const transDate =
+          transaction.date instanceof Date
+            ? transaction.date
+            : new Date(transaction.date);
+        return transDate >= new Date(startDate);
+      });
+    }
 
-  // Filter by category
-  if (category && category !== "all") {
-    filteredData = filteredData.filter(
-      (transaction) => transaction.category === category
-    );
-  }
+    if (endDate && !startDate) {
+      filteredData = filteredData.filter((transaction) => {
+        const transDate =
+          transaction.date instanceof Date
+            ? transaction.date
+            : new Date(transaction.date);
+        return transDate <= new Date(endDate);
+      });
+    }
 
-  // Transform data for Excel
-  const categoryMap = {
-    sales: "Doanh thu bán hàng",
-    inventory: "Nhập hàng",
-    salary: "Lương nhân viên",
-    utilities: "Điện nước, tiện ích",
-    rent: "Tiền thuê mặt bằng",
-    other: "Khác",
-  };
+    // Transform data for Excel
+    const categoryMap = {
+      sales: "Doanh thu bán hàng",
+      inventory: "Nhập hàng",
+      salary: "Lương nhân viên",
+      utilities: "Điện nước, tiện ích",
+      rent: "Tiền thuê mặt bằng",
+      other: "Khác",
+    };
 
-  const paymentMethodMap = {
-    cash: "Tiền mặt",
-    transfer: "Chuyển khoản",
-    card: "Thẻ",
-  };
+    const paymentMethodMap = {
+      cash: "Tiền mặt",
+      transfer: "Chuyển khoản",
+      card: "Thẻ",
+    };
 
-  const excelData = filteredData.map((transaction) => ({
-    "Mã phiếu": transaction.code,
-    Ngày: formatDate(transaction.date),
-    "Loại phiếu": transaction.type === "income" ? "Thu" : "Chi",
-    "Danh mục": categoryMap[transaction.category] || transaction.category,
-    "Mô tả": transaction.description,
-    "Số tiền (VNĐ)": transaction.amount,
-    "Phương thức":
-      paymentMethodMap[transaction.paymentMethod] || transaction.paymentMethod,
-    "Ghi chú": transaction.note || "",
-  }));
+    const excelData = filteredData.map((transaction) => ({
+      "Mã phiếu": transaction.code,
+      Ngày: formatDate(
+        transaction.date instanceof Date
+          ? transaction.date
+          : new Date(transaction.date)
+      ),
+      "Loại phiếu": transaction.type === "income" ? "Thu" : "Chi",
+      "Danh mục": categoryMap[transaction.category] || transaction.category,
+      "Mô tả": transaction.description,
+      "Số tiền (VNĐ)": transaction.amount,
+      "Phương thức":
+        paymentMethodMap[transaction.paymentMethod] ||
+        transaction.paymentMethod,
+      "Ghi chú": transaction.note || "",
+    }));
 
-  // Create worksheet
-  const ws = XLSX.utils.json_to_sheet(excelData);
+    // Create worksheet
+    const ws = XLSX.utils.json_to_sheet(excelData);
 
-  // Format header  // Nếu không có dữ liệu, tránh xử lý style
-  if (ws["!ref"]) {
-    const range = XLSX.utils.decode_range(ws["!ref"]);
+    // Format header
+    if (ws["!ref"]) {
+      const range = XLSX.utils.decode_range(ws["!ref"]);
 
-    // SheetJS style cần plugin thêm để hoạt động đầy đủ, tạm bỏ qua style
-    // Nhưng cố gắng format header với dữ liệu hiện có
-    for (let col = range.s.c; col <= range.e.c; col++) {
-      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
-      // Kiểm tra đối tượng tồn tại trước khi gán style
-      if (ws[cellAddress]) {
-        // Gán một đối tượng trống để không gặp lỗi
-        // Style sẽ không hoạt động trong phiên bản cơ bản của SheetJS
-        if (!ws[cellAddress].s) ws[cellAddress].s = {};
+      // Format header row
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+        if (ws[cellAddress]) {
+          if (!ws[cellAddress].s) ws[cellAddress].s = {};
+        }
       }
     }
+
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Thu Chi");
+
+    // Generate filename with date range
+    let filename = "Bao_Cao_Thu_Chi";
+    if (startDate && endDate) {
+      filename += `_${startDate}_den_${endDate}`;
+    } else if (startDate) {
+      filename += `_Tu_${startDate}`;
+    } else if (endDate) {
+      filename += `_Den_${endDate}`;
+    }
+    filename += ".xlsx";
+
+    // Export to Excel
+    XLSX.writeFile(wb, filename);
+
+    // Show success message
+    showToast("Đã xuất báo cáo thu chi thành công", "success");
+  } catch (error) {
+    console.error("Error exporting finance data to Excel:", error);
+    showToast("Không thể xuất báo cáo thu chi!", "error");
   }
-
-  // Create workbook
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Thu Chi");
-
-  // Generate filename with date range
-  let filename = "Bao_Cao_Thu_Chi";
-  if (startDate && endDate) {
-    filename += `_${startDate}_den_${endDate}`;
-  } else if (startDate) {
-    filename += `_Tu_${startDate}`;
-  } else if (endDate) {
-    filename += `_Den_${endDate}`;
-  }
-  filename += ".xlsx";
-
-  // Export to Excel
-  XLSX.writeFile(wb, filename);
-
-  // Show success message
-  showToast("Đã xuất báo cáo thu chi thành công", "success");
 }
 
-function editFinanceTransaction(id) {
-  const transaction = managerFinanceData.find((t) => t.id === id);
-  if (!transaction) return;
+async function editFinanceTransaction(id) {
+  try {
+    // Set editing flag
+    isEditingFinanceTransaction = true;
 
-  // Populate form fields
-  document.getElementById("editFinanceId").value = transaction.id;
-  document.getElementById("financeCode").value = transaction.code;
-  document.getElementById("financeDate").value = transaction.date;
-  document.getElementById("financeTypeInput").value = transaction.type;
-  document.getElementById("financeCategoryInput").value = transaction.category;
-  document.getElementById("financeDescription").value = transaction.description;
-  document.getElementById("financeAmount").value = transaction.amount;
-  document.getElementById("financePaymentMethod").value =
-    transaction.paymentMethod;
-  document.getElementById("financeNote").value = transaction.note || "";
+    const transaction = await getFinanceTransactionById(id);
+    if (!transaction) {
+      showToast("Không tìm thấy phiếu thu/chi!", "error");
+      isEditingFinanceTransaction = false;
+      return;
+    }
 
-  // Update modal title
-  document.getElementById("financeModalTitle").textContent =
-    "Sửa phiếu thu/chi";
+    // Populate basic form fields
+    document.getElementById("editFinanceId").value = transaction.id;
+    document.getElementById("financeCode").value = transaction.code;
 
-  // Show modal
-  const modal = new bootstrap.Modal(
-    document.getElementById("financeTransactionModal")
-  );
-  modal.show();
+    // Format date for input field
+    const transactionDate =
+      transaction.date instanceof Date
+        ? transaction.date
+        : new Date(transaction.date);
+    document.getElementById("financeDate").value = transactionDate
+      .toISOString()
+      .split("T")[0];
+
+    document.getElementById("financeTypeInput").value = transaction.type;
+    document.getElementById("financeCategoryInput").value =
+      transaction.category;
+    document.getElementById("financeDescription").value =
+      transaction.description;
+    document.getElementById("financeAmount").value = transaction.amount;
+    document.getElementById("financePaymentMethod").value =
+      transaction.paymentMethod;
+    document.getElementById("financeNote").value = transaction.note || "";
+
+    // Display additional information in a dedicated section
+    const additionalInfoDiv = document.getElementById("financeAdditionalInfo");
+    if (additionalInfoDiv) {
+      let additionalInfoHtml = `
+        <div class="row mb-3">
+          <div class="col-12">
+            <h6 class="border-bottom pb-2">Thông tin bổ sung</h6>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-2">
+              <strong>ID Phiếu:</strong> <span class="text-muted">${
+                transaction.id
+              }</span>
+            </div>
+            ${
+              transaction.orderId
+                ? `
+              <div class="mb-2">
+                <strong>Mã đơn hàng:</strong> <span class="text-primary">#${transaction.orderId}</span>
+              </div>
+            `
+                : ""
+            }
+            ${
+              transaction.tableId
+                ? `
+              <div class="mb-2">
+                <strong>Bàn số:</strong> <span class="text-info">${transaction.tableId}</span>
+              </div>
+            `
+                : ""
+            }
+            ${
+              transaction.createdBy
+                ? `
+              <div class="mb-2">
+                <strong>Người tạo:</strong> <span class="text-secondary">${transaction.createdBy}</span>
+              </div>
+            `
+                : ""
+            }
+          </div>
+          <div class="col-md-6">            ${
+            transaction.createdAt
+              ? `
+              <div class="mb-2">
+                <strong>Ngày tạo:</strong> <span class="text-muted">${formatDate(
+                  transaction.createdAt
+                )} ${new Date(transaction.createdAt).toLocaleTimeString(
+                  "vi-VN"
+                )}</span>
+              </div>
+            `
+              : ""
+          }
+            ${
+              transaction.updatedAt
+                ? `
+              <div class="mb-2">
+                <strong>Cập nhật lần cuối:</strong> <span class="text-muted">${formatDate(
+                  transaction.updatedAt
+                )} ${new Date(transaction.updatedAt).toLocaleTimeString(
+                    "vi-VN"
+                  )}</span>
+              </div>
+            `
+                : ""
+            }
+            ${
+              transaction.notes
+                ? `
+              <div class="mb-2">
+                <strong>Ghi chú hệ thống:</strong> <span class="text-secondary">${transaction.notes}</span>
+              </div>
+            `
+                : ""
+            }
+          </div>
+        </div>
+      `;
+
+      // Add invoice details if available
+      if (transaction.invoice) {
+        const invoice = transaction.invoice;
+        additionalInfoHtml += `
+          <div class="row mt-3">
+            <div class="col-12">
+              <h6 class="border-bottom pb-2">Chi tiết hóa đơn</h6>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              ${
+                invoice.cashierName
+                  ? `
+                <div class="mb-2">
+                  <strong>Thu ngân:</strong> <span class="text-success">${invoice.cashierName}</span>
+                </div>
+              `
+                  : invoice.cashierId
+                  ? `
+                <div class="mb-2">
+                  <strong>ID Thu ngân:</strong> <span class="text-secondary">${invoice.cashierId}</span>
+                </div>
+              `
+                  : ""
+              }
+              ${
+                invoice.tableId || invoice.tableNumber
+                  ? `
+                <div class="mb-2">
+                  <strong>Bàn:</strong> <span class="text-info">${
+                    invoice.tableId || invoice.tableNumber
+                  }</span>
+                </div>
+              `
+                  : ""
+              }
+              ${
+                invoice.customerInfo?.name
+                  ? `
+                <div class="mb-2">
+                  <strong>Khách hàng:</strong> <span class="text-primary">${invoice.customerInfo.name}</span>
+                </div>
+              `
+                  : ""
+              }
+            </div>
+            <div class="col-md-6">
+              <div class="mb-2">
+                <strong>Tạm tính:</strong> <span class="text-muted">${formatCurrency(
+                  invoice.subtotal || 0
+                )}</span>
+              </div>
+              <div class="mb-2">
+                <strong>Thuế (VAT):</strong> <span class="text-warning">${formatCurrency(
+                  invoice.vat || invoice.tax || 0
+                )}</span>
+              </div>
+              <div class="mb-2">
+                <strong>Giảm giá:</strong> <span class="text-danger">${formatCurrency(
+                  invoice.discount || 0
+                )}</span>
+              </div>
+              <div class="mb-2">
+                <strong>Tổng tiền:</strong> <span class="text-success fw-bold">${formatCurrency(
+                  invoice.total || 0
+                )}</span>
+              </div>
+            </div>
+          </div>
+        `;
+
+        // Add items details if available
+        if (invoice.items && invoice.items.length > 0) {
+          additionalInfoHtml += `
+            <div class="row mt-2">
+              <div class="col-12">
+                <strong>Món ăn đã order:</strong>
+                <div class="table-responsive mt-2">
+                  <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Món ăn</th>
+                        <th>SL</th>
+                        <th>Đơn giá</th>
+                        <th>Thành tiền</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${invoice.items
+                        .map(
+                          (item) => `
+                        <tr>
+                          <td>${item.name}</td>
+                          <td>${item.quantity}</td>
+                          <td>${formatCurrency(item.price)}</td>
+                          <td>${formatCurrency(item.price * item.quantity)}</td>
+                        </tr>
+                      `
+                        )
+                        .join("")}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      additionalInfoDiv.innerHTML = additionalInfoHtml;
+      additionalInfoDiv.style.display = "block";
+    } // Update modal title
+    document.getElementById(
+      "financeModalTitle"
+    ).textContent = `Sửa phiếu thu/chi - ${transaction.code}`;
+
+    // Show modal
+    const modal = new bootstrap.Modal(
+      document.getElementById("financeTransactionModal")
+    );
+    modal.show();
+  } catch (error) {
+    console.error("Error loading finance transaction for edit:", error);
+    showToast("Không thể tải thông tin phiếu thu/chi!", "error");
+    isEditingFinanceTransaction = false;
+  }
 }
 
-function saveFinanceTransaction() {
+async function saveFinanceTransaction() {
   // Get form values
   const id = document.getElementById("editFinanceId").value;
   const code = document.getElementById("financeCode").value.trim();
@@ -2142,10 +2616,8 @@ function saveFinanceTransaction() {
   const amount = parseFloat(document.getElementById("financeAmount").value);
   const paymentMethod = document.getElementById("financePaymentMethod").value;
   const note = document.getElementById("financeNote").value.trim();
-
   // Validate form
   if (
-    !code ||
     !date ||
     !type ||
     !category ||
@@ -2157,137 +2629,629 @@ function saveFinanceTransaction() {
     return;
   }
 
-  // Create transaction object
-  const transaction = {
-    id: id || `TC${String(managerFinanceData.length + 1).padStart(3, "0")}`,
-    code,
-    date,
-    type,
-    category,
-    description,
-    amount,
-    paymentMethod,
-    note,
-  };
+  try {
+    // Create transaction object
+    const transactionData = {
+      code,
+      date,
+      type,
+      category,
+      description,
+      amount,
+      paymentMethod,
+      note,
+    };
+    if (id) {
+      // For editing: Get original transaction to preserve createdAt
+      const originalTransaction = await getFinanceTransactionById(id);
+      if (originalTransaction) {
+        // Add createdAt from original transaction to preserve it
+        transactionData.createdAt = originalTransaction.createdAt;
+      }
 
-  // Add or update transaction
-  if (id) {
-    // Update existing transaction
-    const index = managerFinanceData.findIndex((t) => t.id === id);
-    if (index !== -1) {
-      managerFinanceData[index] = transaction;
+      // Delete old transaction and create new one with same code and createdAt
+      await deleteFinanceTransaction(id);
+      await addFinanceTransaction(transactionData);
       showToast("Đã cập nhật phiếu thu/chi thành công", "success");
+    } else {
+      // Add new transaction
+      await addFinanceTransaction(transactionData);
+      showToast("Đã thêm phiếu thu/chi mới thành công", "success");
+    } // Hide modal
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("financeTransactionModal")
+    );
+    modal.hide();
+
+    // Reset editing flag
+    isEditingFinanceTransaction = false;
+
+    // Reset form
+    document.getElementById("financeForm").reset();
+    document.getElementById("editFinanceId").value = "";
+    document.getElementById("financeModalTitle").textContent =
+      "Thêm phiếu thu/chi mới";
+
+    // Hide additional info section when resetting
+    const additionalInfoDiv = document.getElementById("financeAdditionalInfo");
+    if (additionalInfoDiv) {
+      additionalInfoDiv.style.display = "none";
+      additionalInfoDiv.innerHTML = "";
     }
-  } else {
-    // Add new transaction
-    managerFinanceData.push(transaction);
-    showToast("Đã thêm phiếu thu/chi mới thành công", "success");
+
+    // Render updated table
+    await renderFinanceTable();
+  } catch (error) {
+    console.error("Error saving finance transaction:", error);
+    showToast("Không thể lưu phiếu thu/chi!", "error");
+    // Reset editing flag on error
+    isEditingFinanceTransaction = false;
   }
-
-  // Sort by date (newest first)
-  managerFinanceData.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  // Hide modal
-  const modal = bootstrap.Modal.getInstance(
-    document.getElementById("financeTransactionModal")
-  );
-  modal.hide();
-
-  // Reset form
-  document.getElementById("financeForm").reset();
-  document.getElementById("editFinanceId").value = "";
-  document.getElementById("financeModalTitle").textContent =
-    "Thêm phiếu thu/chi mới";
-
-  // Render updated table
-  renderFinanceTable();
 }
 
-// Set up real-time inventory monitoring
-function setupInventoryRealTimeUpdates() {
-  if (!firebase || !firebase.firestore) {
-    console.warn("Firebase is not available for real-time updates");
+// Function to confirm and delete finance transaction
+async function confirmDeleteFinanceTransaction(id) {
+  if (confirm("Bạn có chắc chắn muốn xóa phiếu thu/chi này?")) {
+    try {
+      await deleteFinanceTransaction(id);
+      showToast("Đã xóa phiếu thu/chi thành công", "success");
+      await renderFinanceTable();
+    } catch (error) {
+      console.error("Error deleting finance transaction:", error);
+      showToast("Không thể xóa phiếu thu/chi!", "error");
+    }
+  }
+}
+
+// Password Management Functions
+function generateRandomPassword() {
+  const length = 12;
+  const charset =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+  let password = "";
+
+  // Ensure at least one character from each category
+  const lowercase = "abcdefghijklmnopqrstuvwxyz";
+  const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const numbers = "0123456789";
+  const symbols = "!@#$%^&*";
+
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += symbols[Math.floor(Math.random() * symbols.length)];
+
+  // Fill the rest randomly
+  for (let i = 4; i < length; i++) {
+    password += charset[Math.floor(Math.random() * charset.length)];
+  }
+
+  // Shuffle the password
+  password = password
+    .split("")
+    .sort(() => Math.random() - 0.5)
+    .join("");
+
+  document.getElementById("staffPassword").value = password;
+  checkPasswordStrength(password);
+
+  // Show a toast notification
+  if (typeof showToast === "function") {
+    showToast("Mật khẩu đã được tạo tự động!", "success");
+  }
+}
+
+function togglePasswordChange() {
+  const checkbox = document.getElementById("changePasswordCheckbox");
+  const passwordInput = document.getElementById("staffPassword");
+  const generateBtn = document.getElementById("generatePasswordBtn");
+  const passwordHelp = document.getElementById("passwordHelp");
+
+  if (checkbox.checked) {
+    passwordInput.disabled = false;
+    passwordInput.required = true;
+    generateBtn.disabled = false;
+    passwordHelp.textContent =
+      "Nhập mật khẩu mới cho nhân viên này. Mật khẩu nên có ít nhất 6 ký tự.";
+    passwordInput.focus();
+  } else {
+    passwordInput.disabled = true;
+    passwordInput.required = false;
+    passwordInput.value = "";
+    generateBtn.disabled = true;
+    passwordHelp.textContent =
+      'Chọn "Đổi mật khẩu" để cập nhật mật khẩu cho nhân viên này.';
+    document.getElementById("passwordStrength").style.display = "none";
+  }
+}
+
+function checkPasswordStrength(password) {
+  const strengthDiv = document.getElementById("passwordStrength");
+  const strengthBar = document.getElementById("passwordStrengthBar");
+  const strengthText = document.getElementById("passwordStrengthText");
+
+  if (!password || password.length === 0) {
+    strengthDiv.style.display = "none";
     return;
   }
 
-  // Listen for changes in the orders collection
-  const orderQuery = firebase
-    .firestore()
-    .collection("orders")
-    .where("status", "==", "ready");
+  strengthDiv.style.display = "block";
 
-  const unsubscribeOrders = orderQuery.onSnapshot(
-    (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
-        // Only care about newly "ready" orders
-        if (change.type === "added" || change.type === "modified") {
-          const orderData = change.doc.data();
-          const orderId = change.doc.id;
+  let score = 0;
+  let feedback = [];
 
-          // If the order status is now "ready", update inventory
-          if (orderData.status === "ready") {
-            console.log("Order marked as ready, updating inventory:", orderId);
+  // Length check
+  if (password.length >= 8) score += 25;
+  else if (password.length >= 6) score += 15;
+  else feedback.push("ít nhất 6 ký tự");
 
-            if (window.updateInventoryFromReadyOrder) {
-              window
-                .updateInventoryFromReadyOrder(orderId)
-                .then(() => {
-                  console.log("Inventory updated for order:", orderId);
+  // Character variety checks
+  if (/[a-z]/.test(password)) score += 15;
+  else feedback.push("chữ thường");
 
-                  // Refresh inventory views if we're on the inventory tab
-                  const inventoryTab = document.getElementById("inventory-tab");
-                  if (
-                    inventoryTab &&
-                    inventoryTab.classList.contains("active")
-                  ) {
-                    renderInventoryTable();
-                    updateInventoryAlerts();
-                  }
-                })
-                .catch((error) => {
-                  console.error("Failed to update inventory:", error);
-                });
-            }
-          }
-        }
-      });
-    },
-    (error) => {
-      console.error("Error setting up real-time order listener:", error);
-    }
-  );
+  if (/[A-Z]/.test(password)) score += 15;
+  else feedback.push("chữ hoa");
 
-  // Listen for changes in inventory directly
-  const inventoryQuery = firebase.firestore().collection("inventory");
+  if (/[0-9]/.test(password)) score += 15;
+  else feedback.push("số");
 
-  const unsubscribeInventory = inventoryQuery.onSnapshot(
-    (snapshot) => {
-      const inventoryTab = document.getElementById("inventory-tab");
-      if (inventoryTab && inventoryTab.classList.contains("active")) {
-        renderInventoryTable();
-        updateInventoryAlerts();
-      }
-    },
-    (error) => {
-      console.error("Error setting up real-time inventory listener:", error);
-    }
-  );
+  if (/[^A-Za-z0-9]/.test(password)) score += 30;
+  else feedback.push("ký tự đặc biệt");
 
-  // Store unsubscribe functions for cleanup when needed
-  window.unsubscribeFirestoreListeners = [
-    unsubscribeOrders,
-    unsubscribeInventory,
-  ];
+  // Update progress bar
+  strengthBar.style.width = score + "%";
+
+  // Update color and text
+  if (score >= 80) {
+    strengthBar.className = "progress-bar bg-success";
+    strengthText.textContent = "Mật khẩu mạnh";
+    strengthText.className = "text-success small";
+  } else if (score >= 60) {
+    strengthBar.className = "progress-bar bg-warning";
+    strengthText.textContent = "Mật khẩu trung bình";
+    strengthText.className = "text-warning small";
+  } else {
+    strengthBar.className = "progress-bar bg-danger";
+    strengthText.textContent = "Mật khẩu yếu - Cần: " + feedback.join(", ");
+    strengthText.className = "text-danger small";
+  }
 }
 
-// Call this function during initialization
-document.addEventListener("DOMContentLoaded", function () {
-  // ...existing code...
+// Function to setup staff modal for add/edit mode
+function setupStaffModalMode(isEdit = false) {
+  const changePasswordCheck = document.getElementById("changePasswordCheck");
+  const changePasswordCheckbox = document.getElementById(
+    "changePasswordCheckbox"
+  );
+  const passwordInput = document.getElementById("staffPassword");
+  const generateBtn = document.getElementById("generatePasswordBtn");
+  const passwordHelp = document.getElementById("passwordHelp");
 
-  // Setup real-time inventory monitoring if Firebase is available
-  setTimeout(() => {
-    if (window.firebase && window.firebase.firestore) {
-      setupInventoryRealTimeUpdates();
+  if (isEdit) {
+    // Edit mode - show change password option
+    changePasswordCheck.style.display = "block";
+    changePasswordCheckbox.checked = false;
+    passwordInput.disabled = true;
+    passwordInput.required = false;
+    passwordInput.value = "";
+    generateBtn.disabled = true;
+    passwordHelp.textContent =
+      'Chọn "Đổi mật khẩu" để cập nhật mật khẩu cho nhân viên này.';
+    document.getElementById("passwordStrength").style.display = "none";
+  } else {
+    // Add mode - password is required
+    changePasswordCheck.style.display = "none";
+    passwordInput.disabled = false;
+    passwordInput.required = true;
+    passwordInput.value = "";
+    generateBtn.disabled = false;
+    passwordHelp.textContent =
+      "Khi thêm nhân viên mới, mật khẩu là bắt buộc để tạo tài khoản đăng nhập. Mật khẩu nên có ít nhất 6 ký tự.";
+    document.getElementById("passwordStrength").style.display = "none";
+  }
+}
+
+// Function to setup finance event listeners
+function setupFinanceEventListeners() {
+  // Refresh finance data button
+  const refreshFinanceBtn = document.getElementById("refreshFinanceBtn");
+  if (refreshFinanceBtn) {
+    refreshFinanceBtn.addEventListener("click", async () => {
+      try {
+        await renderFinanceTable();
+        showToast("Đã cập nhật dữ liệu thu chi", "success");
+      } catch (error) {
+        showToast("Không thể cập nhật dữ liệu thu chi", "error");
+      }
+    });
+  }
+  // Sync orders button
+  const syncOrdersBtn = document.getElementById("syncOrdersBtn");
+  if (syncOrdersBtn) {
+    syncOrdersBtn.addEventListener("click", async () => {
+      try {
+        // Show loading state
+        syncOrdersBtn.disabled = true;
+        syncOrdersBtn.innerHTML =
+          '<i data-lucide="loader" class="spinner-border spinner-border-sm me-2"></i>Đang đồng bộ...';
+
+        // Sync orders using manual function
+        await manualSyncAllOrders();
+      } catch (error) {
+        console.error("Error syncing orders:", error);
+        showToast("Lỗi khi đồng bộ đơn hàng", "error");
+      } finally {
+        // Reset button state
+        syncOrdersBtn.disabled = false;
+        syncOrdersBtn.innerHTML =
+          '<i data-lucide="database" style="width: 16px; height: 16px;"></i> Đồng bộ orders';
+        lucide.createIcons();
+      }
+    });
+  }
+
+  // Filter form event listeners
+  const financeStartDate = document.getElementById("financeStartDate");
+  const financeEndDate = document.getElementById("financeEndDate");
+  const financeType = document.getElementById("financeType");
+  const financeCategory = document.getElementById("financeCategory");
+
+  if (financeStartDate) {
+    financeStartDate.addEventListener("change", filterFinanceTransactions);
+  }
+  if (financeEndDate) {
+    financeEndDate.addEventListener("change", filterFinanceTransactions);
+  }
+  if (financeType) {
+    financeType.addEventListener("change", filterFinanceTransactions);
+  }
+  if (financeCategory) {
+    financeCategory.addEventListener("change", filterFinanceTransactions);
+  }
+
+  // Export button
+  const exportFinanceBtn = document.getElementById("exportFinanceBtn");
+  if (exportFinanceBtn) {
+    exportFinanceBtn.addEventListener("click", exportFinanceToExcel);
+  }
+  // Modal event - reset form when modal is opened for new transaction
+  const financeModal = document.getElementById("financeTransactionModal");
+  if (financeModal) {
+    financeModal.addEventListener("show.bs.modal", function (event) {
+      // Check if it's for adding new transaction (not editing)
+      if (!isEditingFinanceTransaction) {
+        // Reset form for new transaction
+        document.getElementById("financeForm").reset();
+        document.getElementById("editFinanceId").value = "";
+        document.getElementById("financeModalTitle").textContent =
+          "Thêm phiếu thu/chi mới";
+
+        // Hide additional info section for new transaction
+        const additionalInfoDiv = document.getElementById(
+          "financeAdditionalInfo"
+        );
+        if (additionalInfoDiv) {
+          additionalInfoDiv.style.display = "none";
+          additionalInfoDiv.innerHTML = "";
+        }
+
+        // Set current date as default
+        const today = new Date().toISOString().split("T")[0];
+        document.getElementById("financeDate").value = today;
+      }
+    });
+
+    // Reset the editing flag when modal is hidden
+    financeModal.addEventListener("hidden.bs.modal", function (event) {
+      isEditingFinanceTransaction = false;
+    });
+  }
+}
+
+// Auto-sync functionality
+function setupAutoSyncOrders() {
+  // Auto sync every 10 minutes
+  setInterval(async () => {
+    try {
+      console.log("Auto-syncing orders...");
+      const results = await autoSyncNewPaidOrders();
+
+      if (results.processed > 0) {
+        console.log(`Auto-synced ${results.processed} new orders`);
+
+        // Check if finance tab is active and refresh if needed
+        const financeTab = document.getElementById("finance-tab");
+        if (financeTab && financeTab.classList.contains("active")) {
+          await renderFinanceTable();
+        }
+
+        // Show a subtle notification
+        showToast(
+          `Đã tự động đồng bộ ${results.processed} đơn hàng mới`,
+          "info",
+          3000
+        );
+      }
+    } catch (error) {
+      console.error("Error in auto-sync:", error);
     }
-  }, 2000); // Give Firebase time to initialize
-});
+  }, 10 * 60 * 1000); // 10 minutes in milliseconds
+}
+
+// Function to manually trigger full sync
+async function manualSyncAllOrders() {
+  try {
+    const results = await syncPaidOrdersToFinance();
+
+    let message = "";
+    if (results.processed > 0) {
+      message += `Đã đồng bộ ${results.processed} đơn hàng mới`;
+    }
+    if (results.skipped > 0) {
+      message +=
+        (message ? ", " : "") + `${results.skipped} đơn hàng đã có sẵn`;
+    }
+    if (results.errors > 0) {
+      message += (message ? ", " : "") + `${results.errors} lỗi`;
+    }
+
+    if (!message) {
+      message = "Không có đơn hàng nào cần đồng bộ";
+    }
+
+    showToast(message, results.errors > 0 ? "warning" : "success");
+
+    // Refresh finance table
+    await renderFinanceTable();
+
+    return results;
+  } catch (error) {
+    console.error("Error in manual sync:", error);
+    showToast("Lỗi khi đồng bộ đơn hàng", "error");
+    throw error;
+  }
+}
+
+// Function to view invoice details
+async function viewInvoiceDetails(transactionId) {
+  try {
+    const transaction = await getFinanceTransactionById(transactionId);
+
+    if (!transaction || !transaction.invoice) {
+      showToast("Không tìm thấy thông tin hóa đơn", "error");
+      return;
+    }
+
+    const invoice = transaction.invoice;
+
+    // Create modal content
+    const modalContent = `
+      <div class="modal fade" id="invoiceModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Chi tiết hóa đơn - ${
+                transaction.code
+              }</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="row">                <div class="col-md-6">
+                  <h6>Thông tin đơn hàng</h6>
+                  <p><strong>Mã đơn:</strong> ${transaction.orderId}</p>
+                  <p><strong>Bàn số:</strong> ${
+                    transaction.tableId ||
+                    invoice.tableId ||
+                    invoice.tableNumber ||
+                    "N/A"
+                  }</p>
+                  <p><strong>Thu ngân:</strong> ${
+                    invoice.cashierName || invoice.cashierId || "N/A"
+                  }</p>
+                  <p><strong>Khách hàng:</strong> ${
+                    invoice.customerInfo?.name || "Khách lẻ"
+                  }</p>
+                  <p><strong>Ngày:</strong> ${formatDate(transaction.date)}</p>
+                </div>
+                <div class="col-md-6">
+                  <h6>Thông tin thanh toán</h6>
+                  <p><strong>Tạm tính:</strong> ${formatCurrency(
+                    invoice.subtotal
+                  )}</p>
+                  <p><strong>Thuế (VAT):</strong> ${formatCurrency(
+                    invoice.vat || invoice.tax || 0
+                  )}</p>
+                  <p><strong>Giảm giá:</strong> ${formatCurrency(
+                    invoice.discount
+                  )}</p>
+                  <p><strong>Tổng cộng:</strong> <span class="fw-bold text-success">${formatCurrency(
+                    invoice.total
+                  )}</span></p>
+                  <p><strong>Phương thức:</strong> ${invoice.paymentMethod}</p>
+                </div>
+              </div>
+              
+              <h6>Chi tiết món ăn</h6>
+              <div class="table-responsive">
+                <table class="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>Món ăn</th>
+                      <th>Số lượng</th>
+                      <th>Đơn giá</th>
+                      <th>Thành tiền</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${invoice.items
+                      .map(
+                        (item) => `
+                      <tr>
+                        <td>${item.name}</td>
+                        <td>${item.quantity}</td>
+                        <td>${formatCurrency(item.price)}</td>
+                        <td>${formatCurrency(item.price * item.quantity)}</td>
+                      </tr>
+                    `
+                      )
+                      .join("")}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+              <button type="button" class="btn btn-primary" onclick="printInvoice('${transactionId}')">
+                <i data-lucide="printer" style="width: 16px; height: 16px;"></i>
+                In hóa đơn
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Remove existing modal if any
+    const existingModal = document.getElementById("invoiceModal");
+    if (existingModal) {
+      existingModal.remove();
+    }
+
+    // Add modal to DOM
+    document.body.insertAdjacentHTML("beforeend", modalContent);
+
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById("invoiceModal"));
+    modal.show();
+
+    // Initialize icons
+    lucide.createIcons();
+
+    // Clean up modal after hiding
+    document
+      .getElementById("invoiceModal")
+      .addEventListener("hidden.bs.modal", function () {
+        this.remove();
+      });
+  } catch (error) {
+    console.error("Error viewing invoice details:", error);
+    showToast("Lỗi khi xem chi tiết hóa đơn", "error");
+  }
+}
+
+// Function to print invoice
+async function printInvoice(transactionId) {
+  try {
+    const transaction = await getFinanceTransactionById(transactionId);
+
+    if (!transaction || !transaction.invoice) {
+      showToast("Không tìm thấy thông tin hóa đơn", "error");
+      return;
+    }
+
+    const invoice = transaction.invoice;
+
+    // Create print content
+    const printContent = `
+      <html>
+        <head>
+          <title>Hóa đơn - ${transaction.code}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .info { margin-bottom: 15px; }
+            .info div { margin-bottom: 5px; }
+            table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .total { font-weight: bold; }
+            .text-right { text-align: right; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2>HÓA ĐƠN BÁN HÀNG</h2>
+            <p>Mã phiếu: ${transaction.code} | Đơn hàng: ${
+      transaction.orderId
+    }</p>
+            <p>Ngày: ${formatDate(transaction.date)}</p>
+          </div>
+            <div class="info">
+            <div><strong>Bàn số:</strong> ${
+              transaction.tableId ||
+              invoice.tableId ||
+              invoice.tableNumber ||
+              "N/A"
+            }</div>
+            <div><strong>Thu ngân:</strong> ${
+              invoice.cashierName || invoice.cashierId || "N/A"
+            }</div>
+            <div><strong>Khách hàng:</strong> ${
+              invoice.customerInfo?.name || "Khách lẻ"
+            }</div>
+            <div><strong>Phương thức thanh toán:</strong> ${
+              invoice.paymentMethod
+            }</div>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th>Món ăn</th>
+                <th>SL</th>
+                <th>Đơn giá</th>
+                <th>Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${invoice.items
+                .map(
+                  (item) => `
+                <tr>
+                  <td>${item.name}</td>
+                  <td>${item.quantity}</td>
+                  <td class="text-right">${formatCurrency(item.price)}</td>
+                  <td class="text-right">${formatCurrency(
+                    item.price * item.quantity
+                  )}</td>
+                </tr>
+              `
+                )
+                .join("")}
+            </tbody>
+          </table>
+            <div style="margin-top: 20px;">
+            <div>Tạm tính: <span style="float: right;">${formatCurrency(
+              invoice.subtotal
+            )}</span></div>
+            <div>Thuế (VAT): <span style="float: right;">${formatCurrency(
+              invoice.vat || invoice.tax || 0
+            )}</span></div>
+            <div>Giảm giá: <span style="float: right;">${formatCurrency(
+              invoice.discount
+            )}</span></div>
+            <hr>
+            <div class="total">Tổng cộng: <span style="float: right;">${formatCurrency(
+              invoice.total
+            )}</span></div>
+          </div>
+          
+          <div style="margin-top: 30px; text-align: center;">
+            <p>Cảm ơn quý khách!</p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    // Open print window
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  } catch (error) {
+    console.error("Error printing invoice:", error);
+    showToast("Lỗi khi in hóa đơn", "error");
+  }
+}
