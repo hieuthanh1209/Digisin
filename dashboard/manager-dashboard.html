@@ -192,12 +192,8 @@
                 </button>
                 <button class="nav-button nav-button-active btn w-100 text-start mb-3 p-3" onclick="showTab('dashboard')">
                     📊 <span class="ms-2">Tổng quan</span>
-                </button>
-                <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="showTab('staff')">
+                </button>                <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="showTab('staff')">
                     👥 <span class="ms-2">Quản lý nhân viên</span>
-                </button>
-                <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="showTab('reports')">
-                    📈 <span class="ms-2">Báo cáo</span>
                 </button>
                 <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="showTab('analytics')">
                     📋 <span class="ms-2">Thống kê nâng cao</span>
@@ -354,68 +350,30 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Reports Tab -->
-                <div id="reports-tab" class="tab-content">
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="card border-0 shadow-sm">
-                                <div class="card-header bg-white">
-                                    <h5 class="card-title mb-0">Tạo báo cáo</h5>
-                                </div>
-                                <div class="card-body">
-                                    <form onsubmit="generateReport(); return false;">
-                                        <div class="row g-3">
-                                            <div class="col-md-4">
-                                                <label class="form-label">Loại báo cáo</label>
-                                                <select class="form-select" id="reportType" required>
-                                                    <option value="">Chọn loại báo cáo</option>
-                                                    <option value="daily">Báo cáo ngày</option>
-                                                    <option value="weekly">Báo cáo tuần</option>
-                                                    <option value="monthly">Báo cáo tháng</option>
-                                                    <option value="custom">Tùy chỉnh</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-md-3">
-                                                <label class="form-label">Từ ngày</label>
-                                                <input type="date" class="form-control" id="startDate" required>
-                                            </div>
-                                            <div class="col-md-3">
-                                                <label class="form-label">Đến ngày</label>
-                                                <input type="date" class="form-control" id="endDate" required>
-                                            </div>
-                                            <div class="col-md-2">
-                                                <label class="form-label">&nbsp;</label>
-                                                <button type="submit" class="btn btn-primary w-100">
-                                                    <i data-lucide="download" style="width: 16px; height: 16px;"></i>
-                                                    Tạo báo cáo
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </form>
-
-                                    <div class="mt-4">
-                                        <h6>Báo cáo gần đây</h6>
-                                        <div class="row g-3" id="recentReports">
-                                            <!-- Recent reports will be rendered here -->
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                    </div>                </div>
 
                 <!-- Analytics Tab -->
                 <div id="analytics-tab" class="tab-content">
                     <div class="row g-4">
+                        <!-- Profitability Analysis Summary -->
+                        <div class="col-12">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white">
+                                    <h5 class="card-title mb-0">Phân tích lợi nhuận (30 ngày gần nhất)</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="profitabilityAnalysis">
+                                        <!-- Profitability analysis will be rendered here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Top Selling Items -->
                         <div class="col-lg-6">
                             <div class="card border-0 shadow-sm">
                                 <div class="card-header bg-white">
-                                    <h5 class="card-title mb-0">Món bán chạy nhất</h5>
+                                    <h5 class="card-title mb-0">Top 10 món bán chạy nhất</h5>
                                 </div>
                                 <div class="card-body">
                                     <div id="topSellingItems">
@@ -437,11 +395,24 @@
                             </div>
                         </div>
 
-                        <!-- Daily Items Detail -->
+                        <!-- Revenue Trend -->
                         <div class="col-12">
                             <div class="card border-0 shadow-sm">
                                 <div class="card-header bg-white">
-                                    <h5 class="card-title mb-0">Chi tiết món ăn hôm nay</h5>
+                                    <h5 class="card-title mb-0">Xu hướng doanh thu 7 ngày gần nhất</h5>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="revenueByTimeChart" height="150"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Daily Items Detail -->
+                        <div class="col-12">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                    <h5 class="card-title mb-0">Phân tích chi tiết từng món ăn</h5>
+                                    <small class="text-muted">Sắp xếp theo số lượng bán</small>
                                 </div>
                                 <div class="card-body p-0">
                                     <div class="table-responsive">
@@ -450,10 +421,10 @@
                                                 <tr>
                                                     <th>Món ăn</th>
                                                     <th>Danh mục</th>
-                                                    <th>Số lượng bán</th>
-                                                    <th>Doanh thu</th>
-                                                    <th>Lợi nhuận</th>
-                                                    <th>Tỷ lệ lợi nhuận</th>
+                                                    <th class="text-center">Số lượng bán</th>
+                                                    <th class="text-end">Doanh thu</th>
+                                                    <th class="text-end">Lợi nhuận</th>
+                                                    <th class="text-center">Tỷ lệ lợi nhuận</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="dailyItemsTable">

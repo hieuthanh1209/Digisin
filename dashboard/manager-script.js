@@ -386,7 +386,6 @@ function showTab(tabName) {
   if (titleElement) {
     titleElement.textContent = titles[tabName] || "Hệ thống quản lý";
   }
-
   // Load data for specific tabs
   if (tabName === "finance") {
     renderFinanceTable();
@@ -397,6 +396,8 @@ function showTab(tabName) {
     renderStaffTable();
   } else if (tabName === "menu") {
     renderMenuItems();
+  } else if (tabName === "analytics") {
+    loadAdvancedAnalytics();
   }
 }
 
@@ -906,114 +907,496 @@ function exportToExcel(data, filename) {
 }
 
 // Analytics Functions
-function updateAnalytics() {
-  renderTopSellingItems();
-  renderCategoryRevenueChart();
-  renderDailyItemsTable();
+async function loadAdvancedAnalytics() {
+  try {
+    // Show loading state
+    showAnalyticsLoading();
+
+    // Load all necessary data from Firestore
+    const [orders, menuItems, financeTransactions] = await Promise.all([
+      getAllOrders(),
+      getAllMenuItems(),
+      getAllFinanceTransactions(),
+    ]);
+
+    // Process and render analytics
+    await renderAdvancedAnalytics(orders, menuItems, financeTransactions);
+  } catch (error) {
+    console.error("Error loading advanced analytics:", error);
+    showAnalyticsError();
+  }
 }
 
-function renderTopSellingItems() {
+function showAnalyticsLoading() {
+  const containers = [
+    "topSellingItems",
+    "categoryRevenueChart",
+    "dailyItemsTable",
+  ];
+
+  containers.forEach((containerId) => {
+    const container = document.getElementById(containerId);
+    if (container) {
+      container.innerHTML = `
+        <div class="text-center py-4">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="mt-2 text-muted">Đang tải dữ liệu...</p>
+        </div>
+      `;
+    }
+  });
+}
+
+function showAnalyticsError() {
+  const containers = [
+    "topSellingItems",
+    "categoryRevenueChart",
+    "dailyItemsTable",
+  ];
+
+  containers.forEach((containerId) => {
+    const container = document.getElementById(containerId);
+    if (container) {
+      container.innerHTML = `
+        <div class="text-center py-4">
+          <div class="text-danger">
+            <i class="fas fa-exclamation-circle fa-2x mb-2"></i>
+            <p>Lỗi khi tải dữ liệu thống kê</p>
+            <button class="btn btn-outline-primary btn-sm" onclick="loadAdvancedAnalytics()">
+              Thử lại
+            </button>
+          </div>
+        </div>
+      `;
+    }
+  });
+}
+
+async function renderAdvancedAnalytics(orders, menuItems, financeTransactions) {
+  // Process orders data for analytics
+  const paidOrders = orders.filter((order) => order.paymentStatus === "paid");
+  const today = new Date();
+  const last30Days = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  // Filter orders from last 30 days
+  const recentOrders = paidOrders.filter((order) => {
+    const orderDate = order.createdAt || new Date(order.timestamp);
+    return orderDate >= last30Days;
+  });
+
+  // Calculate analytics data
+  const analyticsData = processOrdersForAnalytics(recentOrders, menuItems);
+
+  // Render components
+  renderTopSellingItemsFromFirestore(analyticsData.topItems);
+  renderCategoryRevenueChartFromFirestore(analyticsData.categoryRevenue);
+  renderDailyItemsTableFromFirestore(analyticsData.itemsAnalysis);
+  renderRevenueByTimeChart(recentOrders);
+  renderProfitabilityAnalysis(analyticsData.profitability);
+}
+
+function processOrdersForAnalytics(orders, menuItems) {
+  const itemSales = {};
+  const categoryRevenue = {};
+  let totalRevenue = 0;
+
+  // Create menu item lookup
+  const menuLookup = {};
+  menuItems.forEach((item) => {
+    menuLookup[item.id] = item;
+  });
+
+  // Process each order
+  orders.forEach((order) => {
+    if (order.items && Array.isArray(order.items)) {
+      order.items.forEach((orderItem) => {
+        const menuItem = menuLookup[orderItem.id];
+        if (menuItem) {
+          const itemId = orderItem.id;
+          const quantity = orderItem.quantity || 1;
+          const price = orderItem.price || menuItem.price;
+          const revenue = price * quantity;
+
+          // Track item sales
+          if (!itemSales[itemId]) {
+            itemSales[itemId] = {
+              id: itemId,
+              name: menuItem.name,
+              category: menuItem.category,
+              price: menuItem.price,
+              cost: menuItem.cost || 0,
+              sold: 0,
+              revenue: 0,
+            };
+          }
+
+          itemSales[itemId].sold += quantity;
+          itemSales[itemId].revenue += revenue;
+
+          // Track category revenue
+          const category = menuItem.category || "Khác";
+          categoryRevenue[category] =
+            (categoryRevenue[category] || 0) + revenue;
+
+          totalRevenue += revenue;
+        }
+      });
+    }
+  });
+
+  // Convert to arrays and sort
+  const topItems = Object.values(itemSales)
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 10);
+
+  const itemsAnalysis = Object.values(itemSales)
+    .map((item) => ({
+      ...item,
+      profit: item.revenue - item.sold * item.cost,
+      profitMargin:
+        item.revenue > 0
+          ? ((item.revenue - item.sold * item.cost) / item.revenue) * 100
+          : 0,
+    }))
+    .sort((a, b) => b.sold - a.sold);
+
+  return {
+    topItems,
+    categoryRevenue,
+    itemsAnalysis,
+    profitability: {
+      totalRevenue,
+      totalCost: itemsAnalysis.reduce(
+        (sum, item) => sum + item.sold * item.cost,
+        0
+      ),
+    },
+  };
+}
+
+function renderTopSellingItemsFromFirestore(topItems) {
   const container = document.getElementById("topSellingItems");
   if (!container) return;
 
   container.innerHTML = "";
 
-  managerSalesData.topDishes.forEach((dish, index) => {
-    const item = document.createElement("div");
-    item.className =
+  if (topItems.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-4">
+        <p class="text-muted">Chưa có dữ liệu bán hàng</p>
+      </div>
+    `;
+    return;
+  }
+
+  topItems.forEach((item, index) => {
+    const itemDiv = document.createElement("div");
+    itemDiv.className =
       "d-flex align-items-center justify-content-between p-3 border-bottom";
-    item.innerHTML = `
-            <div class="d-flex align-items-center">
-                <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
-                    <span class="fw-bold text-primary">${index + 1}</span>
-                </div>
-                <div>
-                    <h6 class="mb-1">${dish.name}</h6>
-                    <small class="text-muted">${dish.sold} phần</small>
-                </div>
-            </div>
-            <div class="text-end">
-                <div class="fw-bold">${formatCurrency(dish.revenue)}</div>
-            </div>
-        `;
-    container.appendChild(item);
+    itemDiv.innerHTML = `
+      <div class="d-flex align-items-center">
+        <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+          <span class="fw-bold text-primary">${index + 1}</span>
+        </div>
+        <div>
+          <h6 class="mb-1">${item.name}</h6>
+          <small class="text-muted">${item.sold} phần</small>
+        </div>
+      </div>
+      <div class="text-end">
+        <div class="fw-bold">${formatCurrency(item.revenue)}</div>
+        <small class="text-muted">${formatCurrency(item.price)}/phần</small>
+      </div>
+    `;
+    container.appendChild(itemDiv);
   });
 }
 
-function renderCategoryRevenueChart() {
+function renderCategoryRevenueChartFromFirestore(categoryRevenue) {
   const ctx = document.getElementById("categoryRevenueChart");
   if (!ctx) return;
 
-  if (categoryRevenueChart) {
-    categoryRevenueChart.destroy();
+  if (
+    window.categoryRevenueChart &&
+    typeof window.categoryRevenueChart.destroy === "function"
+  ) {
+    window.categoryRevenueChart.destroy();
   }
 
-  const categories = ["Mì & Phở", "Cơm", "Đồ uống", "Tráng miệng"];
-  const revenues = [800000, 600000, 200000, 100000];
+  const categories = Object.keys(categoryRevenue);
+  const revenues = Object.values(categoryRevenue);
 
-  categoryRevenueChart = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: categories,
-      datasets: [
-        {
-          label: "Doanh thu (VNĐ)",
-          data: revenues,
-          backgroundColor: ["#0d6efd", "#198754", "#ffc107", "#dc3545"],
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: false,
-        },
+  if (categories.length === 0) {
+    ctx.parentElement.innerHTML = `
+      <div class="text-center py-4">
+        <p class="text-muted">Chưa có dữ liệu doanh thu theo danh mục</p>
+      </div>
+    `;
+    return;
+  }
+  const colors = [
+    "#0d6efd",
+    "#198754",
+    "#ffc107",
+    "#dc3545",
+    "#6f42c1",
+    "#fd7e14",
+    "#20c997",
+    "#e83e8c",
+  ];
+
+  try {
+    window.categoryRevenueChart = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: categories,
+        datasets: [
+          {
+            data: revenues,
+            backgroundColor: colors.slice(0, categories.length),
+            borderWidth: 2,
+            borderColor: "#fff",
+          },
+        ],
       },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: {
-            callback: function (value) {
-              return new Intl.NumberFormat("vi-VN").format(value) + "₫";
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: "bottom",
+            labels: {
+              padding: 20,
+              font: {
+                size: 12,
+              },
+            },
+          },
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                const percentage = ((context.parsed / total) * 100).toFixed(1);
+                return `${context.label}: ${formatCurrency(
+                  context.parsed
+                )} (${percentage}%)`;
+              },
             },
           },
         },
       },
-    },
-  });
+    });
+  } catch (error) {
+    console.error("Error creating category revenue chart:", error);
+    ctx.parentElement.innerHTML = `
+      <div class="text-center py-4">
+        <p class="text-danger">Lỗi khi tạo biểu đồ doanh thu theo danh mục</p>
+      </div>
+    `;
+  }
 }
 
-function renderDailyItemsTable() {
+function renderDailyItemsTableFromFirestore(itemsAnalysis) {
   const tbody = document.getElementById("dailyItemsTable");
   if (!tbody) return;
 
   tbody.innerHTML = "";
 
-  managerMenuData.forEach((item) => {
-    const sold = Math.floor(Math.random() * 20) + 5;
-    const revenue = sold * item.price;
-    const profit = revenue - sold * item.cost;
-    const profitMargin = ((profit / revenue) * 100).toFixed(1);
+  if (itemsAnalysis.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="text-center py-4">
+          <p class="text-muted mb-0">Chưa có dữ liệu món ăn</p>
+        </td>
+      </tr>
+    `;
+    return;
+  }
 
+  itemsAnalysis.slice(0, 20).forEach((item) => {
     const row = document.createElement("tr");
+    const profitClass = item.profit > 0 ? "text-success" : "text-danger";
+    const marginClass =
+      item.profitMargin > 30
+        ? "bg-success"
+        : item.profitMargin > 15
+        ? "bg-warning"
+        : "bg-danger";
+
     row.innerHTML = `
-            <td>${item.name}</td>
-            <td><span class="badge bg-secondary">${item.category}</span></td>
-            <td>${sold}</td>
-            <td>${formatCurrency(revenue)}</td>
-            <td class="${
-              profit > 0 ? "text-success" : "text-danger"
-            }">${formatCurrency(profit)}</td>
-            <td>
-                <span class="badge ${profit > 0 ? "bg-success" : "bg-danger"}">
-                    ${profitMargin}%
-                </span>
-            </td>
-        `;
+      <td>
+        <div class="fw-medium">${item.name}</div>
+        <small class="text-muted">${formatCurrency(item.price)}</small>
+      </td>
+      <td><span class="badge bg-secondary">${
+        item.category || "Khác"
+      }</span></td>
+      <td class="text-center">
+        <span class="fw-bold">${item.sold}</span>
+      </td>
+      <td class="text-end">${formatCurrency(item.revenue)}</td>
+      <td class="text-end ${profitClass}">
+        ${formatCurrency(item.profit)}
+      </td>
+      <td class="text-center">
+        <span class="badge ${marginClass}">
+          ${item.profitMargin.toFixed(1)}%
+        </span>
+      </td>
+    `;
     tbody.appendChild(row);
   });
+}
+
+function renderRevenueByTimeChart(orders) {
+  const ctx = document.getElementById("revenueByTimeChart");
+  if (!ctx) return;
+
+  // Group orders by day for the last 7 days
+  const last7Days = [];
+  const today = new Date();
+
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    last7Days.push({
+      date: date,
+      label: date.toLocaleDateString("vi-VN", {
+        weekday: "short",
+        day: "2-digit",
+        month: "2-digit",
+      }),
+      revenue: 0,
+    });
+  }
+
+  // Calculate revenue for each day
+  orders.forEach((order) => {
+    const orderDate = order.createdAt || new Date(order.timestamp);
+    const dayIndex = last7Days.findIndex(
+      (day) => day.date.toDateString() === orderDate.toDateString()
+    );
+
+    if (dayIndex !== -1) {
+      last7Days[dayIndex].revenue += order.total || 0;
+    }
+  });
+
+  if (
+    window.revenueByTimeChart &&
+    typeof window.revenueByTimeChart.destroy === "function"
+  ) {
+    window.revenueByTimeChart.destroy();
+  }
+  try {
+    window.revenueByTimeChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: last7Days.map((day) => day.label),
+        datasets: [
+          {
+            label: "Doanh thu (VNĐ)",
+            data: last7Days.map((day) => day.revenue),
+            borderColor: "#0d6efd",
+            backgroundColor: "rgba(13, 110, 253, 0.1)",
+            tension: 0.4,
+            fill: true,
+            pointBackgroundColor: "#0d6efd",
+            pointBorderColor: "#fff",
+            pointBorderWidth: 2,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false,
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: function (value) {
+                return formatCurrency(value);
+              },
+            },
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error creating revenue by time chart:", error);
+    ctx.parentElement.innerHTML = `
+      <div class="text-center py-4">
+        <p class="text-danger">Lỗi khi tạo biểu đồ xu hướng doanh thu</p>
+      </div>
+    `;
+  }
+}
+
+function renderProfitabilityAnalysis(profitability) {
+  const container = document.getElementById("profitabilityAnalysis");
+  if (!container) return;
+
+  const netProfit = profitability.totalRevenue - profitability.totalCost;
+  const profitMargin =
+    profitability.totalRevenue > 0
+      ? (netProfit / profitability.totalRevenue) * 100
+      : 0;
+
+  container.innerHTML = `
+    <div class="row g-3">
+      <div class="col-md-3">
+        <div class="card bg-primary bg-opacity-10 border-0">
+          <div class="card-body text-center">
+            <h5 class="text-primary mb-1">${formatCurrency(
+              profitability.totalRevenue
+            )}</h5>
+            <small class="text-muted">Tổng doanh thu</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card bg-warning bg-opacity-10 border-0">
+          <div class="card-body text-center">
+            <h5 class="text-warning mb-1">${formatCurrency(
+              profitability.totalCost
+            )}</h5>
+            <small class="text-muted">Tổng chi phí</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card bg-${
+          netProfit >= 0 ? "success" : "danger"
+        } bg-opacity-10 border-0">
+          <div class="card-body text-center">
+            <h5 class="text-${
+              netProfit >= 0 ? "success" : "danger"
+            } mb-1">${formatCurrency(netProfit)}</h5>
+            <small class="text-muted">Lợi nhuận ròng</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card bg-info bg-opacity-10 border-0">
+          <div class="card-body text-center">
+            <h5 class="text-info mb-1">${profitMargin.toFixed(1)}%</h5>
+            <small class="text-muted">Tỷ lệ lợi nhuận</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function updateAnalytics() {
+  // This function is kept for backward compatibility
+  // The new loadAdvancedAnalytics() function handles Firestore integration
+  loadAdvancedAnalytics();
 }
 
 // Menu Management Functions
