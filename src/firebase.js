@@ -61,9 +61,7 @@ export async function loginWithEmail(email, password) {
       return { success: false, error: "Không tìm thấy thông tin người dùng" };
     }
 
-    const role = userData.role;
-
-    // Điều hướng dựa trên role
+    const role = userData.role; // Điều hướng dựa trên role
     switch (role) {
       case "cashier":
         window.location.href = "./dashboard/cashier-dashboard.html";
@@ -75,6 +73,28 @@ export async function loginWithEmail(email, password) {
         window.location.href = "./dashboard/chef-dashboard.html";
         break;
       case "manager":
+        // Set manager information before redirecting
+        const managerInfo = {
+          uid: user.uid,
+          name: userData.name || userData.displayName || "Quản lý hệ thống",
+          email: userData.email || user.email,
+          role: "Quản lý hệ thống",
+          avatar: userData.avatar || userData.photoURL || null,
+          loginTime: new Date().toISOString(),
+          phone: userData.phone || "",
+          department: userData.department || "Quản lý",
+        };
+
+        // Store manager session info
+        try {
+          localStorage.setItem("managerInfo", JSON.stringify(managerInfo));
+          localStorage.setItem("managerSession", "active");
+          localStorage.setItem("userRole", "manager");
+          localStorage.setItem("loginTime", managerInfo.loginTime);
+        } catch (error) {
+          console.error("Error storing manager info:", error);
+        }
+
         window.location.href = "./dashboard/manager-dashboard.html";
         break;
       default:
