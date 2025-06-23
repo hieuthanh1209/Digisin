@@ -35,8 +35,30 @@
         <div class="flex-fill d-flex flex-column">
             <!-- Header -->
             <div class="bg-white shadow-sm border-bottom p-4 d-flex align-items-center justify-content-between">
-                <h2 class="h4 mb-0">Quản lý đơn hàng</h2>
-                <div class="d-flex align-items-center">                
+                <h2 class="h4 mb-0">Quản lý đơn hàng</h2>                <div class="d-flex align-items-center">
+                    <!-- Inventory Status Indicator -->
+                    <div id="inventoryStatusIndicator" class="me-3" style="display: none;">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm text-primary me-2" role="status" id="inventorySpinner" style="display: none;">
+                                <span class="visually-hidden">Đang cập nhật kho...</span>
+                            </div>
+                            <span class="badge bg-success" id="inventorySuccessIcon" style="display: none;">
+                                <i data-lucide="check" style="width: 12px; height: 12px;"></i>
+                                Kho đã cập nhật
+                            </span>
+                            <span class="badge bg-warning" id="inventoryWarningIcon" style="display: none;">
+                                <i data-lucide="alert-triangle" style="width: 12px; height: 12px;"></i>
+                                Cảnh báo kho
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <!-- Test Button for Debugging -->
+                    <button id="testInventoryBtn" class="btn btn-sm btn-warning me-3" onclick="testInventoryUpdate()" title="Test Inventory Update">
+                        <i data-lucide="flask"></i>
+                        <span class="d-none d-md-inline ms-1">Test Update</span>
+                    </button>
+                    
                     <div class="me-3">
                         <small class="text-muted">Xin chào, <span class="fw-medium" id="userName">Đầu bếp</span></small>
                     </div>

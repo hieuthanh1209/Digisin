@@ -293,8 +293,13 @@ function getTimeAgo(orderTime) {
 }
 
 async function updateOrderStatus(orderId, newStatus) {
+  console.log(`🔄 Updating order ${orderId} status to: ${newStatus}`);
+
   const order = orders.find((o) => o.id === orderId);
-  if (!order) return;
+  if (!order) {
+    console.error(`❌ Order ${orderId} not found in local orders array`);
+    return;
+  }
 
   const oldStatus = order.status;
   order.status = newStatus;
@@ -307,13 +312,15 @@ async function updateOrderStatus(orderId, newStatus) {
 
     // Update inventory when status changes to "ready"
     try {
-      // First, update the order status in Firestore
-      if (typeof firebase !== "undefined" && firebase.firestore) {
-        // For Firebase integration - update order in database
-        await firebase.firestore().collection("orders").doc(orderId).update({
+      // First, update the order status in Firestore using v9+ syntax
+      if (window.db) {
+        // Use Firebase v9+ syntax
+        const orderRef = window.doc(window.db, "orders", orderId);
+        await window.updateDoc(orderRef, {
           status: "ready",
-          updatedAt: new Date(),
+          updatedAt: window.Timestamp.now(),
         });
+        console.log("Order status updated to ready");
       }
 
       // Then update inventory based on order items

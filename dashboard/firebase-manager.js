@@ -14,6 +14,8 @@ import {
   orderBy,
   getDocs,
   Timestamp,
+  limit,
+  startAfter,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
   getStorage,
@@ -24,6 +26,7 @@ import {
 import {
   getAuth,
   createUserWithEmailAndPassword,
+  signOut,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 import firebaseConfig from "../config/firebase-config.js";
@@ -33,6 +36,18 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const storage = getStorage(app);
 const auth = getAuth(app);
+
+// Export core Firebase instances and functions for global use
+export {
+  db,
+  collection,
+  doc,
+  getDocs,
+  updateDoc,
+  setDoc,
+  deleteDoc,
+  Timestamp,
+};
 
 // Staff Management Functions
 export async function getAllStaff() {
@@ -129,7 +144,7 @@ export async function updateStaffMember(staffId, staffData) {
   try {
     const staffRef = doc(db, "users", staffId);
 
-    // Prepare data for update
+    // Prepare data for update and filter out undefined values
     const updateData = {
       ...staffData,
       updatedAt: Timestamp.now(),
@@ -140,8 +155,13 @@ export async function updateStaffMember(staffId, staffData) {
       updateData.startDate = Timestamp.fromDate(new Date(staffData.startDate));
     }
 
-    await updateDoc(staffRef, updateData);
-    return { id: staffId, ...updateData };
+    // Filter out undefined values to prevent Firebase errors
+    const filteredData = Object.fromEntries(
+      Object.entries(updateData).filter(([_, value]) => value !== undefined)
+    );
+
+    await updateDoc(staffRef, filteredData);
+    return { id: staffId, ...filteredData };
   } catch (error) {
     console.error("Error updating staff member:", error);
     throw error;
@@ -248,16 +268,21 @@ export async function addMenuItem(menuItemData) {
 
 export async function updateMenuItem(itemId, menuItemData) {
   try {
-    // Remove any fields that should not be updated
+    // Remove any fields that should not be updated and filter out undefined values
     const { id, createdAt, ...updateData } = menuItemData;
 
+    // Filter out undefined values to prevent Firebase errors
+    const filteredData = Object.fromEntries(
+      Object.entries(updateData).filter(([_, value]) => value !== undefined)
+    );
+
     // Add updated timestamp
-    updateData.updatedAt = Timestamp.now();
+    filteredData.updatedAt = Timestamp.now();
 
     const docRef = doc(db, "menu_items", itemId);
-    await updateDoc(docRef, updateData);
+    await updateDoc(docRef, filteredData);
 
-    return { id: itemId, ...updateData };
+    return { id: itemId, ...filteredData };
   } catch (error) {
     console.error("Error updating menu item:", error);
     throw error;
@@ -393,9 +418,27 @@ export async function getInventoryItemById(itemId) {
 
 export async function addInventoryItem(inventoryItemData) {
   try {
+    // Round numerical values to 3 decimal places before adding
+    const roundedData = { ...inventoryItemData };
+    if (typeof roundedData.currentStock === "number") {
+      roundedData.currentStock = roundTo3Decimals(roundedData.currentStock);
+    }
+    if (typeof roundedData.usedToday === "number") {
+      roundedData.usedToday = roundTo3Decimals(roundedData.usedToday);
+    }
+    if (typeof roundedData.standardAmount === "number") {
+      roundedData.standardAmount = roundTo3Decimals(roundedData.standardAmount);
+    }
+    if (typeof roundedData.minimumStock === "number") {
+      roundedData.minimumStock = roundTo3Decimals(roundedData.minimumStock);
+    }
+    if (typeof roundedData.unitPrice === "number") {
+      roundedData.unitPrice = roundTo3Decimals(roundedData.unitPrice);
+    }
+
     // Add timestamps
     const itemWithTimestamps = {
-      ...inventoryItemData,
+      ...roundedData,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
@@ -421,16 +464,40 @@ export async function addInventoryItem(inventoryItemData) {
 
 export async function updateInventoryItem(itemId, inventoryItemData) {
   try {
-    // Remove any fields that should not be updated
+    // Remove any fields that should not be updated and filter out undefined values
     const { id, createdAt, ...updateData } = inventoryItemData;
 
+    // Filter out undefined values to prevent Firebase errors
+    const filteredData = Object.fromEntries(
+      Object.entries(updateData).filter(([_, value]) => value !== undefined)
+    );
+
+    // Round numerical values to 3 decimal places
+    if (typeof filteredData.currentStock === "number") {
+      filteredData.currentStock = roundTo3Decimals(filteredData.currentStock);
+    }
+    if (typeof filteredData.usedToday === "number") {
+      filteredData.usedToday = roundTo3Decimals(filteredData.usedToday);
+    }
+    if (typeof filteredData.standardAmount === "number") {
+      filteredData.standardAmount = roundTo3Decimals(
+        filteredData.standardAmount
+      );
+    }
+    if (typeof filteredData.minimumStock === "number") {
+      filteredData.minimumStock = roundTo3Decimals(filteredData.minimumStock);
+    }
+    if (typeof filteredData.unitPrice === "number") {
+      filteredData.unitPrice = roundTo3Decimals(filteredData.unitPrice);
+    }
+
     // Add updated timestamp
-    updateData.updatedAt = Timestamp.now();
+    filteredData.updatedAt = Timestamp.now();
 
     const docRef = doc(db, "inventory", itemId);
-    await updateDoc(docRef, updateData);
+    await updateDoc(docRef, filteredData);
 
-    return { id: itemId, ...updateData };
+    return { id: itemId, ...filteredData };
   } catch (error) {
     console.error("Error updating inventory item:", error);
     throw error;
@@ -517,27 +584,34 @@ export async function getHighVarianceItems(varianceThreshold = 0.05) {
 
 export async function updateInventoryFromReadyOrder(orderId) {
   try {
+    console.log(`🔄 Starting inventory update for order: ${orderId}`);
+
     // 1. Get the order details
     const orderDoc = await getDoc(doc(db, "orders", orderId));
     if (!orderDoc.exists()) {
-      console.error(`Order ${orderId} not found`);
+      console.error(`❌ Order ${orderId} not found`);
       return false;
     }
 
     const orderData = orderDoc.data();
+    console.log(`📋 Order data:`, orderData);
 
     // Only process if the order has a "ready" status
     if (orderData.status !== "ready") {
-      console.log(`Order ${orderId} is not in 'ready' status`);
+      console.log(
+        `⚠️ Order ${orderId} is not in 'ready' status, current status: ${orderData.status}`
+      );
       return false;
     }
 
     // 2. Get all menu items in the order
     const orderItems = orderData.items || [];
     if (orderItems.length === 0) {
-      console.log(`Order ${orderId} has no items`);
+      console.log(`⚠️ Order ${orderId} has no items`);
       return false;
     }
+
+    console.log(`📦 Order items:`, orderItems);
 
     // 3. Get all menu items from the database to determine their ingredients
     const menuItems = await getAllMenuItems();
@@ -546,6 +620,8 @@ export async function updateInventoryFromReadyOrder(orderId) {
       menuItemsMap[item.name] = item;
     });
 
+    console.log(`🍽️ Available menu items:`, Object.keys(menuItemsMap));
+
     // 4. Get all inventory items
     const inventoryItems = await getAllInventoryItems();
     const inventoryMap = {};
@@ -553,7 +629,7 @@ export async function updateInventoryFromReadyOrder(orderId) {
       inventoryMap[item.name] = item;
     });
 
-    // 5. Calculate ingredient usage based on ordered items and update inventory
+    console.log(`📊 Available inventory items:`, Object.keys(inventoryMap)); // 5. Calculate ingredient usage based on ordered items and update inventory
     const inventoryUpdates = [];
 
     for (const orderItem of orderItems) {
@@ -562,44 +638,110 @@ export async function updateInventoryFromReadyOrder(orderId) {
       if (menuItem && menuItem.ingredients && menuItem.ingredients.length > 0) {
         // For each ingredient in the menu item
         for (const ingredient of menuItem.ingredients) {
-          if (inventoryMap[ingredient]) {
-            const inventoryItem = inventoryMap[ingredient];
+          // Handle different ingredient formats
+          let ingredientName, ingredientAmount, ingredientId;
 
-            // Calculate how much to reduce from inventory
-            // In a real system, you would have ingredient quantities per menu item
-            // For simplicity, assuming 1 unit of ingredient per menu item
-            const qtyToReduce = orderItem.quantity;
+          if (typeof ingredient === "string") {
+            // Old format: just ingredient name
+            ingredientName = ingredient;
+            ingredientAmount = 1; // default amount
+            ingredientId = null;
+          } else {
+            // New format: object with id, name, amount, unit, baseAmount, baseUnit
+            ingredientName = ingredient.name;
+            ingredientId = ingredient.id;
 
-            // Update the inventory item
+            // Use baseAmount if available (calculated from unit conversion)
+            // Otherwise, convert amount based on unit
+            if (ingredient.baseAmount) {
+              ingredientAmount = ingredient.baseAmount;
+            } else {
+              // Fallback conversion logic
+              const amount = ingredient.amount || 1;
+              const unit = ingredient.unit || "gram";
+
+              // Convert to base inventory unit (usually kg)
+              if (unit === "gram" || unit === "g") {
+                ingredientAmount = amount / 1000; // Convert gram to kg
+              } else if (unit === "lạng") {
+                ingredientAmount = amount / 10; // Convert lạng to kg
+              } else if (unit === "kg") {
+                ingredientAmount = amount;
+              } else if (unit === "ml") {
+                ingredientAmount = amount / 1000; // Convert ml to liters
+              } else if (unit === "lít" || unit === "l") {
+                ingredientAmount = amount;
+              } else {
+                // For units like 'cái', 'hộp', 'quả' - use as is
+                ingredientAmount = amount;
+              }
+            }
+          }
+
+          // Find inventory item by ID first, then by name
+          let inventoryItem = null;
+          if (ingredientId) {
+            inventoryItem = inventoryItems.find(
+              (item) => item.id === ingredientId
+            );
+          }
+          if (!inventoryItem) {
+            inventoryItem = inventoryMap[ingredientName];
+          }
+          if (inventoryItem) {
+            // Calculate total amount to reduce from inventory
+            const totalAmountToReduce = ingredientAmount * orderItem.quantity; // Update the inventory item with rounded values (3 decimal places)
+            const newCurrentStock = Math.max(
+              0,
+              inventoryItem.currentStock - totalAmountToReduce
+            );
+            const newUsedToday =
+              (inventoryItem.usedToday || 0) + totalAmountToReduce;
+
             const updatedInventory = {
               ...inventoryItem,
-              currentStock: Math.max(
-                0,
-                inventoryItem.currentStock - qtyToReduce
-              ),
-              usedToday: inventoryItem.usedToday + qtyToReduce,
+              currentStock: roundTo3Decimals(newCurrentStock),
+              usedToday: roundTo3Decimals(newUsedToday),
             };
 
             inventoryUpdates.push({
               itemId: inventoryItem.id,
               data: updatedInventory,
             });
+            console.log(
+              `✅ Updated ${ingredientName}: -${formatNumberForDisplay(
+                totalAmountToReduce
+              )}${inventoryItem.unit}, stock: ${formatNumberForDisplay(
+                updatedInventory.currentStock
+              )}${inventoryItem.unit}, used today: ${formatNumberForDisplay(
+                updatedInventory.usedToday
+              )}${inventoryItem.unit}`
+            );
+          } else {
+            console.warn(
+              `⚠️ Inventory item not found: ${ingredientName} (ID: ${ingredientId})`
+            );
           }
         }
+      } else {
+        console.warn(`Menu item ${orderItem.name} has no ingredients defined`);
       }
+    } // 6. Perform all inventory updates
+    if (inventoryUpdates.length > 0) {
+      console.log(`💾 Updating ${inventoryUpdates.length} inventory items...`);
+      const updatePromises = inventoryUpdates.map((update) =>
+        updateInventoryItem(update.itemId, update.data)
+      );
+
+      await Promise.all(updatePromises);
+      console.log(`✅ Successfully updated inventory for order ${orderId}`);
+    } else {
+      console.log(`ℹ️ No inventory updates needed for order ${orderId}`);
     }
 
-    // 6. Perform all inventory updates
-    const updatePromises = inventoryUpdates.map((update) =>
-      updateInventoryItem(update.itemId, update.data)
-    );
-
-    await Promise.all(updatePromises);
-
-    console.log(`Successfully updated inventory for order ${orderId}`);
     return true;
   } catch (error) {
-    console.error("Error updating inventory from ready order:", error);
+    console.error("❌ Error updating inventory from ready order:", error);
     return false;
   }
 }
@@ -766,7 +908,12 @@ export async function updateFinanceTransaction(transactionId, transactionData) {
       updateData.date = Timestamp.fromDate(new Date(transactionData.date));
     }
 
-    await updateDoc(transactionRef, updateData);
+    // Filter out undefined values to prevent Firebase errors
+    const filteredData = Object.fromEntries(
+      Object.entries(updateData).filter(([_, value]) => value !== undefined)
+    );
+
+    await updateDoc(transactionRef, filteredData);
     console.log("Finance transaction updated successfully");
     return true;
   } catch (error) {
@@ -1090,12 +1237,20 @@ export async function createFinanceTransactionFromOrder(order) {
     const cashierName = await getCashierNameById(order.cashierId);
 
     // Create finance transaction data
+    // Use updatedAt (completion date) as the transaction date, fallback to createdAt
+    const transactionDate = order.updatedAt || order.createdAt || new Date();
+
+    console.log(`💰 Creating finance transaction for order ${order.id}:`);
+    console.log(`   - Completion date: ${transactionDate}`);
+    console.log(`   - Amount: ${order.totalAmount || order.total || 0}`);
+    console.log(`   - Payment status: ${order.paymentStatus}`);
+
     const financeData = {
       type: "income",
       category: "sales",
-      amount: order.total || 0,
+      amount: order.totalAmount || order.total || 0,
       description: `Doanh thu từ đơn hàng #${order.id}`,
-      date: order.createdAt || new Date(),
+      date: transactionDate,
       paymentMethod: order.paymentMethod || "Tiền mặt",
       orderId: order.id,
       tableId: order.tableId || null,
@@ -1108,7 +1263,7 @@ export async function createFinanceTransactionFromOrder(order) {
         subtotal: order.subtotal || 0,
         vat: order.vat || order.tax || 0,
         discount: order.discount || 0,
-        total: order.total || 0,
+        total: order.totalAmount || order.total || 0,
         paymentMethod: order.paymentMethod || "Tiền mặt",
         customerInfo: order.customerInfo || null,
       },
@@ -1246,4 +1401,224 @@ export async function enhanceFinanceTransactionWithCashierName(transaction) {
     transaction.invoice.cashierName = cashierName;
   }
   return transaction;
+}
+
+// Dashboard Functions - NEW
+export async function getTodayStats() {
+  try {
+    // Get today's date (start and end of day)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Query orders from today
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("createdAt", ">=", Timestamp.fromDate(today)),
+      where("createdAt", "<", Timestamp.fromDate(tomorrow))
+    );
+
+    const ordersSnapshot = await getDocs(ordersQuery);
+
+    // Calculate stats
+    let revenue = 0;
+    let orderCount = 0;
+    let activeTables = new Set();
+
+    ordersSnapshot.forEach((doc) => {
+      const order = doc.data();
+      orderCount++;
+
+      if (order.paymentStatus === "paid") {
+        revenue += order.totalAmount || 0;
+      }
+
+      if (order.status !== "completed" && order.status !== "cancelled") {
+        if (order.tableNumber) {
+          activeTables.add(order.tableNumber);
+        }
+      }
+    });
+
+    return {
+      revenue,
+      orderCount,
+      activeTablesCount: activeTables.size,
+    };
+  } catch (error) {
+    console.error("Error getting today's stats:", error);
+    throw error;
+  }
+}
+
+export async function getWeeklyRevenue() {
+  try {
+    // Get dates for the past 7 days
+    const dates = [];
+    const revenues = [];
+    const labels = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const nextDay = new Date(date);
+      nextDay.setDate(nextDay.getDate() + 1);
+
+      // Query orders for this day
+      const ordersQuery = query(
+        collection(db, "orders"),
+        where("createdAt", ">=", Timestamp.fromDate(date)),
+        where("createdAt", "<", Timestamp.fromDate(nextDay)),
+        where("paymentStatus", "==", "paid")
+      );
+
+      const ordersSnapshot = await getDocs(ordersQuery);
+
+      // Calculate total revenue for this day
+      let dailyRevenue = 0;
+      ordersSnapshot.forEach((doc) => {
+        const order = doc.data();
+        dailyRevenue += order.totalAmount || 0;
+      });
+
+      // Prepare data for chart
+      dates.push(date);
+      revenues.push(dailyRevenue);
+    }
+
+    // Format the data for chart display
+    // Return days in appropriate order (usually Monday to Sunday)
+    const daysOfWeek = dates.map((date) => date.getDay()); // 0 = Sunday, 1 = Monday, etc.
+    const formattedLabels = daysOfWeek.map((day) => labels[day]);
+
+    return {
+      labels: formattedLabels,
+      revenues: revenues,
+    };
+  } catch (error) {
+    console.error("Error getting weekly revenue:", error);
+    throw error;
+  }
+}
+
+export async function getTopSellingItems(limit = 5) {
+  try {
+    // Get all order items from paid orders in the last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("createdAt", ">=", Timestamp.fromDate(thirtyDaysAgo)),
+      where("paymentStatus", "==", "paid")
+    );
+
+    const ordersSnapshot = await getDocs(ordersQuery);
+
+    // Process orders to count item sales
+    const itemSales = {};
+
+    ordersSnapshot.forEach((doc) => {
+      const order = doc.data();
+      if (order.items && Array.isArray(order.items)) {
+        order.items.forEach((item) => {
+          const itemId = item.id;
+          const itemName = item.name;
+          const quantity = item.quantity || 1;
+
+          if (!itemSales[itemId]) {
+            itemSales[itemId] = {
+              id: itemId,
+              name: itemName,
+              sold: 0,
+            };
+          }
+
+          itemSales[itemId].sold += quantity;
+        });
+      }
+    });
+
+    // Convert to array and sort by quantity sold
+    const topItems = Object.values(itemSales)
+      .sort((a, b) => b.sold - a.sold)
+      .slice(0, limit);
+
+    return topItems;
+  } catch (error) {
+    console.error("Error getting top selling items:", error);
+    throw error;
+  }
+}
+
+export async function getOrdersInProgress() {
+  try {
+    // Query for orders not in completed/cancelled status
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("status", "in", ["new", "preparing", "ready"])
+    );
+
+    const snapshot = await getDocs(ordersQuery);
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate() || null,
+    }));
+  } catch (error) {
+    console.error("Error fetching orders in progress:", error);
+    throw error;
+  }
+}
+
+// Inventory Alert Functions
+export async function getInventoryAlerts() {
+  try {
+    // Get low stock items
+    const lowStockQuery = query(
+      collection(db, "inventory"),
+      where("currentStock", "<=", where("threshold"))
+    );
+
+    const lowStockSnapshot = await getDocs(lowStockQuery);
+    const lowStockItems = lowStockSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+      alertType: "low_stock",
+    }));
+
+    return lowStockItems;
+  } catch (error) {
+    console.error("Error getting inventory alerts:", error);
+    throw error;
+  }
+}
+
+// Authentication Functions
+export async function logout() {
+  try {
+    await signOut(auth);
+    console.log("🚪 User signed out from Firebase successfully");
+    return true;
+  } catch (error) {
+    console.error("❌ Error signing out from Firebase:", error);
+    throw error;
+  }
+}
+
+// Utility function to round numbers to 3 decimal places
+function roundTo3Decimals(number) {
+  return Math.round(number * 1000) / 1000;
+}
+
+// Utility function to format numbers for display (remove unnecessary trailing zeros)
+function formatNumberForDisplay(number) {
+  const rounded = roundTo3Decimals(number);
+  return rounded % 1 === 0
+    ? rounded.toString()
+    : rounded.toFixed(3).replace(/\.?0+$/, "");
 }

@@ -15,6 +15,7 @@ import {
   doc,
   getDoc,
   updateDoc,
+  addDoc,
   Timestamp,
   getDocs,
   limit,
@@ -76,7 +77,7 @@ const discountCodes = [
 
 let currentOrder = null;
 let selectedDiscountCode = null;
-const VAT_RATE = 0.08; // 8% VAT
+const VAT_RATE = 0.1; // 8% VAT
 
 // Initialize when page loads
 document.addEventListener("DOMContentLoaded", function () {
@@ -581,14 +582,20 @@ function updatePaymentSummary() {
     parseFloat(document.getElementById("customerPaid").value) || 0;
   const paymentMethod = document.getElementById("paymentMethod").value;
 
-  const subtotal = currentOrder.total;
-  const taxAmount = subtotal * VAT_RATE;
+  // Use subtotal if available, otherwise use total as base amount
+  const subtotal = currentOrder.subtotal || currentOrder.total || 0;
+  // Calculate tax as exact amount
+  const taxAmount = parseFloat((subtotal * VAT_RATE).toFixed(0));
+  // Add subtotal and tax to get afterTax amount
   const afterTax = subtotal + taxAmount;
 
   const discountPercent = selectedDiscountCode
     ? selectedDiscountCode.discount
     : 0;
-  const discountAmount = afterTax * (discountPercent / 100);
+  // Calculate exact discount amount
+  const discountAmount = parseFloat(
+    (afterTax * (discountPercent / 100)).toFixed(0)
+  );
   const finalTotal = afterTax - discountAmount;
 
   const change =
@@ -642,15 +649,18 @@ async function processPayment() {
   const paymentMethod = document.getElementById("paymentMethod").value;
   const customerPaid =
     parseFloat(document.getElementById("customerPaid").value) || 0;
-
-  // Calculate payment details
+  // Calculate payment details with precise calculation to avoid floating point errors
   const subtotal = currentOrder.subtotal || currentOrder.total || 0;
-  const taxAmount = subtotal * VAT_RATE;
+  // Calculate tax as exact amount with rounding
+  const taxAmount = parseFloat((subtotal * VAT_RATE).toFixed(0));
   const afterTax = subtotal + taxAmount;
   const discountPercent = selectedDiscountCode
     ? selectedDiscountCode.discount
     : 0;
-  const discountAmount = afterTax * (discountPercent / 100);
+  // Calculate exact discount amount with rounding
+  const discountAmount = parseFloat(
+    (afterTax * (discountPercent / 100)).toFixed(0)
+  );
   const finalTotal = afterTax - discountAmount;
   const changeAmount =
     paymentMethod === "cash" ? Math.max(0, customerPaid - finalTotal) : 0;
@@ -682,6 +692,9 @@ async function processPayment() {
     };
 
     await processPaymentInFirestore(currentOrder.id, paymentData);
+
+    // Create finance transaction
+    await createFinanceTransaction(currentOrder.id, paymentData);
 
     // Reset form
     selectedDiscountCode = null;
@@ -728,6 +741,80 @@ async function processPayment() {
     processButton.disabled = false;
     processButton.innerHTML = originalText;
     lucide.createIcons();
+  }
+}
+
+// Creating finance transaction after order payment
+async function createFinanceTransaction(orderId, paymentData) {
+  try {
+    console.log(
+      "Creating finance transaction for order:",
+      orderId,
+      paymentData
+    );
+
+    // Check if collection exists first
+    const financeRef = collection(db, "finance_transactions");
+
+    // Generate a unique receipt code (Mã phiếu thu)
+    const now = new Date();
+    const year = now.getFullYear();
+
+    // Get the count of existing finance records for this year to create sequential codes
+    const countQuery = query(
+      financeRef,
+      where("type", "==", "income"),
+      where("code", ">=", `PT${year}`),
+      where("code", "<", `PT${year + 1}`)
+    );
+
+    const countSnapshot = await getDocs(countQuery);
+    const receiptCount = countSnapshot.size + 1;
+
+    // Format: PT2025001, PT2025002, etc.
+    const receiptCode = `PT${year}${receiptCount.toString().padStart(3, "0")}`;
+
+    // Prepare the transaction data
+    const transactionData = {
+      type: "income",
+      code: receiptCode, // Add unique receipt code
+      category: "Doanh thu bán hàng", // Set default category
+      amount: parseFloat(paymentData.finalTotal.toFixed(0)) || 0, // Use precise amount
+      date: Timestamp.now(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+      description: `Thanh toán đơn hàng ${orderId}`,
+      orderId: orderId, // Link to the original order
+      paymentMethod: paymentData.paymentMethod || "cash",
+      subtotal: parseFloat(paymentData.subtotal.toFixed(0)) || 0,
+      vat: parseFloat(paymentData.vat.toFixed(0)) || 0,
+      discount: paymentData.discount || 0,
+      discountCode: paymentData.discountCode || "",
+      cashierId: auth.currentUser?.uid || "",
+      cashierName: auth.currentUser?.displayName || "Thu ngân",
+      // Save full invoice details
+      invoice: {
+        items: currentOrder ? currentOrder.items : [],
+        orderId: orderId,
+        table: currentOrder ? currentOrder.table : "",
+        orderTime: currentOrder ? currentOrder.orderTime : Timestamp.now(),
+        subtotal: parseFloat(paymentData.subtotal.toFixed(0)) || 0,
+        vat: parseFloat(paymentData.vat.toFixed(0)) || 0,
+        discount: paymentData.discount || 0,
+        total: parseFloat(paymentData.finalTotal.toFixed(0)) || 0,
+      },
+    };
+
+    // Create the transaction document
+    const docRef = await addDoc(financeRef, transactionData);
+    console.log("Finance transaction created with ID:", docRef.id);
+
+    return docRef;
+  } catch (error) {
+    console.error("Error creating finance transaction:", error);
+    // Don't throw error to not block the payment process
+    // Just log the error
+    return null;
   }
 }
 
@@ -830,7 +917,7 @@ function printInvoice(isCompleted = false) {
           <span>${formatCurrency(subtotal)}</span>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-          <span>Thuế VAT (8%):</span>
+          <span>Thuế VAT (10%):</span>
           <span>${formatCurrency(taxAmount)}</span>
         </div>
         ${
@@ -1188,25 +1275,32 @@ async function processPaymentInFirestore(orderId, paymentData) {
   try {
     console.log("Processing payment for order:", orderId, paymentData);
 
-    const orderRef = doc(db, "orders", orderId); // Prepare payment update data
+    const orderRef = doc(db, "orders", orderId); // Prepare payment update data    // Ensure all numeric values are properly rounded before storing
     const updateData = {
       paymentStatus: "paid",
       paymentTime: Timestamp.now(),
       paymentMethod: paymentData.paymentMethod || "cash",
-      finalTotal: paymentData.finalTotal || 0,
-      subtotal: paymentData.subtotal || 0,
-      vat: paymentData.vat || 0,
+      finalTotal: parseFloat(paymentData.finalTotal.toFixed(0)) || 0,
+      subtotal: parseFloat(paymentData.subtotal.toFixed(0)) || 0,
+      vat: parseFloat(paymentData.vat.toFixed(0)) || 0,
       discount: paymentData.discount || 0,
       discountCode: paymentData.discountCode || "",
-      customerPaid: paymentData.customerPaid || 0,
-      changeAmount: paymentData.changeAmount || 0,
+      customerPaid: parseFloat(paymentData.customerPaid.toFixed(0)) || 0,
+      changeAmount: parseFloat(paymentData.changeAmount.toFixed(0)) || 0,
       cashierId: auth.currentUser?.uid || "",
       cashierName: auth.currentUser?.displayName || "Thu ngân",
       updatedAt: Timestamp.now(),
+      // For analytics purposes, store all calculated values to ensure accuracy
+      totalAmount: parseFloat(paymentData.finalTotal.toFixed(0)) || 0,
     };
 
+    // Update the order document first
     await updateDoc(orderRef, updateData);
     console.log("Payment processed successfully for order:", orderId);
+
+    // Create a corresponding finance transaction
+    await createFinanceTransaction(orderId, paymentData);
+    console.log("Finance transaction created for order:", orderId);
 
     return true;
   } catch (error) {

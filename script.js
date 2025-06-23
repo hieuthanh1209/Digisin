@@ -5,6 +5,36 @@ document.addEventListener("DOMContentLoaded", function () {
   const loginForm = document.getElementById("loginForm");
   const loginError = document.getElementById("loginError");
 
+  // Check for error message from sessionStorage (e.g., from manager dashboard redirect)
+  const redirectError = sessionStorage.getItem("loginError");
+  if (redirectError) {
+    showError(redirectError);
+    sessionStorage.removeItem("loginError"); // Clear after showing
+  }
+
+  // Function to show error message
+  function showError(message) {
+    loginError.textContent = message;
+    loginError.style.display = "block";
+    loginError.style.backgroundColor = "#fee";
+    loginError.style.border = "1px solid #f99";
+    loginError.style.color = "#c33";
+    loginError.style.padding = "10px";
+    loginError.style.borderRadius = "4px";
+    loginError.style.marginBottom = "15px";
+
+    // Auto hide after 8 seconds
+    setTimeout(() => {
+      if (loginError.style.display === "block") {
+        loginError.style.opacity = "0";
+        setTimeout(() => {
+          loginError.style.display = "none";
+          loginError.style.opacity = "1";
+        }, 300);
+      }
+    }, 8000);
+  }
+
   // Hàm chuyển hướng dựa trên vai trò
   function redirectBasedOnRole(role) {
     switch (role) {
@@ -97,15 +127,11 @@ document.addEventListener("DOMContentLoaded", function () {
         } else if (result.error) {
           errorMessage = result.error;
         }
-
-        loginError.textContent = errorMessage;
-        loginError.style.display = "block";
+        showError(errorMessage);
       }
     } catch (error) {
       console.error("Lỗi xử lý đăng nhập:", error);
-      loginError.textContent =
-        "Có lỗi xảy ra khi đăng nhập. Vui lòng thử lại sau.";
-      loginError.style.display = "block";
+      showError("Có lỗi xảy ra khi đăng nhập. Vui lòng thử lại sau.");
     } finally {
       // Khôi phục trạng thái nút submit
       submitBtn.disabled = false;

@@ -254,7 +254,7 @@ let revenueChart, topDishesChart, categoryRevenueChart;
 // Initialize when page loads
 document.addEventListener("DOMContentLoaded", async function () {
   lucide.createIcons();
-  showTab("dashboard");
+  showTab("overview");
 
   // Wait for Firebase functions to be available
   const checkFirebaseFunctions = () => {
@@ -371,9 +371,9 @@ function showTab(tabName) {
       btn.classList.add("nav-button-active");
     }
   });
-
   // Update page title
   const titles = {
+    overview: "Tổng quan hệ thống",
     dashboard: "Tổng quan hệ thống",
     staff: "Quản lý nhân viên",
     reports: "Báo cáo",
@@ -385,9 +385,10 @@ function showTab(tabName) {
   const titleElement = document.getElementById("pageTitle");
   if (titleElement) {
     titleElement.textContent = titles[tabName] || "Hệ thống quản lý";
-  }
-  // Load data for specific tabs
-  if (tabName === "finance") {
+  } // Load data for specific tabs
+  if (tabName === "overview") {
+    loadOverviewData();
+  } else if (tabName === "finance") {
     renderFinanceTable();
   } else if (tabName === "inventory") {
     renderInventoryTable();
@@ -1636,27 +1637,123 @@ async function filterMenuItems(searchTerm = "", category = "") {
   }
 }
 
-function showAddMenuItemModal() {
-  const modal = new bootstrap.Modal(document.getElementById("menuItemModal"));
-  // Reset form
-  document.getElementById("menuItemForm").reset();
-  document.getElementById("menuModalTitle").textContent = "Thêm món mới";
+async function showAddMenuItemModal() {
+  try {
+    const modal = new bootstrap.Modal(document.getElementById("menuItemModal"));
 
-  // Clear hidden input
-  const hiddenIdInput = document.getElementById("menuItemId");
-  if (hiddenIdInput) hiddenIdInput.value = "";
+    // Fix modal layout
+    fixModalLayout();
 
-  // Clear ingredients container
-  const ingredientsList = document.getElementById("ingredientsList");
-  if (ingredientsList) ingredientsList.innerHTML = "";
+    document.getElementById("menuModalTitle").textContent = "Thêm món mới";
 
-  // Add one empty ingredient row by default
-  addIngredientRow();
+    // Reset form with complete HTML structure
+    const form = document.getElementById("menuItemForm");
+    form.innerHTML = `
+      <div class="row">
+        <input type="hidden" id="menuItemId" value="">
+        <div class="col-md-6 mb-3">
+          <label for="menuItemName" class="form-label">Tên món</label>
+          <input type="text" class="form-control" id="menuItemName" required>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label for="menuItemCategory" class="form-label">Danh mục</label>
+          <input type="text" class="form-control" id="menuItemCategory" required>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label for="menuItemPrice" class="form-label">Giá bán (VNĐ)</label>
+          <input type="number" class="form-control" id="menuItemPrice" required>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label for="menuItemCost" class="form-label">Giá vốn (VNĐ)</label>
+          <input type="number" class="form-control" id="menuItemCost">
+        </div>
+      </div>
+      <div class="mb-3">
+        <label for="menuItemImage" class="form-label">URL Hình ảnh</label>
+        <input type="url" class="form-control" id="menuItemImage" placeholder="https://example.com/image.jpg">
+        <div id="menuItemImagePreview" class="mt-2">
+          <small class="text-muted">Nhập URL hình ảnh để hiển thị xem trước</small>
+        </div>
+      </div>
+      <div class="mb-3">
+        <label for="menuItemDescription" class="form-label">Mô tả</label>
+        <textarea class="form-control" id="menuItemDescription" rows="2"></textarea>
+      </div>
+      <div class="mb-3">
+        <label for="menuItemStatus" class="form-label">Trạng thái</label>
+        <select class="form-select" id="menuItemStatus">
+          <option value="active" selected>Đang bán</option>
+          <option value="inactive">Ngưng bán</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label d-flex justify-content-between">
+          <span>Nguyên liệu</span>
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="addIngredientRow()">
+            <i data-lucide="plus" class="icon-sm"></i> Thêm nguyên liệu
+          </button>
+        </label>
+        <div id="ingredientsList" class="border rounded p-3 bg-light">
+          <div class="text-muted small mt-2">Chọn nguyên liệu và nhập định lượng cần thiết cho món ăn này</div>
+        </div>
+      </div>
+    `;
 
-  // Setup image preview
-  setupImagePreview();
+    // Add one empty ingredient row by default
+    await addIngredientRow();
 
-  modal.show();
+    // Setup image preview
+    setupImagePreview();
+
+    lucide.createIcons();
+    modal.show();
+  } catch (error) {
+    console.error("Error showing add menu item modal:", error);
+    showToast("Lỗi khi mở form thêm món ăn: " + error.message, "danger");
+  }
+}
+
+// Fix modal layout to ensure footer is always visible
+function fixModalLayout() {
+  const modal = document.getElementById("menuItemModal");
+  const modalDialog = modal.querySelector(".modal-dialog");
+  const modalContent = modal.querySelector(".modal-content");
+  const modalBody = modal.querySelector(".modal-body");
+  const modalFooter = modal.querySelector(".modal-footer");
+
+  // Apply inline styles to ensure proper layout
+  if (modalDialog) {
+    modalDialog.style.maxHeight = "90vh";
+    modalDialog.style.display = "flex";
+    modalDialog.style.alignItems = "center";
+    modalDialog.style.margin = "30px auto";
+  }
+
+  if (modalContent) {
+    modalContent.style.maxHeight = "85vh";
+    modalContent.style.display = "flex";
+    modalContent.style.flexDirection = "column";
+    modalContent.style.width = "100%";
+  }
+
+  if (modalBody) {
+    modalBody.style.flex = "1 1 auto";
+    modalBody.style.overflowY = "auto";
+    modalBody.style.maxHeight = "calc(85vh - 160px)";
+    modalBody.style.padding = "1.5rem";
+  }
+
+  if (modalFooter) {
+    modalFooter.style.flexShrink = "0";
+    modalFooter.style.position = "sticky";
+    modalFooter.style.bottom = "0";
+    modalFooter.style.background = "#fff";
+    modalFooter.style.zIndex = "1000";
+    modalFooter.style.borderTop = "1px solid #e9ecef";
+    modalFooter.style.padding = "1.5rem";
+  }
 }
 
 // Add event listener for image URL preview
@@ -1684,6 +1781,10 @@ function setupImagePreview() {
 async function editMenuItem(itemId) {
   try {
     const modal = new bootstrap.Modal(document.getElementById("menuItemModal"));
+
+    // Fix modal layout
+    fixModalLayout();
+
     document.getElementById("menuModalTitle").textContent = "Chỉnh sửa món ăn";
 
     document.getElementById("menuItemForm").reset();
@@ -1769,14 +1870,12 @@ async function editMenuItem(itemId) {
         </div>
       </div>
     `; // Set the ID in the hidden field
-    document.getElementById("menuItemId").value = itemId;
-
-    // Add ingredient rows
+    document.getElementById("menuItemId").value = itemId; // Add ingredient rows
     const ingredientsList = document.getElementById("ingredientsList");
     if (menuItem.ingredients && menuItem.ingredients.length > 0) {
-      menuItem.ingredients.forEach((ingredient) => {
+      for (const ingredient of menuItem.ingredients) {
         if (typeof ingredient === "object") {
-          addIngredientRow(
+          await addIngredientRow(
             ingredient.id,
             ingredient.amount,
             ingredient.unit,
@@ -1784,12 +1883,12 @@ async function editMenuItem(itemId) {
           );
         } else {
           // For backward compatibility with string ingredients
-          addIngredientRow(null, 0, "", ingredient);
+          await addIngredientRow(null, 0, "", ingredient);
         }
-      });
+      }
     } else {
       // Add one empty row
-      addIngredientRow();
+      await addIngredientRow();
     }
 
     // Setup image preview functionality
@@ -1853,19 +1952,37 @@ async function saveMenuItem() {
     const ingredientRows = document.querySelectorAll(".ingredient-row");
 
     ingredientRows.forEach((row) => {
-      const nameInput = row.querySelector(".ingredient-name");
-      const ingredientId = nameInput.dataset.id || null;
-      const ingredientName = nameInput.value;
-      const ingredientAmount =
-        parseFloat(row.querySelector(".ingredient-amount").value) || 0;
-      const ingredientUnit = row.querySelector(".ingredient-unit").value;
+      const ingredientSelect = row.querySelector(".ingredient-select");
+      const amountInput = row.querySelector(".ingredient-amount");
+      const unitSelect = row.querySelector(".ingredient-unit");
 
-      if (ingredientName) {
+      if (
+        ingredientSelect &&
+        ingredientSelect.value &&
+        amountInput.value &&
+        unitSelect.value
+      ) {
+        const selectedOption =
+          ingredientSelect.options[ingredientSelect.selectedIndex];
+        const unitOption = unitSelect.options[unitSelect.selectedIndex];
+
+        const ingredientId = ingredientSelect.value;
+        const ingredientName = selectedOption.getAttribute("data-name");
+        const amount = parseFloat(amountInput.value) || 0;
+        const unit = unitSelect.value;
+        const baseUnit = selectedOption.getAttribute("data-unit");
+        const ratio = parseFloat(unitOption.getAttribute("data-ratio")) || 1;
+
+        // Calculate base amount for inventory deduction
+        const baseAmount = amount * ratio;
+
         ingredients.push({
           id: ingredientId,
           name: ingredientName,
-          amount: ingredientAmount,
-          unit: ingredientUnit,
+          amount: amount,
+          unit: unit,
+          baseAmount: baseAmount, // Amount in inventory base unit
+          baseUnit: baseUnit, // Base unit for inventory calculations
         });
       }
     });
@@ -1907,37 +2024,193 @@ async function saveMenuItem() {
 }
 
 // Function to add an ingredient row to the menu item form
-function addIngredientRow(id = null, amount = "", unit = "", name = "") {
+async function addIngredientRow(id = null, amount = "", unit = "", name = "") {
   const ingredientsList = document.getElementById("ingredientsList");
   if (!ingredientsList) return;
 
+  // Get all inventory items for the dropdown
+  let inventoryItems = [];
+  try {
+    if (typeof getAllInventoryItems === "function") {
+      inventoryItems = await getAllInventoryItems();
+    }
+  } catch (error) {
+    console.error("Error loading inventory items:", error);
+  }
+
   const rowId = "ingredient-" + Date.now();
+
+  // Create ingredient options
+  const ingredientOptions = inventoryItems
+    .map(
+      (item) =>
+        `<option value="${item.id}" data-name="${item.name}" data-unit="${
+          item.unit
+        }" ${id === item.id ? "selected" : ""}>
+      ${item.name} (${item.unit})
+    </option>`
+    )
+    .join("");
+
+  // Unit conversion options based on common cooking measurements
+  const unitConversions = {
+    kg: [
+      { value: "kg", label: "Kilogram (kg)", ratio: 1 },
+      { value: "gram", label: "Gram (g)", ratio: 0.001 },
+      { value: "lạng", label: "Lạng", ratio: 0.1 },
+    ],
+    lít: [
+      { value: "lít", label: "Lít (l)", ratio: 1 },
+      { value: "ml", label: "Mililit (ml)", ratio: 0.001 },
+      { value: "chén", label: "Chén (~250ml)", ratio: 0.25 },
+    ],
+    hộp: [
+      { value: "hộp", label: "Hộp", ratio: 1 },
+      { value: "cái", label: "Cái/Túi", ratio: 1 },
+      { value: "gói", label: "Gói", ratio: 1 },
+    ],
+    quả: [
+      { value: "quả", label: "Quả", ratio: 1 },
+      { value: "cái", label: "Cái", ratio: 1 },
+    ],
+  };
+
   const rowHtml = `
-    <div class="row mb-2 ingredient-row" id="${rowId}">
-      <div class="col-3">
-        <input type="number" class="form-control form-control-sm ingredient-amount" 
-          placeholder="Số lượng" value="${amount}" min="0" step="0.1">
+    <div class="row mb-3 ingredient-row p-3 border rounded bg-white" id="${rowId}">
+      <div class="col-md-5">
+        <label class="form-label text-muted small">Nguyên liệu</label>
+        <select class="form-select ingredient-select" data-row-id="${rowId}">
+          <option value="">-- Chọn nguyên liệu --</option>
+          ${ingredientOptions}
+        </select>
       </div>
-      <div class="col-2">
-        <input type="text" class="form-control form-control-sm ingredient-unit" 
-          placeholder="Đơn vị" value="${unit}">
+      <div class="col-md-2">
+        <label class="form-label text-muted small">Số lượng</label>
+        <input type="number" class="form-control ingredient-amount" 
+          placeholder="0" value="${amount}" min="0" step="0.1" data-row-id="${rowId}">
       </div>
-      <div class="col-6">
-        <input type="text" class="form-control form-control-sm ingredient-name" 
-          placeholder="Tên nguyên liệu" value="${name}" ${
-    id ? 'data-id="' + id + '"' : ""
-  }>
+      <div class="col-md-3">
+        <label class="form-label text-muted small">Đơn vị tính</label>
+        <select class="form-select ingredient-unit" data-row-id="${rowId}">
+          <option value="">Chọn đơn vị</option>
+        </select>
       </div>
-      <div class="col-1">
-        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeIngredientRow('${rowId}')">
-          <i data-lucide="x" class="icon-sm"></i>
-        </button>
+      <div class="col-md-2 d-flex align-items-end">
+        <div class="w-100">
+          <button type="button" class="btn btn-outline-danger btn-sm w-100" onclick="removeIngredientRow('${rowId}')" title="Xóa nguyên liệu">
+            <i data-lucide="trash-2" class="icon-sm"></i>
+          </button>
+          <div class="mt-1">
+            <small class="text-muted conversion-info" id="conversion-${rowId}"></small>
+          </div>
+        </div>
       </div>
     </div>
   `;
 
   ingredientsList.insertAdjacentHTML("beforeend", rowHtml);
+
+  // Add event listeners for the new row
+  setupIngredientRowEvents(rowId, unitConversions);
+
+  // Pre-select if values are provided
+  if (id) {
+    const select = document.querySelector(`#${rowId} .ingredient-select`);
+    select.value = id;
+    await updateUnitOptions(rowId, unitConversions);
+
+    if (unit) {
+      const unitSelect = document.querySelector(`#${rowId} .ingredient-unit`);
+      unitSelect.value = unit;
+      updateConversionInfo(rowId);
+    }
+  }
+
   lucide.createIcons(); // Re-initialize icons
+}
+
+// Setup event listeners for ingredient row
+function setupIngredientRowEvents(rowId, unitConversions) {
+  const ingredientSelect = document.querySelector(
+    `#${rowId} .ingredient-select`
+  );
+  const amountInput = document.querySelector(`#${rowId} .ingredient-amount`);
+  const unitSelect = document.querySelector(`#${rowId} .ingredient-unit`);
+
+  // When ingredient is selected, update unit options
+  ingredientSelect.addEventListener("change", async function () {
+    await updateUnitOptions(rowId, unitConversions);
+    updateConversionInfo(rowId);
+  });
+
+  // When amount or unit changes, update conversion info
+  amountInput.addEventListener("input", () => updateConversionInfo(rowId));
+  unitSelect.addEventListener("change", () => updateConversionInfo(rowId));
+}
+
+// Update unit options based on selected ingredient
+async function updateUnitOptions(rowId, unitConversions) {
+  const ingredientSelect = document.querySelector(
+    `#${rowId} .ingredient-select`
+  );
+  const unitSelect = document.querySelector(`#${rowId} .ingredient-unit`);
+
+  if (!ingredientSelect.value) {
+    unitSelect.innerHTML = '<option value="">Chọn đơn vị</option>';
+    return;
+  }
+
+  const selectedOption =
+    ingredientSelect.options[ingredientSelect.selectedIndex];
+  const baseUnit = selectedOption.getAttribute("data-unit");
+
+  // Get available conversions for this base unit
+  const availableUnits = unitConversions[baseUnit] || [
+    { value: baseUnit, label: baseUnit, ratio: 1 },
+  ];
+
+  const unitOptions = availableUnits
+    .map(
+      (unit) =>
+        `<option value="${unit.value}" data-ratio="${unit.ratio}" data-base-unit="${baseUnit}">
+      ${unit.label}
+    </option>`
+    )
+    .join("");
+
+  unitSelect.innerHTML = '<option value="">Chọn đơn vị</option>' + unitOptions;
+}
+
+// Update conversion information display
+function updateConversionInfo(rowId) {
+  const ingredientSelect = document.querySelector(
+    `#${rowId} .ingredient-select`
+  );
+  const amountInput = document.querySelector(`#${rowId} .ingredient-amount`);
+  const unitSelect = document.querySelector(`#${rowId} .ingredient-unit`);
+  const conversionInfo = document.getElementById(`conversion-${rowId}`);
+
+  if (!ingredientSelect.value || !unitSelect.value || !amountInput.value) {
+    conversionInfo.textContent = "";
+    return;
+  }
+
+  const selectedOption =
+    ingredientSelect.options[ingredientSelect.selectedIndex];
+  const unitOption = unitSelect.options[unitSelect.selectedIndex];
+  const baseUnit = selectedOption.getAttribute("data-unit");
+  const ratio = parseFloat(unitOption.getAttribute("data-ratio")) || 1;
+  const amount = parseFloat(amountInput.value) || 0;
+
+  // Calculate the amount in base unit (for inventory deduction)
+  const baseAmount = amount * ratio;
+
+  if (unitSelect.value !== baseUnit) {
+    conversionInfo.innerHTML = `≈ ${baseAmount} ${baseUnit}`;
+    conversionInfo.className = "text-primary small conversion-info";
+  } else {
+    conversionInfo.textContent = "";
+  }
 }
 
 // Function to remove an ingredient row
@@ -2189,9 +2462,13 @@ async function saveIngredient() {
         document.getElementById("ingredientStock").value || 0
       ),
       cost: parseInt(document.getElementById("ingredientCost").value || 0),
-      usedToday: editId ? undefined : 0, // Only reset for new ingredients
       variance: 0, // Default variance
     };
+
+    // Only set usedToday for new ingredients, not when editing
+    if (!editId) {
+      ingredientData.usedToday = 0;
+    }
 
     if (editId) {
       // Edit existing ingredient

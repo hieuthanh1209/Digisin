@@ -746,7 +746,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
 
     // Calculate tax and totals
-    const taxRate = 0.08; // 8% tax
+    const taxRate = 0.1; // 10% tax
     const taxAmount = subtotal * taxRate;
     const discountPercent = payment.discount ? payment.discount.percent : 0;
     const discountAmount = subtotal * (discountPercent / 100);
@@ -762,7 +762,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                         <td class="text-end">${formatCurrency(subtotal)}</td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="text-end fw-medium">Thuế VAT (8%):</td>
+                        <td colspan="4" class="text-end fw-medium">Thuế VAT (10%):</td>
                         <td class="text-end">${formatCurrency(taxAmount)}</td>
                     </tr>
                 `;
@@ -946,7 +946,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       subtotal += item.price * item.quantity;
     });
 
-    const taxRate = 0.08; // 8% tax
+    const taxRate = 0.1; // 10% tax
     const taxAmount = subtotal * taxRate;
     const afterTax = subtotal + taxAmount;
 
@@ -1014,7 +1014,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                     <span>${formatCurrency(subtotal)}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-                    <span>Thuế VAT (8%):</span>
+                    <span>Thuế VAT (10%):</span>
                     <span>${formatCurrency(taxAmount)}</span>
                 </div>
                 ${
@@ -1195,8 +1195,8 @@ document.addEventListener("DOMContentLoaded", async function () {
         totalAmount = totalAmount * (1 - discount.percent / 100);
       }
 
-      // Add tax (8%)
-      totalAmount = Math.round(totalAmount * 1.08);
+      // Add tax (10%)
+      totalAmount = Math.round(totalAmount * 1.1);
 
       // Select random payment method
       const paymentMethodIndex = Math.floor(

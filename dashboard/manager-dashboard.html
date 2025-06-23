@@ -5,9 +5,32 @@
     <title>Quản lý - Hệ thống Quản lý Nhà hàng</title>    <link rel="icon" href="../assets/favicon.ico" type="image/x-icon">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="manager-styles.css">
-    
-    <!-- Custom styles for manager dashboard -->
-    <style>
+      <!-- Custom styles for manager dashboard -->
+    <style>        /* Prevent double scrollbars */
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        /* Optimize table responsive behavior */
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+          /* Ensure analytics tab doesn't create extra scrolling */
+        #analytics-tab .card-body {
+            overflow: visible;
+        }
+        
+        /* Fixed sidebar styling */
+        .sidebar {
+            width: 300px !important;
+            min-width: 300px;
+            max-width: 300px;
+            flex-shrink: 0;
+            position: relative;
+        }
+        
         .manager-avatar-dropdown .dropdown-toggle::after {
             display: none;
         }
@@ -54,9 +77,216 @@
             background-color: #f8f9fa !important;
             transform: scale(1.02);
         }
-        
-        .manager-info-text {
+          .manager-info-text {
             line-height: 1.2;
+        }
+        
+        /* Enhanced Dashboard Styles */
+        .stats-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .stats-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+        }
+        
+        .bg-success-soft {
+            background-color: rgba(25, 135, 84, 0.1) !important;
+        }
+        
+        .bg-primary-soft {
+            background-color: rgba(13, 110, 253, 0.1) !important;
+        }
+        
+        .circular-progress {
+            transform: rotate(-90deg);
+        }
+        
+        .circular-progress circle {
+            transition: stroke-dashoffset 0.5s ease;
+        }
+        
+        .quick-action-btn {
+            transition: all 0.3s ease;
+            border-radius: 12px;
+            height: 80px;
+        }
+        
+        .quick-action-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn-outline-purple {
+            color: #6f42c1;
+            border-color: #6f42c1;
+        }
+        
+        .btn-outline-purple:hover {
+            background-color: #6f42c1;
+            border-color: #6f42c1;
+            color: white;
+        }
+        
+        .list-group-item {
+            transition: background-color 0.2s ease;
+        }
+        
+        .list-group-item:hover {
+            background-color: rgba(0, 0, 0, 0.02);
+        }
+        
+        .bg-gradient-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        
+        .card {
+            border-radius: 12px;
+        }
+        
+        .rounded-circle {
+            border-radius: 50% !important;
+        }
+          .text-gradient {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        /* Additional enhancements */
+        .badge {
+            font-weight: 500;
+        }
+        
+        .bg-danger-soft {
+            background-color: rgba(220, 53, 69, 0.1) !important;
+        }
+        
+        .card-header {
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .display-6 {
+            font-size: 2rem;
+            font-weight: 600;
+        }
+        
+        .small {
+            font-size: 0.875em;
+        }
+        
+        .h4 {
+            font-size: 1.5rem;
+        }
+        
+        /* Responsive improvements */
+        @media (max-width: 768px) {
+            .quick-action-btn {
+                height: 70px;
+                padding: 0.75rem;
+            }
+            
+            .quick-action-btn .small {
+                font-size: 0.75rem;
+            }
+            
+            .stats-card .card-body {
+                padding: 1rem;
+            }
+            
+            .display-6 {
+                font-size: 1.5rem;
+            }
+        }
+        
+        /* Custom scrollbar */
+        .overflow-y-auto::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .overflow-y-auto::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+          .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        
+        /* Overview specific styles */
+        .icon-shape {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+        }
+        
+        .bg-primary-soft {
+            background-color: rgba(0, 123, 255, 0.1) !important;
+        }
+        
+        .bg-success-soft {
+            background-color: rgba(25, 135, 84, 0.1) !important;
+        }
+        
+        .bg-warning-soft {
+            background-color: rgba(255, 193, 7, 0.1) !important;
+        }
+        
+        .bg-info-soft {
+            background-color: rgba(13, 202, 240, 0.1) !important;
+        }
+        
+        .bg-danger-soft {
+            background-color: rgba(220, 53, 69, 0.1) !important;
+        }
+        
+        .text-primary { color: #007bff !important; }
+        .text-success { color: #198754 !important; }
+        .text-warning { color: #ffc107 !important; }
+        .text-info { color: #0dcaf0 !important; }
+        .text-danger { color: #dc3545 !important; }
+        
+        /* Progress bars */
+        .progress {
+            border-radius: 10px;
+        }
+        
+        .progress-bar {
+            border-radius: 10px;
+        }
+        
+        /* Badge styles */
+        .badge {
+            font-size: 0.7em;
+            padding: 0.4em 0.6em;
+            border-radius: 6px;
+        }
+        
+        /* Responsive overview */
+        @media (max-width: 768px) {
+            .icon-shape {
+                width: 50px;
+                height: 50px;
+            }
         }
     </style>
     
@@ -365,37 +595,63 @@
                     document.body.removeChild(logoutModal);
                 }, 300);
             });
-        }
-
-        function performLogout() {
+        }        function performLogout() {
             try {
                 const managerInfo = getManagerInfoFromStorage();
                 
-                // Clear session data
+                // First, sign out from Firebase
+                logout().then(() => {
+                    console.log('✅ Firebase logout successful');
+                    
+                    // Clear session data
+                    localStorage.removeItem('managerSession');
+                    localStorage.removeItem('userRole');
+                    localStorage.removeItem('loginTime');
+                    localStorage.removeItem('managerInfo');
+                    
+                    // Show logout success message
+                    if (typeof showSuccessToast === 'function') {
+                        showSuccessToast(`Tạm biệt ${managerInfo.name}, hẹn gặp lại!`, 2000);
+                    } else if (typeof showToast === 'function') {
+                        showToast('Đã đăng xuất thành công!', 'success');
+                    }
+                    
+                    // Add logout effect
+                    document.body.style.transition = 'opacity 0.5s ease';
+                    document.body.style.opacity = '0';
+                    
+                    // Redirect to main page after animation
+                    setTimeout(() => {
+                        window.location.href = '../index.html';
+                    }, 1000);
+                    
+                }).catch((error) => {
+                    console.error('❌ Firebase logout failed:', error);
+                    
+                    // Still clear local data and redirect even if Firebase logout fails
+                    localStorage.removeItem('managerSession');
+                    localStorage.removeItem('userRole');
+                    localStorage.removeItem('loginTime');
+                    localStorage.removeItem('managerInfo');
+                    
+                    if (typeof showWarningToast === 'function') {
+                        showWarningToast('Đăng xuất thành công (có lỗi nhỏ)', 2000);
+                    }
+                    
+                    setTimeout(() => {
+                        window.location.href = '../index.html';
+                    }, 1000);
+                });
+                
+            } catch (error) {
+                console.error('Error during logout:', error);
+                
+                // Clear local data and redirect even if there's an error
                 localStorage.removeItem('managerSession');
                 localStorage.removeItem('userRole');
                 localStorage.removeItem('loginTime');
                 localStorage.removeItem('managerInfo');
                 
-                // Show logout success message
-                if (typeof showSuccessToast === 'function') {
-                    showSuccessToast(`Tạm biệt ${managerInfo.name}, hẹn gặp lại!`, 2000);
-                } else if (typeof showToast === 'function') {
-                    showToast('Đã đăng xuất thành công!', 'success');
-                }
-                
-                // Add logout effect
-                document.body.style.transition = 'opacity 0.5s ease';
-                document.body.style.opacity = '0';
-                
-                // Redirect to main page after animation
-                setTimeout(() => {
-                    window.location.href = '../index.html';
-                }, 1000);
-                
-            } catch (error) {
-                console.error('Error during logout:', error);
-                // Still redirect even if there's an error
                 window.location.href = '../index.html';
             }
         }// Function to set manager information (can be called from login page)
@@ -424,23 +680,86 @@
         }
 
         // Make setManagerInfo globally available so it can be called from other pages
-        window.setManagerInfo = setManagerInfo;
-
-        // Function to check if user is logged in as manager
-        function checkManagerAuth() {
-            const userRole = localStorage.getItem('userRole');
-            const managerSession = localStorage.getItem('managerSession');
-            
-            if (userRole !== 'manager' || !managerSession) {
-                // Redirect to login if not authorized
-                window.location.href = '../index.html';
+        window.setManagerInfo = setManagerInfo;        // Function to check if user is logged in as manager
+        async function checkManagerAuth() {
+            try {
+                const userRole = localStorage.getItem('userRole');
+                const managerSession = localStorage.getItem('managerSession');
+                const managerInfo = getManagerInfoFromStorage();
+                
+                console.log('🔐 Checking manager authentication...');
+                console.log('Local userRole:', userRole);
+                console.log('Manager session:', managerSession);
+                console.log('Manager info:', managerInfo);
+                
+                // Check local storage first
+                if (userRole !== 'manager' || !managerSession) {
+                    console.warn('❌ No manager credentials in localStorage');
+                    redirectToLogin('Không có quyền truy cập trang quản lý');
+                    return false;
+                }
+                
+                // Additional check: verify manager role
+                if (managerInfo && managerInfo.role) {
+                    const role = managerInfo.role.toLowerCase();
+                    if (role !== 'quản lý' && role !== 'manager' && role !== 'quản lý hệ thống') {
+                        console.warn('❌ User role is not manager:', managerInfo.role);
+                        redirectToLogin('Chỉ có quản lý mới được truy cập trang này');
+                        return false;
+                    }
+                }
+                
+                // Check session validity (optional: 8 hours max)
+                const loginTime = localStorage.getItem('loginTime');
+                if (loginTime) {
+                    const loginDate = new Date(loginTime);
+                    const now = new Date();
+                    const sessionDuration = now - loginDate;
+                    const maxSessionDuration = 8 * 60 * 60 * 1000; // 8 hours
+                    
+                    if (sessionDuration > maxSessionDuration) {
+                        console.warn('❌ Session expired');
+                        redirectToLogin('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại');
+                        return false;
+                    }
+                }
+                
+                console.log('✅ Manager authentication successful');
+                return true;
+                
+            } catch (error) {
+                console.error('❌ Error checking manager auth:', error);
+                redirectToLogin('Lỗi xác thực. Vui lòng đăng nhập lại');
                 return false;
             }
-            return true;
-        }        // Check authentication when page loads
+        }
+        
+        // Function to redirect to login with message
+        function redirectToLogin(message) {
+            // Clear any existing session data
+            localStorage.removeItem('managerSession');
+            localStorage.removeItem('userRole');
+            localStorage.removeItem('loginTime');
+            localStorage.removeItem('managerInfo');
+            
+            // Store error message to show on login page
+            if (message) {
+                sessionStorage.setItem('loginError', message);
+            }
+            
+            // Show message before redirect
+            if (typeof showErrorToast === 'function') {
+                showErrorToast(message || 'Vui lòng đăng nhập với tài khoản quản lý', 3000);
+            }
+            
+            // Redirect after a short delay
+            setTimeout(() => {
+                window.location.href = '../index.html';
+            }, 2000);
+        }// Check authentication when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            // Uncomment the line below if you want to enforce authentication
-            // checkManagerAuth();
+            // Enable authentication check for manager access
+            checkManagerAuth();
             
             // Initialize session timeout
             initSessionTimeout();
@@ -496,20 +815,19 @@
     </script>
 </head>
 <body>
-    <div class="d-flex vh-100">
-        <!-- Sidebar -->
-        <div class="sidebar bg-white shadow-lg border-end" style="width: 300px;">
+    <div class="d-flex vh-100">        <!-- Sidebar -->
+        <div class="sidebar bg-white shadow-lg border-end">
             <div class="p-4 border-bottom">
                 <h1 class="h3 fw-bold text-dark mb-1">Quản lý</h1>
                 <p class="text-muted mb-0">Hệ thống điều hành</p>
             </div>
-            <nav class="p-3">
-                <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="location.href='../index.html'">
+            <nav class="p-3">                <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="location.href='../index.html'">
                     🏠 <span class="ms-2">Trang chủ</span>
                 </button>
-                <button class="nav-button nav-button-active btn w-100 text-start mb-3 p-3" onclick="showTab('dashboard')">
+                <button class="nav-button nav-button-active btn w-100 text-start mb-3 p-3" onclick="showTab('overview')">
                     📊 <span class="ms-2">Tổng quan</span>
-                </button>                <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="showTab('staff')">
+                </button>
+                <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="showTab('staff')">
                     👥 <span class="ms-2">Quản lý nhân viên</span>
                 </button>
                 <button class="nav-button btn w-100 text-start mb-3 p-3" onclick="showTab('analytics')">
@@ -575,69 +893,89 @@
                         </ul>
                     </div>
                 </div>
-            </div>
-
-            <!-- Tab Content -->
-            <div class="flex-fill p-4 bg-light overflow-auto">
-                <!-- Dashboard Tab -->
-                <div id="dashboard-tab" class="tab-content active">
-                    <!-- Quick Stats -->
+            </div>            <!-- Tab Content -->
+            <div class="flex-fill p-4 bg-light" style="min-height: 0; overflow-y: auto;">
+                
+                <!-- Overview Tab -->
+                <div id="overview-tab" class="tab-content active">
+                    <!-- Overview Statistics Cards -->
                     <div class="row g-4 mb-4">
-                        <div class="col-xl-3 col-lg-6">
+                        <!-- Today's Revenue -->
+                        <div class="col-xl-3 col-md-6">
                             <div class="card border-0 shadow-sm h-100">
-                                <div class="card-body p-4">
-                                    <div class="d-flex align-items-center justify-content-between">
-                                        <div>
-                                            <p class="text-muted mb-1 small">Doanh thu hôm nay</p>
-                                            <h3 class="display-6 fw-bold mb-0" id="todayRevenue">0₫</h3>
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="flex-grow-1">
+                                            <h6 class="text-muted fw-normal mb-1">Doanh thu hôm nay</h6>
+                                            <h3 class="mb-0 fw-bold text-primary" id="overviewTodayRevenue">0₫</h3>
+                                            <small class="text-muted">
+                                                <span id="overviewRevenueChange" class="badge bg-success-soft text-success">+0%</span>
+                                                so với hôm qua
+                                            </small>
                                         </div>
-                                        <div class="bg-success bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                                            <i data-lucide="dollar-sign" class="text-success" style="width: 24px; height: 24px;"></i>
+                                        <div class="icon-shape bg-primary-soft text-primary rounded-3">
+                                            <i data-lucide="trending-up" style="width: 24px; height: 24px;"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>                        <!-- Active Tables -->
+                        <div class="col-xl-3 col-md-6">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="flex-grow-1">
+                                            <h6 class="text-muted fw-normal mb-1">Bàn đang phục vụ</h6>
+                                            <h3 class="mb-0 fw-bold text-warning" id="overviewActiveTables">0</h3>
+                                            <small class="text-muted">
+                                                / <span id="overviewTotalTables">20</span> tổng số bàn
+                                            </small>
+                                            <br>
+                                            <small class="text-info">Trạng thái: occupied</small>
+                                        </div>
+                                        <div class="icon-shape bg-warning-soft text-warning rounded-3">
+                                            <i data-lucide="users" style="width: 24px; height: 24px;"></i>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-xl-3 col-lg-6">
+
+                        <!-- Active Staff -->
+                        <div class="col-xl-3 col-md-6">
                             <div class="card border-0 shadow-sm h-100">
-                                <div class="card-body p-4">
-                                    <div class="d-flex align-items-center justify-content-between">
-                                        <div>
-                                            <p class="text-muted mb-1 small">Đơn hàng hôm nay</p>
-                                            <h3 class="display-6 fw-bold mb-0" id="todayOrders">0</h3>
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="flex-grow-1">
+                                            <h6 class="text-muted fw-normal mb-1">Nhân viên đang làm</h6>
+                                            <h3 class="mb-0 fw-bold text-success" id="overviewActiveStaff">0</h3>
+                                            <small class="text-muted">
+                                                / <span id="overviewTotalStaff">12</span> tổng số
+                                            </small>
                                         </div>
-                                        <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                                            <i data-lucide="shopping-cart" class="text-primary" style="width: 24px; height: 24px;"></i>
+                                        <div class="icon-shape bg-success-soft text-success rounded-3">
+                                            <i data-lucide="user-check" style="width: 24px; height: 24px;"></i>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-xl-3 col-lg-6">
+
+                        <!-- Today's Orders -->
+                        <div class="col-xl-3 col-md-6">
                             <div class="card border-0 shadow-sm h-100">
-                                <div class="card-body p-4">
-                                    <div class="d-flex align-items-center justify-content-between">
-                                        <div>
-                                            <p class="text-muted mb-1 small">Nhân viên đang làm</p>
-                                            <h3 class="display-6 fw-bold mb-0" id="activeStaff">0</h3>
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="flex-grow-1">
+                                            <h6 class="text-muted fw-normal mb-1">Đơn hàng hôm nay</h6>
+                                            <h3 class="mb-0 fw-bold text-info" id="overviewTodayOrders">0</h3>
+                                            <small class="text-muted">
+                                                <span id="overviewOrdersChange" class="badge bg-info-soft text-info">+0</span>
+                                                so với hôm qua
+                                            </small>
                                         </div>
-                                        <div class="bg-info bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                                            <i data-lucide="users" class="text-info" style="width: 24px; height: 24px;"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-xl-3 col-lg-6">
-                            <div class="card border-0 shadow-sm h-100">
-                                <div class="card-body p-4">
-                                    <div class="d-flex align-items-center justify-content-between">
-                                        <div>
-                                            <p class="text-muted mb-1 small">Bàn đang phục vụ</p>
-                                            <h3 class="display-6 fw-bold mb-0" id="activeTables">0</h3>
-                                        </div>
-                                        <div class="bg-warning bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                                            <i data-lucide="utensils" class="text-warning" style="width: 24px; height: 24px;"></i>
+                                        <div class="icon-shape bg-info-soft text-info rounded-3">
+                                            <i data-lucide="shopping-bag" style="width: 24px; height: 24px;"></i>
                                         </div>
                                     </div>
                                 </div>
@@ -645,25 +983,75 @@
                         </div>
                     </div>
 
-                    <!-- Charts Row -->
-                    <div class="row g-4">
+                    <div class="row g-4 mb-4">
+                        <!-- 7-Day Revenue Chart -->
                         <div class="col-lg-8">
                             <div class="card border-0 shadow-sm">
-                                <div class="card-header bg-white">
-                                    <h5 class="card-title mb-0">Doanh thu 7 ngày qua</h5>
+                                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                    <h5 class="card-title mb-0">Doanh thu 7 ngày qua</h5>                                    <button class="btn btn-sm btn-outline-primary" onclick="refreshRevenueChart()">
+                                        <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+                                        Cập nhật
+                                    </button>
                                 </div>
                                 <div class="card-body">
-                                    <canvas id="revenueChart" height="300"></canvas>
+                                    <canvas id="weeklyRevenueChart" height="100"></canvas>
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Inventory Status -->
                         <div class="col-lg-4">
                             <div class="card border-0 shadow-sm">
-                                <div class="card-header bg-white">
-                                    <h5 class="card-title mb-0">Top món bán chạy</h5>
+                                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                    <h5 class="card-title mb-0">Tình trạng kho</h5>
+                                    <span class="badge bg-warning" id="lowStockCount">0</span>
                                 </div>
-                                <div class="card-body">
-                                    <canvas id="topDishesChart" height="300"></canvas>
+                                <div class="card-body p-0">
+                                    <div id="inventoryStatusList">
+                                        <!-- Inventory status items will be rendered here -->
+                                    </div>
+                                    <div class="p-3 bg-light">
+                                        <button class="btn btn-sm btn-outline-primary w-100" onclick="showTab('inventory')">
+                                            Xem chi tiết kho
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Finance Transactions -->
+                    <div class="row g-4">
+                        <div class="col-12">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                    <h5 class="card-title mb-0">5 giao dịch Thu/Chi gần nhất</h5>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="showTab('finance')">
+                                        Xem tất cả
+                                    </button>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Ngày</th>
+                                                    <th>Mã phiếu</th>
+                                                    <th>Loại</th>
+                                                    <th>Danh mục</th>
+                                                    <th>Mô tả</th>
+                                                    <th class="text-end">Số tiền</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="recentFinanceTransactions">
+                                                <!-- Recent transactions will be rendered here -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div id="financeEmptyOverview" class="text-center p-4 d-none">
+                                        <i data-lucide="file-text" style="width: 48px; height: 48px;" class="text-muted mb-2"></i>
+                                        <p class="text-muted mb-0">Chưa có giao dịch thu chi nào</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -800,8 +1188,7 @@
                                     <div>
                                         <h5 class="card-title mb-0">Quản lý thực đơn</h5>
                                         <small class="text-muted">Quản lý món ăn và công thức</small>
-                                    </div>
-                                    <button class="btn btn-primary" onclick="showAddMenuItemModal()">
+                                    </div>                                    <button class="btn btn-primary" onclick="showAddMenuItemModal()">
                                         <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
                                         Thêm món
                                     </button>
@@ -1170,10 +1557,9 @@
                                 <div class="text-muted small mt-2">Chọn nguyên liệu và nhập định lượng cần thiết cho món ăn này</div>
                             </div>
                         </div>
-                        </div>
                     </form>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer" style="flex: 0 0 auto; background: #fff; border-top: 1px solid #dee2e6; padding: 1rem 1.5rem; margin-top: auto;">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
                     <button type="button" class="btn btn-primary" onclick="saveMenuItem()">Lưu</button>
                 </div>
@@ -1306,11 +1692,20 @@
     </div>    <!-- Toast Container -->
     <div class="position-fixed top-0 end-0 p-3" style="z-index: 9999;">
         <div id="toastContainer"></div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-      <!-- Firebase -->    <script type="module">        // Import Firebase functions
+    </div>    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script><!-- Firebase -->    <script type="module">        // Import Firebase functions
         import { 
+            // Core Firebase functions
+            db,
+            collection,
+            doc,
+            getDocs,
+            updateDoc,
+            setDoc,
+            deleteDoc,
+            Timestamp,
+            // Menu Functions
             getAllMenuItems,
             getMenuItemById,
             addMenuItem,
@@ -1349,21 +1744,29 @@
             isOrderRecordedInFinance,
             createFinanceTransactionFromOrder,
             syncPaidOrdersToFinance,
-            autoSyncNewPaidOrders,
-            getCashierNameById,
+            autoSyncNewPaidOrders,            getCashierNameById,
             enhanceFinanceTransactionWithCashierName,
-            createFirebaseUser
+            createFirebaseUser,
+            logout
         } from './firebase-manager.js';
         
         // Import Toast functions
         import { showToast, showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../src/components/ui/toast-helper.js';
-        
-        // Make Toast functions globally available
+          // Make Toast functions globally available
         window.showToast = showToast;
         window.showSuccessToast = showSuccessToast;
         window.showErrorToast = showErrorToast;
         window.showWarningToast = showWarningToast;
         window.showInfoToast = showInfoToast;
+          // Make core Firebase functions globally available
+        window.db = db;
+        window.collection = collection;
+        window.doc = doc;
+        window.getDocs = getDocs;
+        window.updateDoc = updateDoc;
+        window.setDoc = setDoc;
+        window.deleteDoc = deleteDoc;
+        window.Timestamp = Timestamp;
         
         // Make Firebase functions globally available
         window.getAllMenuItems = getAllMenuItems;
@@ -1410,12 +1813,692 @@
         window.createFinanceTransactionFromOrder = createFinanceTransactionFromOrder;
         window.syncPaidOrdersToFinance = syncPaidOrdersToFinance;
         window.autoSyncNewPaidOrders = autoSyncNewPaidOrders;
-        window.getCashierNameById = getCashierNameById;
-        window.enhanceFinanceTransactionWithCashierName = enhanceFinanceTransactionWithCashierName;
+        window.getCashierNameById = getCashierNameById;        window.enhanceFinanceTransactionWithCashierName = enhanceFinanceTransactionWithCashierName;
         
         window.createFirebaseUser = createFirebaseUser;
-    </script>
-    
+        window.logout = logout;
+    </script>    
     <script src="manager-script.js"></script>
+    <script src="overview-functions.js"></script>
+       <script>
+        // Enhanced Dashboard Functions
+        
+        // Initialize dashboard when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeDashboard();
+            updateDateTime();
+            setInterval(updateDateTime, 1000); // Update every second
+            
+            // Initialize performance metrics
+            updatePerformanceMetrics();
+              // Auto-refresh data every 2 minutes (more frequent for revenue updates)
+            setInterval(refreshDashboardData, 2 * 60 * 1000);
+            
+            // Also refresh when window gains focus (user comes back to tab)
+            window.addEventListener('focus', () => {
+                console.log('🔄 Window gained focus, refreshing dashboard data...');
+                refreshDashboardData();
+            });
+        });
+        
+        function initializeDashboard() {
+            // Load manager info and update welcome message
+            const managerInfo = getManagerInfoFromStorage();
+            document.getElementById('welcomeManagerName').textContent = managerInfo.name;
+            
+            // Load dashboard data
+            refreshDashboardData();
+        }
+        
+        function updateDateTime() {
+            const now = new Date();
+            const dateOptions = { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            };
+            const timeOptions = { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            };
+            
+            document.getElementById('currentDate').textContent = now.toLocaleDateString('vi-VN', dateOptions);
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString('vi-VN', timeOptions);
+        }
+        
+        function refreshDashboardData() {
+            console.log('Refreshing dashboard data...');
+            
+            // Update stats with sample data (replace with real Firebase data)
+            updateStats();
+            updatePerformanceMetrics();
+            updateRecentActivities();
+            updateSystemStatus();
+            updateAdditionalInfo();
+            
+            if (typeof showToast === 'function') {
+                showToast('Dữ liệu đã được cập nhật', 'success');
+            }
+        }
+          function updateStats() {
+            updateRealStats();
+        }        async function updateRealStats() {
+            try {
+                const timestamp = new Date().toISOString();
+                console.log(`📊 [${timestamp}] Fetching real revenue data from paid orders...`);
+                
+                // Get today's date range
+                const today = new Date();
+                const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+                const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+                
+                // Get yesterday's date range for comparison
+                const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+                const startOfYesterday = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0, 0, 0);
+                const endOfYesterday = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999);
+                
+                // 1. Sync paid orders to finance first (wait for completion)
+                try {
+                    console.log('🔄 Syncing paid orders to finance transactions BEFORE fetching orders...');
+                    await syncPaidOrdersToFinance();
+                    console.log('✅ Sync completed');
+                } catch (syncError) {
+                    console.warn('⚠️ Sync failed:', syncError);
+                }
+                  // 2. Calculate revenue from income transactions for today
+                console.log('🔄 Calculating today\'s revenue from finance transactions...');
+                const todayResult = await calculateRevenueFromTransactions(startOfDay, endOfDay);
+                const todayRevenue = todayResult.totalRevenue;
+                const todayIncomeTransactions = todayResult.transactions;
+                
+                console.log(`💰 Today's revenue from transactions: ${formatCurrency(todayRevenue)} from ${todayIncomeTransactions.length} transactions`);
+
+                // 3. Calculate revenue from income transactions for yesterday
+                console.log('� Calculating yesterday\'s revenue from finance transactions...');
+                const yesterdayResult = await calculateRevenueFromTransactions(startOfYesterday, endOfYesterday);
+                const yesterdayRevenue = yesterdayResult.totalRevenue;
+                const yesterdayIncomeTransactions = yesterdayResult.transactions;
+
+                console.log(`💰 Yesterday's revenue from transactions: ${formatCurrency(yesterdayRevenue)} from ${yesterdayIncomeTransactions.length} transactions`);
+                
+                // 4. Also get order counts for reference
+                console.log('🔄 Getting order counts...');
+                const allOrders = await getAllOrders();
+                
+                // Filter orders for today
+                const todayPaidOrders = allOrders.filter(order => {
+                    if (order.paymentStatus !== 'paid') return false;
+                    
+                    let orderDate = null;
+                    if (order.updatedAt) {
+                        const dateToCheck = order.updatedAt;
+                        if (typeof dateToCheck.toDate === 'function') {
+                            orderDate = dateToCheck.toDate();
+                        } else if (dateToCheck instanceof Date) {
+                            orderDate = dateToCheck;
+                        } else if (typeof dateToCheck === 'string' || typeof dateToCheck === 'number') {
+                            orderDate = new Date(dateToCheck);
+                        }
+                    } else if (order.paidAt) {
+                        const dateToCheck = order.paidAt;
+                        if (typeof dateToCheck.toDate === 'function') {
+                            orderDate = dateToCheck.toDate();
+                        } else if (dateToCheck instanceof Date) {
+                            orderDate = dateToCheck;
+                        } else if (typeof dateToCheck === 'string' || typeof dateToCheck === 'number') {
+                            orderDate = new Date(dateToCheck);
+                        }
+                    } else if (order.createdAt) {
+                        const dateToCheck = order.createdAt;
+                        if (typeof dateToCheck.toDate === 'function') {
+                            orderDate = dateToCheck.toDate();
+                        } else if (dateToCheck instanceof Date) {
+                            orderDate = dateToCheck;
+                        } else if (typeof dateToCheck === 'string' || typeof dateToCheck === 'number') {
+                            orderDate = new Date(dateToCheck);
+                        }
+                    }
+                    
+                    if (!orderDate || isNaN(orderDate.getTime())) return false;
+                    return orderDate >= startOfDay && orderDate <= endOfDay;
+                });
+                
+                // Filter orders for yesterday
+                const yesterdayPaidOrders = allOrders.filter(order => {
+                    if (order.paymentStatus !== 'paid') return false;
+                    
+                    let orderDate = null;
+                    const dateToCheck = order.updatedAt || order.paidAt || order.createdAt;
+                    
+                    if (dateToCheck && typeof dateToCheck.toDate === 'function') {
+                        orderDate = dateToCheck.toDate();
+                    } else if (dateToCheck instanceof Date) {
+                        orderDate = dateToCheck;
+                    } else if (dateToCheck) {
+                        orderDate = new Date(dateToCheck);
+                    }
+                    
+                    if (!orderDate || isNaN(orderDate.getTime())) return false;
+                    return orderDate >= startOfYesterday && orderDate <= endOfYesterday;
+                });
+                
+                console.log(`� Today's order count: ${todayPaidOrders.length}, Yesterday's order count: ${yesterdayPaidOrders.length}`);
+                
+                // Get staff data
+                let activeStaff = 0;
+                let totalStaff = 0;
+                try {
+                    const allStaff = await getAllStaff();
+                    totalStaff = allStaff.length;
+                    activeStaff = allStaff.filter(staff => staff.status === 'active').length;
+                } catch (error) {
+                    console.warn('Could not fetch staff data:', error);
+                    activeStaff = 8; // fallback
+                    totalStaff = 12; // fallback
+                }// Update revenue display
+                const revenueElement = document.getElementById('todayRevenue');
+                const overviewRevenueElement = document.getElementById('overviewTodayRevenue');
+                const formattedRevenue = formatCurrency(todayRevenue);
+                
+                if (revenueElement) {
+                    revenueElement.textContent = formattedRevenue;
+                }
+                if (overviewRevenueElement) {
+                    overviewRevenueElement.textContent = formattedRevenue;
+                }
+                
+                // Calculate and display revenue change
+                const revenueChangeEl = document.getElementById('revenueChange');
+                const overviewRevenueChangeEl = document.getElementById('overviewRevenueChange');
+                if (yesterdayRevenue > 0) {
+                    const revenueChange = ((todayRevenue - yesterdayRevenue) / yesterdayRevenue * 100);
+                    const changeText = `${revenueChange > 0 ? '+' : ''}${revenueChange.toFixed(1)}%`;
+                    const changeClass = `badge ${revenueChange >= 0 ? 'bg-success-soft text-success' : 'bg-danger-soft text-danger'}`;
+                    
+                    if (revenueChangeEl) {
+                        revenueChangeEl.textContent = changeText;
+                        revenueChangeEl.className = changeClass + ' me-2';
+                    }
+                    if (overviewRevenueChangeEl) {
+                        overviewRevenueChangeEl.textContent = changeText;
+                        overviewRevenueChangeEl.className = changeClass;
+                    }
+                } else {
+                    const changeText = todayRevenue > 0 ? 'Mới' : '0%';
+                    const changeClass = 'badge bg-info-soft text-info';
+                    
+                    if (revenueChangeEl) {
+                        revenueChangeEl.textContent = changeText;
+                        revenueChangeEl.className = changeClass + ' me-2';
+                    }
+                    if (overviewRevenueChangeEl) {
+                        overviewRevenueChangeEl.textContent = changeText;
+                        overviewRevenueChangeEl.className = changeClass;
+                    }
+                }
+                
+                // Update orders count
+                const ordersElement = document.getElementById('todayOrders');
+                const overviewOrdersElement = document.getElementById('overviewTodayOrders');
+                if (ordersElement) {
+                    ordersElement.textContent = todayPaidOrders.length;
+                }
+                if (overviewOrdersElement) {
+                    overviewOrdersElement.textContent = todayPaidOrders.length;
+                }
+                
+                // Calculate and display orders change
+                const ordersChangeEl = document.getElementById('ordersChange');
+                const overviewOrdersChangeEl = document.getElementById('overviewOrdersChange');
+                const ordersChange = todayPaidOrders.length - yesterdayPaidOrders.length;
+                const ordersChangeText = `${ordersChange > 0 ? '+' : ''}${ordersChange}`;
+                const ordersChangeClass = `badge ${ordersChange >= 0 ? 'bg-primary-soft text-primary' : 'bg-danger-soft text-danger'}`;
+                
+                if (ordersChangeEl) {
+                    ordersChangeEl.textContent = ordersChangeText;
+                    ordersChangeEl.className = ordersChangeClass + ' me-2';
+                }
+                if (overviewOrdersChangeEl) {
+                    overviewOrdersChangeEl.textContent = ordersChangeText;
+                    overviewOrdersChangeEl.className = ordersChangeClass;
+                }
+                  // Update staff
+                const activeStaffEl = document.getElementById('activeStaff');
+                const totalStaffEl = document.getElementById('totalStaff');
+                const overviewActiveStaffEl = document.getElementById('overviewActiveStaff');
+                const overviewTotalStaffEl = document.getElementById('overviewTotalStaff');
+                
+                if (activeStaffEl) activeStaffEl.textContent = activeStaff;
+                if (totalStaffEl) totalStaffEl.textContent = `/ ${totalStaff} tổng số`;
+                if (overviewActiveStaffEl) overviewActiveStaffEl.textContent = activeStaff;
+                if (overviewTotalStaffEl) overviewTotalStaffEl.textContent = totalStaff;
+                
+                // Update tables (using sample data for now)
+                const activeTablesEl = document.getElementById('activeTables');
+                const totalTablesEl = document.getElementById('totalTables');
+                const overviewActiveTablesEl = document.getElementById('overviewActiveTables');
+                const overviewTotalTablesEl = document.getElementById('overviewTotalTables');
+                
+                const sampleActiveTables = 15; // TODO: Get from orders/tables data
+                const sampleTotalTables = 20;   // TODO: Get from configuration
+                
+                if (activeTablesEl) activeTablesEl.textContent = sampleActiveTables;
+                if (totalTablesEl) totalTablesEl.textContent = `/ ${sampleTotalTables} tổng số`;
+                if (overviewActiveTablesEl) overviewActiveTablesEl.textContent = sampleActiveTables;
+                if (overviewTotalTablesEl) overviewTotalTablesEl.textContent = sampleTotalTables;
+                
+                console.log('✅ Stats updated successfully');
+                
+                // Update last refresh time
+                const lastUpdateElement = document.getElementById('lastUpdated');
+                if (lastUpdateElement) {
+                    const now = new Date();
+                    lastUpdateElement.textContent = `Cập nhật lúc: ${now.toLocaleTimeString('vi-VN')}`;
+                }
+                
+                // Show success notification
+                if (typeof showInfoToast === 'function') {
+                    showInfoToast(`Dữ liệu đã được cập nhật - ${new Date().toLocaleTimeString('vi-VN')}`);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error updating real stats:', error);
+                
+                // Fallback to sample data on error
+                const fallbackStats = {
+                    todayRevenue: 0,
+                    todayOrders: 0,
+                    activeStaff: 0,
+                    totalStaff: 0
+                };
+                
+                const revenueElement = document.getElementById('todayRevenue');
+                if (revenueElement) revenueElement.textContent = formatCurrency(fallbackStats.todayRevenue);
+                
+                const ordersElement = document.getElementById('todayOrders');
+                if (ordersElement) ordersElement.textContent = fallbackStats.todayOrders;
+                
+                const activeStaffEl = document.getElementById('activeStaff');
+                if (activeStaffEl) activeStaffEl.textContent = fallbackStats.activeStaff;
+                
+                if (typeof showErrorToast === 'function') {
+                    showErrorToast('Không thể tải dữ liệu doanh thu. Hiển thị dữ liệu mặc định.');
+                }
+            }
+        }
+        
+        function updatePerformanceMetrics() {
+            // Sample performance data
+            const metrics = {
+                revenueTarget: 70,
+                ordersTarget: 60,
+                satisfaction: 85,
+                efficiency: 92
+            };
+            
+            updateCircularProgress('revenueProgress', 'revenuePercentage', metrics.revenueTarget);
+            updateCircularProgress('ordersProgress', 'ordersPercentage', metrics.ordersTarget);
+            updateCircularProgress('satisfactionProgress', 'satisfactionPercentage', metrics.satisfaction);
+            updateCircularProgress('efficiencyProgress', 'efficiencyPercentage', metrics.efficiency);
+        }
+        
+        function updateCircularProgress(progressId, percentageId, value) {
+            const circle = document.getElementById(progressId);
+            const percentage = document.getElementById(percentageId);
+            
+            if (circle && percentage) {
+                const circumference = 2 * Math.PI * 35; // radius = 35
+                const offset = circumference - (value / 100) * circumference;
+                
+                circle.style.strokeDasharray = circumference;
+                circle.style.strokeDashoffset = offset;
+                percentage.textContent = `${value}%`;
+            }
+        }
+        
+        function updateRecentActivities() {
+            // This would typically fetch from Firebase
+            // For now, we keep the static activities
+            console.log('Recent activities updated');
+        }
+        
+        function updateSystemStatus() {
+            // Simulate system status checks
+            const statuses = ['success', 'warning', 'danger'];
+            const status = statuses[Math.floor(Math.random() * statuses.length)];
+            
+            // You can update system status indicators here
+            console.log('System status updated:', status);
+        }
+        
+        function updateAdditionalInfo() {
+            // Sample additional data
+            document.getElementById('avgOrderValue').textContent = formatCurrency(181000);
+            document.getElementById('avgServiceTime').textContent = '12 phút';
+            document.getElementById('peakHour').textContent = '19:30';
+        }
+        
+        function changeMetricsPeriod(period) {
+            // Update button states
+            document.querySelectorAll('.btn-group .btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Update metrics based on period
+            console.log('Changing metrics period to:', period);
+            updatePerformanceMetrics();
+            
+            if (typeof showToast === 'function') {
+                showToast(`Đã chuyển sang ${period === 'today' ? 'hôm nay' : period === 'week' ? 'tuần này' : 'tháng này'}`, 'info');
+            }
+        }
+          function refreshRevenueChart() {
+            console.log('Refreshing revenue chart...');
+            if (typeof showToast === 'function') {
+                showToast('Đang cập nhật biểu đồ doanh thu...', 'info');
+            }
+            
+            // Call the loadWeeklyRevenueChart function to refresh with real-time data
+            loadWeeklyRevenueChart().then(() => {
+                if (typeof showToast === 'function') {
+                    showToast('Biểu đồ doanh thu đã được cập nhật thành công', 'success');
+                }
+            }).catch(error => {
+                console.error('Error refreshing revenue chart:', error);
+                if (typeof showErrorToast === 'function') {
+                    showErrorToast('Lỗi khi cập nhật biểu đồ doanh thu');
+                }
+            });
+        }
+        
+        function refreshTopDishesChart() {
+            console.log('Refreshing top dishes chart...');
+            if (typeof showToast === 'function') {
+                showToast('Đang cập nhật biểu đồ món bán chạy...', 'info');
+            }
+            // Add chart refresh logic here
+        }
+        
+        function openPrintReport() {
+            if (typeof showToast === 'function') {
+                showToast('Đang chuẩn bị báo cáo để in...', 'info');
+            }
+            
+            // Create print window
+            setTimeout(() => {
+                const printContent = generatePrintReport();
+                const printWindow = window.open('', '_blank', 'width=800,height=600');
+                printWindow.document.write(printContent);
+                printWindow.document.close();
+                printWindow.focus();
+                printWindow.print();
+            }, 1000);
+        }
+        
+        function generatePrintReport() {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('vi-VN');
+            const timeStr = now.toLocaleTimeString('vi-VN');
+            
+            return `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Báo cáo tổng quan - ${dateStr}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+                        .stats { display: flex; justify-content: space-around; margin: 20px 0; }
+                        .stat-item { text-align: center; }
+                        .stat-value { font-size: 24px; font-weight: bold; color: #007bff; }
+                        .stat-label { font-size: 14px; color: #666; }
+                        @media print { body { margin: 0; } }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>BÁO CÁO TỔNG QUAN NHÀI HÀNG</h1>
+                        <p>Ngày: ${dateStr} - Giờ: ${timeStr}</p>
+                    </div>
+                    <div class="stats">
+                        <div class="stat-item">
+                            <div class="stat-value">${document.getElementById('todayRevenue').textContent}</div>
+                            <div class="stat-label">Doanh thu hôm nay</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${document.getElementById('todayOrders').textContent}</div>
+                            <div class="stat-label">Đơn hàng hôm nay</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${document.getElementById('activeStaff').textContent}</div>
+                            <div class="stat-label">Nhân viên đang làm</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${document.getElementById('activeTables').textContent}</div>
+                            <div class="stat-label">Bàn đang phục vụ</div>
+                        </div>
+                    </div>
+
+                    <p style="margin-top: 40px; text-align: center; color: #666; font-size: 12px;">
+                        Báo cáo được tạo tự động bởi hệ thống quản lý nhà hàng
+                    </p>
+                </body>
+                </html>
+            `;        }
+        
+        // Function to manually sync paid orders to finance transactions
+        async function performOrdersSync() {
+            const syncBtn = document.getElementById('syncOrdersBtn');
+            if (!syncBtn) return;
+            
+            // Disable button and show loading
+            const originalText = syncBtn.innerHTML;
+            syncBtn.disabled = true;
+            syncBtn.innerHTML = '<i data-lucide="loader" style="width: 16px; height: 16px; animation: spin 1s linear infinite;"></i> Đang đồng bộ...';
+            
+            try {
+                console.log('🔄 Starting manual orders sync...');
+                
+                // Call the sync function from firebase-manager
+                const results = await syncPaidOrdersToFinance();
+                
+                console.log('✅ Manual sync completed:', results);
+                
+                // Show success message
+                let message = `Đồng bộ hoàn tất: ${results.processed} đơn được xử lý`;
+                if (results.skipped > 0) {
+                    message += `, ${results.skipped} đơn đã tồn tại`;
+                }
+                if (results.errors > 0) {
+                    message += `, ${results.errors} lỗi`;
+                }
+                
+                if (typeof showSuccessToast === 'function') {
+                    showSuccessToast(message);
+                } else {
+                    alert(message);
+                }
+                
+                // Refresh dashboard data after sync
+                setTimeout(() => {
+                    updateRealStats();
+                }, 1000);
+                
+            } catch (error) {
+                console.error('❌ Manual sync failed:', error);
+                
+                const errorMessage = 'Lỗi đồng bộ orders: ' + (error.message || 'Không xác định');
+                if (typeof showErrorToast === 'function') {
+                    showErrorToast(errorMessage);
+                } else {
+                    alert(errorMessage);
+                }
+            } finally {
+                // Restore button
+                syncBtn.disabled = false;
+                syncBtn.innerHTML = originalText;
+                
+                // Recreate icons since we changed innerHTML
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+        }
+          // Function to force refresh revenue data
+        async function forceRefreshRevenue() {
+            console.log('🔄 Force refreshing revenue data...');
+            
+            // Show loading indicator
+            const revenueElement = document.getElementById('todayRevenue');
+            const overviewRevenueElement = document.getElementById('overviewTodayRevenue');
+            
+            if (revenueElement) {
+                revenueElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tải...';
+            }
+            if (overviewRevenueElement) {
+                overviewRevenueElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tải...';
+            }
+            
+            try {
+                await updateRealStats();
+                
+                if (typeof showSuccessToast === 'function') {
+                    showSuccessToast('Dữ liệu doanh thu đã được cập nhật!');
+                }
+            } catch (error) {
+                console.error('❌ Error force refreshing revenue:', error);
+                
+                if (typeof showErrorToast === 'function') {
+                    showErrorToast('Không thể cập nhật dữ liệu doanh thu: ' + error.message);
+                }
+            }
+        }
+          // Function to calculate revenue from finance transactions
+        async function calculateRevenueFromTransactions(startDate, endDate) {
+            try {
+                console.log(`💹 Calculating revenue from transactions from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+                
+                // Get all transactions in the given date range
+                const transactions = await getFinanceTransactionsByDateRange(startDate, endDate);
+                console.log(`📑 Total transactions found: ${transactions.length}`);
+                
+                // Log all transaction IDs for debugging
+                console.log('Transaction IDs:', transactions.map(t => t.id || 'unknown').join(', '));
+                
+                // Filter only income transactions and ensure they are in the correct date range
+                const incomeTransactions = transactions.filter(transaction => {
+                    // Check if it's an income transaction
+                    const isIncome = transaction.type === 'income';
+                    
+                    // Kiểm tra date cẩn thận
+                    let transactionDate = null;
+                    if (transaction.date) {
+                        if (typeof transaction.date.toDate === 'function') {
+                            transactionDate = transaction.date.toDate();
+                        } else if (transaction.date instanceof Date) {
+                            transactionDate = transaction.date;
+                        } else if (typeof transaction.date === 'string' || typeof transaction.date === 'number') {
+                            transactionDate = new Date(transaction.date);
+                        }
+                    }
+                    
+                    // Check if the transaction date is within range
+                    const isInDateRange = transactionDate && 
+                                          transactionDate >= startDate && 
+                                          transactionDate <= endDate;
+                    
+                    // Log detailed information for each transaction for debugging
+                    console.log(`Transaction ${transaction.id || 'unknown'}: 
+                        Type=${transaction.type}, 
+                        Amount=${transaction.amount}, 
+                        Date=${transactionDate ? transactionDate.toISOString() : 'invalid date'},
+                        IsIncome=${isIncome}, 
+                        IsInDateRange=${isInDateRange},
+                        OrderId=${transaction.orderId || 'none'},
+                        Description=${transaction.description || 'no description'}`);
+                    
+                    // Special check for the specific order we're investigating
+                    if (transaction.orderId === 'DS-13LZM5' || 
+                        (transaction.description && transaction.description.includes('DS-13LZM5'))) {
+                        console.log(`🔍 FOUND DS-13LZM5: Type=${transaction.type}, IsIncome=${isIncome}, IsInDateRange=${isInDateRange}`);
+                    }
+                    
+                    return isIncome && isInDateRange;
+                });
+                
+                console.log(`💰 Number of income transactions: ${incomeTransactions.length}`);
+                  // Calculate total revenue
+                let totalRevenue = 0;
+                incomeTransactions.forEach(transaction => {
+                    // Make sure we parse the amount as a number with proper rounding
+                    const amount = parseFloat(parseFloat(transaction.amount || 0).toFixed(0));
+                    totalRevenue += amount;
+                    console.log(`📝 Transaction ${transaction.id || 'unknown'}: ${formatCurrency(amount)}, orderId=${transaction.orderId || 'none'}`);
+                    
+                    // Highlight our specific order if found
+                    if (transaction.orderId === 'DS-13LZM5' || 
+                        (transaction.description && transaction.description.includes('DS-13LZM5'))) {
+                        console.log(`🎯 DS-13LZM5 IS COUNTED IN REVENUE: ${formatCurrency(amount)}`);
+                    }
+                });
+                
+                console.log(`💲 Total revenue: ${formatCurrency(totalRevenue)}`);
+                
+                return {
+                    totalRevenue: totalRevenue,
+                    transactions: incomeTransactions
+                };
+            } catch (error) {
+                console.error('❌ Error calculating revenue from transactions:', error);
+                return {
+                    totalRevenue: 0,
+                    transactions: []
+                };
+            }
+        }
+
+        // Utility function for currency formatting
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('vi-VN', {
+                style: 'currency',
+                currency: 'VND',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(amount);
+        }        // Make functions globally available
+        window.changeMetricsPeriod = changeMetricsPeriod;
+        window.refreshRevenueChart = refreshRevenueChart;
+        window.refreshTopDishesChart = refreshTopDishesChart;
+        window.openPrintReport = openPrintReport;
+        window.refreshDashboardData = refreshDashboardData;
+        window.performOrdersSync = performOrdersSync;
+        window.forceRefreshRevenue = forceRefreshRevenue;
+        window.updateRealStats = updateRealStats;
+        window.calculateRevenueFromTransactions = calculateRevenueFromTransactions;
+        
+        // Initialize overview when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load overview data by default
+            setTimeout(() => {
+                if (typeof loadOverviewData === 'function') {
+                    loadOverviewData();
+                }
+                
+                // Add event listener for sync orders button
+                const syncOrdersBtn = document.getElementById('syncOrdersBtn');
+                if (syncOrdersBtn) {
+                    syncOrdersBtn.addEventListener('click', performOrdersSync);
+                }
+                
+                // Initialize Lucide icons
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }, 1000);
+        });
+    </script>
 </body>
 </html>
