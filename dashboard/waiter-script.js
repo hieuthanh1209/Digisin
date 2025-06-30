@@ -44,6 +44,26 @@ window.showCreateOrderModal =
   function () {
     console.log("showCreateOrderModal called early");
   };
+window.showCreateTableModal =
+  window.showCreateTableModal ||
+  function () {
+    console.log("showCreateTableModal called early");
+  };
+window.showMergeTablesModal =
+  window.showMergeTablesModal ||
+  function () {
+    console.log("showMergeTablesModal called early");
+  };
+window.createNewTable =
+  window.createNewTable ||
+  function () {
+    console.log("createNewTable called early");
+  };
+window.mergeTables =
+  window.mergeTables ||
+  function () {
+    console.log("mergeTables called early");
+  };
 window.proceedToCreateOrder =
   window.proceedToCreateOrder ||
   function () {
@@ -346,6 +366,9 @@ async function loadTablesFromFirestore() {
             location: tableData.location || "indoor",
             name: tableData.name || `Bàn ${tableData.id}`,
             currentOrder: tableData.currentOrder || null,
+            isMerged: tableData.isMerged || false,
+            mergedTables: tableData.mergedTables || [],
+            mergeNotes: tableData.mergeNotes || null,
             customers: 0, // Will be calculated from orders
             startTime: null, // Will be calculated from orders
             orderTotal: 0, // Will be calculated from orders
@@ -534,18 +557,15 @@ function updateStats() {
   // Map Firestore status to display status for counting
   const availableTables = tables.filter((t) => t.status === "available").length;
   const occupiedTables = tables.filter((t) => t.status === "occupied").length;
-  const cleaningTables = tables.filter((t) => t.status === "cleaning").length;
   const totalTables = tables.length;
 
   // Update stats cards if elements exist
   const emptyTablesEl = document.getElementById("emptyTables");
   const occupiedTablesEl = document.getElementById("occupiedTables");
-  const cleaningTablesEl = document.getElementById("cleaningTables");
   const totalTablesEl = document.getElementById("totalTables");
 
   if (emptyTablesEl) emptyTablesEl.textContent = availableTables;
   if (occupiedTablesEl) occupiedTablesEl.textContent = occupiedTables;
-  if (cleaningTablesEl) cleaningTablesEl.textContent = cleaningTables;
   if (totalTablesEl) totalTablesEl.textContent = totalTables;
 }
 
@@ -586,20 +606,21 @@ function renderTables() {
           displayStatus = "occupied";
           statusText = "Đang phục vụ";
           break;
-        case "cleaning":
-          displayStatus = "cleaning";
-          statusText = "Cần dọn";
-          break;
         default:
           displayStatus = "empty";
           statusText = "Trống";
       }
       return `
             <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6">
-                <div class="table-card ${displayStatus}" onclick="handleTableClick('${
-        table.id
-      }')">
+                <div class="table-card ${displayStatus} ${
+        table.isMerged ? "merged" : ""
+      }" onclick="handleTableClick('${table.id}')">
                     <div class="status-indicator ${displayStatus}"></div>
+                    ${
+                      table.isMerged
+                        ? '<div class="merge-indicator">🔗</div>'
+                        : ""
+                    }
                     ${
                       timeElapsed
                         ? `<div class="table-time">${timeElapsed}</div>`
@@ -607,12 +628,19 @@ function renderTables() {
                     }
                     <div class="table-number">${
                       table.name || `Bàn ${table.id}`
-                    }</div>
+                    }${table.isMerged ? " (Ghép)" : ""}</div>
                     <div class="table-status ${displayStatus}">${statusText}</div>
                     <div class="table-info">
                         <small class="text-muted">Sức chứa: ${
                           table.capacity
                         } người</small>
+                        ${
+                          table.isMerged
+                            ? `<small class="text-warning d-block">Bàn ghép: ${
+                                (table.mergedTables || []).length + 1
+                              } bàn</small>`
+                            : ""
+                        }
                         <div class="text-muted">${
                           table.location === "indoor"
                             ? "Trong nhà"
@@ -657,7 +685,7 @@ function handleTableClick(tableId) {
   if (table.status === "available") {
     // Open order modal for new order
     openOrderModal(table);
-  } else if (table.status === "occupied" || table.status === "cleaning") {
+  } else if (table.status === "occupied") {
     // Open table actions modal
     openTableActionsModal(table);
   }
@@ -701,7 +729,21 @@ function openOrderModal(table) {
 
 function openTableActionsModal(table) {
   currentTable = table; // Set current table for actions
-  document.getElementById("actionsTableName").textContent = `Bàn ${table.id}`;
+
+  // Set table name with merge info if applicable
+  let tableName = table.name || `Bàn ${table.id}`;
+  if (table.isMerged) {
+    tableName += " (Bàn ghép)";
+  }
+  document.getElementById("actionsTableName").textContent = tableName;
+
+  // Show/hide split button based on whether table is merged
+  const splitBtn = document.getElementById("splitTableBtn");
+  if (table.isMerged) {
+    splitBtn.style.display = "block";
+  } else {
+    splitBtn.style.display = "none";
+  }
 
   const modal = new bootstrap.Modal(
     document.getElementById("tableActionsModal")
@@ -1475,7 +1517,7 @@ async function updateOrderStatus() {
         if (table) {
           const tableRef = doc(db, "tables", table.id);
           await updateDoc(tableRef, {
-            status: "cleaning",
+            status: "available",
           });
         }
       }
@@ -1521,7 +1563,7 @@ async function markOrderCompleted(orderId) {
     if (table) {
       const tableRef = doc(db, "tables", table.id);
       await updateDoc(tableRef, {
-        status: "cleaning",
+        status: "available",
       });
     }
 
@@ -2096,8 +2138,6 @@ window.debugTableStatus = function (tableId) {
         ? "Trống"
         : table.status === "occupied"
         ? "Đang phục vụ"
-        : table.status === "cleaning"
-        ? "Cần dọn"
         : "Unknown"
     );
     console.log("Full table object:", table);
@@ -2134,3 +2174,542 @@ onSnapshot(collection(db, "orders"), (snapshot) => {
   console.log("Orders collection updated, recalculating table totals...");
   calculateTableTotals();
 });
+
+// Table creation functions
+function showCreateTableModal() {
+  const modal = new bootstrap.Modal(
+    document.getElementById("createTableModal")
+  );
+  modal.show();
+
+  // Reset form
+  document.getElementById("createTableForm").reset();
+
+  // Show current table numbers in console for debugging
+  const existingNumbers = tables
+    .map((table) => {
+      const match = table.id.match(/T(\d+)/);
+      return match ? parseInt(match[1]) : null;
+    })
+    .filter((num) => num !== null)
+    .sort((a, b) => a - b);
+
+  console.log("Existing table numbers:", existingNumbers);
+
+  // Suggest next available table number
+  let suggestedNumber = 1;
+  while (existingNumbers.includes(suggestedNumber)) {
+    suggestedNumber++;
+  }
+
+  document.getElementById("tableNumber").placeholder = `VD: ${suggestedNumber}`;
+}
+
+async function createNewTable() {
+  const tableNumber = document.getElementById("tableNumber").value;
+  const tableCapacity = document.getElementById("tableCapacity").value;
+  const tableLocation = document.getElementById("tableLocation").value;
+  const tableNotes = document.getElementById("tableNotes").value;
+
+  // Validation
+  if (!tableNumber || !tableCapacity) {
+    showToast("Vui lòng nhập đầy đủ thông tin bắt buộc", "error");
+    return;
+  }
+
+  // Generate table ID in format T001, T002, etc.
+  const tableId = `T${String(tableNumber).padStart(3, "0")}`;
+
+  // Check if table ID already exists or table number is already used
+  const existingTable = tables.find(
+    (table) =>
+      table.id === tableId ||
+      table.name === `Bàn ${tableNumber}` ||
+      (table.id && table.id.slice(1) === String(tableNumber).padStart(3, "0"))
+  );
+  if (existingTable) {
+    showToast("Số bàn này đã tồn tại. Vui lòng chọn số khác.", "error");
+    return;
+  }
+
+  try {
+    // Create new table data matching Firestore structure
+    const newTableData = {
+      id: tableId,
+      name: `Bàn ${tableNumber}`,
+      capacity: parseInt(tableCapacity),
+      status: "available",
+      location: tableLocation || "indoor",
+      currentOrder: null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    // Add notes if provided
+    if (tableNotes) {
+      newTableData.notes = tableNotes;
+    }
+
+    // Add to Firestore with table ID as document ID
+    await setDoc(doc(db, "tables", tableId), newTableData);
+
+    // Add to local tables array
+    tables.push(newTableData);
+
+    // Re-render tables grid
+    renderTables();
+    updateStats();
+
+    // Close modal
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("createTableModal")
+    );
+    modal.hide();
+
+    // Show success message
+    showToast(`${newTableData.name} đã được tạo thành công!`, "success");
+
+    console.log("New table created:", newTableData);
+  } catch (error) {
+    console.error("Error creating table:", error);
+    showToast("Lỗi khi tạo bàn: " + error.message, "error");
+  }
+}
+
+// Export functions to global scope
+window.showCreateTableModal = showCreateTableModal;
+window.createNewTable = createNewTable;
+
+// Merge Tables Functions
+function showMergeTablesModal() {
+  const modal = new bootstrap.Modal(
+    document.getElementById("mergeTablesModal")
+  );
+  modal.show();
+
+  // Reset form
+  document.getElementById("mergeTablesForm").reset();
+  document.getElementById("mergedTableInfo").style.display = "none";
+  document.getElementById("mergTablesBtn").disabled = true;
+
+  // Populate main table options (available tables only)
+  populateMainTableOptions();
+
+  // Populate available tables for merging
+  populateAvailableTables();
+}
+
+function populateMainTableOptions() {
+  const mainTableSelect = document.getElementById("mainTable");
+  mainTableSelect.innerHTML = '<option value="">-- Chọn bàn chính --</option>';
+
+  // Only show available tables as main table options
+  const availableTables = tables.filter(
+    (table) => table.status === "available" && !table.isMerged
+  );
+
+  if (availableTables.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "Không có bàn trống để làm bàn chính";
+    option.disabled = true;
+    mainTableSelect.appendChild(option);
+    return;
+  }
+
+  availableTables.forEach((table) => {
+    const option = document.createElement("option");
+    option.value = table.id;
+    option.textContent = `${table.name} (${table.capacity} chỗ)`;
+    mainTableSelect.appendChild(option);
+  });
+
+  // Add event listener to main table selection
+  mainTableSelect.addEventListener("change", updateAvailableTables);
+}
+
+function populateAvailableTables() {
+  const container = document.getElementById("tablesSelection");
+  const availableTables = tables.filter(
+    (table) => table.status === "available" && !table.isMerged
+  );
+
+  if (availableTables.length <= 1) {
+    container.innerHTML = `
+      <div class="text-center py-4 text-muted">
+        <i data-lucide="info" style="width: 48px; height: 48px;" class="mb-2 opacity-50"></i>
+        <p class="mb-0">Cần ít nhất 2 bàn trống để ghép bàn</p>
+        <small>Hiện tại chỉ có ${availableTables.length} bàn trống</small>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = availableTables
+    .map(
+      (table) => `
+    <div class="table-checkbox-item" onclick="toggleTableSelection('${
+      table.id
+    }')">
+      <input type="checkbox" id="table_${
+        table.id
+      }" onchange="updateMergedTableInfo()">
+      <div class="table-info">
+        <div class="table-name">${table.name}</div>
+        <div class="table-details">
+          <span class="badge bg-secondary me-2">${table.capacity} chỗ</span>
+          <span class="text-muted">${table.location || "Trong nhà"}</span>
+        </div>
+      </div>
+    </div>
+  `
+    )
+    .join("");
+}
+
+function updateAvailableTables() {
+  const mainTableId = document.getElementById("mainTable").value;
+  const checkboxes = document.querySelectorAll(
+    '#tablesSelection input[type="checkbox"]'
+  );
+
+  checkboxes.forEach((checkbox) => {
+    const tableId = checkbox.id.replace("table_", "");
+    const item = checkbox.closest(".table-checkbox-item");
+
+    if (tableId === mainTableId) {
+      // Disable main table from selection
+      checkbox.disabled = true;
+      checkbox.checked = false;
+      item.style.opacity = "0.5";
+      item.style.pointerEvents = "none";
+    } else {
+      // Enable other tables
+      checkbox.disabled = false;
+      item.style.opacity = "1";
+      item.style.pointerEvents = "auto";
+    }
+  });
+
+  updateMergedTableInfo();
+}
+
+function toggleTableSelection(tableId) {
+  const checkbox = document.getElementById(`table_${tableId}`);
+  if (!checkbox.disabled) {
+    checkbox.checked = !checkbox.checked;
+    checkbox
+      .closest(".table-checkbox-item")
+      .classList.toggle("selected", checkbox.checked);
+    updateMergedTableInfo();
+  }
+}
+
+function updateMergedTableInfo() {
+  const mainTableId = document.getElementById("mainTable").value;
+  const selectedCheckboxes = document.querySelectorAll(
+    '#tablesSelection input[type="checkbox"]:checked'
+  );
+  const mergeBtn = document.getElementById("mergTablesBtn");
+  const infoSection = document.getElementById("mergedTableInfo");
+
+  if (!mainTableId || selectedCheckboxes.length === 0) {
+    infoSection.style.display = "none";
+    mergeBtn.disabled = true;
+    return;
+  }
+
+  // Show info section
+  infoSection.style.display = "block";
+  mergeBtn.disabled = false;
+
+  // Get main table
+  const mainTable = tables.find((t) => t.id === mainTableId);
+  const selectedTableIds = Array.from(selectedCheckboxes).map((cb) =>
+    cb.id.replace("table_", "")
+  );
+  const selectedTables = selectedTableIds.map((id) =>
+    tables.find((t) => t.id === id)
+  );
+
+  // Calculate merged info
+  const totalCapacity =
+    mainTable.capacity +
+    selectedTables.reduce((sum, table) => sum + table.capacity, 0);
+  const totalTables = 1 + selectedTables.length;
+
+  // Update display
+  document.getElementById("mergedTableName").textContent =
+    mainTable.name + " (Bàn ghép)";
+  document.getElementById(
+    "mergedTableCapacity"
+  ).textContent = `${totalCapacity} người`;
+  document.getElementById(
+    "mergedTableCount"
+  ).textContent = `${totalTables} bàn`;
+
+  // Show merged tables list
+  const mergedList = document.getElementById("mergedTablesList");
+  const allTables = [mainTable, ...selectedTables];
+  mergedList.innerHTML = allTables
+    .map(
+      (table) => `<span class="merged-table-badge me-1">${table.name}</span>`
+    )
+    .join("");
+}
+
+async function mergeTables() {
+  const mainTableId = document.getElementById("mainTable").value;
+  const selectedCheckboxes = document.querySelectorAll(
+    '#tablesSelection input[type="checkbox"]:checked'
+  );
+  const notes = document.getElementById("mergeNotes").value;
+
+  if (!mainTableId || selectedCheckboxes.length === 0) {
+    showToast("Vui lòng chọn bàn chính và ít nhất một bàn để ghép", "error");
+    return;
+  }
+
+  // Show confirmation modal instead of merging directly
+  showMergeConfirmation(mainTableId, selectedCheckboxes, notes);
+}
+
+function showMergeConfirmation(mainTableId, selectedCheckboxes, notes) {
+  const mainTable = tables.find((t) => t.id === mainTableId);
+  const selectedTableIds = Array.from(selectedCheckboxes).map((cb) =>
+    cb.id.replace("table_", "")
+  );
+  const selectedTables = selectedTableIds.map((id) =>
+    tables.find((t) => t.id === id)
+  );
+
+  // Calculate new capacity
+  const newCapacity =
+    mainTable.capacity +
+    selectedTables.reduce((sum, table) => sum + table.capacity, 0);
+  const totalTables = 1 + selectedTables.length;
+
+  // Populate confirmation details
+  const detailsDiv = document.getElementById("mergeConfirmationDetails");
+  detailsDiv.innerHTML = `
+    <div class="card bg-light">
+      <div class="card-body">
+        <h6 class="fw-bold text-primary mb-3">
+          <i data-lucide="info" style="width: 18px; height: 18px;"></i>
+          Thông tin bàn sau khi ghép
+        </h6>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label small text-muted mb-1">Bàn chính</label>
+            <div class="fw-bold">${mainTable.name} (${
+    mainTable.capacity
+  } chỗ)</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small text-muted mb-1">Sức chứa mới</label>
+            <div class="fw-bold text-primary">${newCapacity} người</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label small text-muted mb-1">Các bàn sẽ được ghép</label>
+            <div class="d-flex flex-wrap gap-1">
+              ${selectedTables
+                .map(
+                  (table) =>
+                    `<span class="badge bg-warning text-dark">${table.name} (${table.capacity} chỗ)</span>`
+                )
+                .join("")}
+            </div>
+          </div>
+          ${
+            notes
+              ? `
+          <div class="col-12">
+            <label class="form-label small text-muted mb-1">Ghi chú</label>
+            <div class="text-muted">${notes}</div>
+          </div>`
+              : ""
+          }
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Store data for confirmation
+  window.pendingMergeData = {
+    mainTableId,
+    selectedTableIds,
+    notes,
+    newCapacity,
+  };
+
+  // Show confirmation modal
+  const confirmModal = new bootstrap.Modal(
+    document.getElementById("mergeConfirmationModal")
+  );
+  confirmModal.show();
+}
+
+async function confirmMergeTables() {
+  if (!window.pendingMergeData) {
+    showToast("Không có dữ liệu ghép bàn", "error");
+    return;
+  }
+
+  const { mainTableId, selectedTableIds, notes, newCapacity } =
+    window.pendingMergeData;
+
+  try {
+    const mainTable = tables.find((t) => t.id === mainTableId);
+
+    // Update main table in Firestore
+    const mainTableRef = doc(db, "tables", mainTableId);
+    await updateDoc(mainTableRef, {
+      capacity: newCapacity,
+      mergedTables: selectedTableIds,
+      mergeNotes: notes || null,
+      isMerged: true,
+      mergedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    // Delete merged tables from Firestore
+    for (const tableId of selectedTableIds) {
+      await deleteDoc(doc(db, "tables", tableId));
+    }
+
+    // Update local tables array
+    tables = tables.filter((table) => !selectedTableIds.includes(table.id));
+    const mainTableIndex = tables.findIndex((t) => t.id === mainTableId);
+    if (mainTableIndex !== -1) {
+      tables[mainTableIndex].capacity = newCapacity;
+      tables[mainTableIndex].mergedTables = selectedTableIds;
+      tables[mainTableIndex].isMerged = true;
+      tables[mainTableIndex].mergeNotes = notes;
+    }
+
+    // Re-render tables
+    renderTables();
+    updateStats();
+
+    // Close modals
+    const confirmModal = bootstrap.Modal.getInstance(
+      document.getElementById("mergeConfirmationModal")
+    );
+    if (confirmModal) confirmModal.hide();
+
+    const mergeModal = bootstrap.Modal.getInstance(
+      document.getElementById("mergeTablesModal")
+    );
+    if (mergeModal) mergeModal.hide();
+
+    // Show success message
+    const mergedTableNames = selectedTableIds
+      .map((id) => {
+        const table = tables.find((t) => t.id === id);
+        return table
+          ? table.name
+          : `Bàn ${id.replace("T", "").replace(/^0+/, "")}`;
+      })
+      .join(", ");
+
+    showToast(
+      `Đã ghép bàn thành công! ${mainTable.name} với ${mergedTableNames}`,
+      "success"
+    );
+
+    console.log("Tables merged successfully:", {
+      mainTable: mainTableId,
+      mergedTables: selectedTableIds,
+      newCapacity,
+    });
+
+    // Clear pending data
+    window.pendingMergeData = null;
+  } catch (error) {
+    console.error("Error merging tables:", error);
+    showToast("Lỗi khi ghép bàn: " + error.message, "error");
+  }
+}
+
+// Export merge functions to global scope
+window.showMergeTablesModal = showMergeTablesModal;
+window.mergeTables = mergeTables;
+window.confirmMergeTables = confirmMergeTables;
+
+// Split Table Function
+async function splitMergedTable() {
+  if (!currentTable || !currentTable.isMerged) {
+    showToast("Bàn này không phải là bàn ghép", "error");
+    return;
+  }
+
+  try {
+    // Calculate capacity for each original table (assume equal distribution)
+    const totalMergedTables = currentTable.mergedTables.length;
+    const originalCapacity = Math.floor(
+      currentTable.capacity / (totalMergedTables + 1)
+    );
+
+    // Restore original tables that were merged
+    for (const mergedTableId of currentTable.mergedTables) {
+      const tableNumber = mergedTableId.replace("T", "").replace(/^0+/, "");
+      const restoredTableData = {
+        id: mergedTableId,
+        name: `Bàn ${tableNumber}`,
+        capacity: originalCapacity,
+        status: "available",
+        location: currentTable.location || "indoor",
+        currentOrder: null,
+        isMerged: false,
+        mergedTables: [],
+        mergeNotes: null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      await setDoc(doc(db, "tables", mergedTableId), restoredTableData);
+    }
+
+    // Update main table - remove merge info and restore original capacity
+    const mainTableRef = doc(db, "tables", currentTable.id);
+    await updateDoc(mainTableRef, {
+      capacity: originalCapacity,
+      mergedTables: [],
+      mergeNotes: null,
+      isMerged: false,
+      splitAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    // Close modal
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("tableActionsModal")
+    );
+    if (modal) {
+      modal.hide();
+    }
+
+    // Show success message
+    showToast(
+      `Đã tách bàn thành công! ${currentTable.name} đã được tách thành ${
+        totalMergedTables + 1
+      } bàn riêng biệt`,
+      "success"
+    );
+
+    console.log("Table split successfully:", {
+      mainTable: currentTable.id,
+      restoredTables: currentTable.mergedTables,
+      originalCapacity,
+    });
+
+    currentTable = null;
+  } catch (error) {
+    console.error("Error splitting table:", error);
+    showToast("Lỗi khi tách bàn: " + error.message, "error");
+  }
+}
+
+// Export split function to global scope
+window.splitMergedTable = splitMergedTable;
+window.openTableActionsModal = openTableActionsModal;

@@ -64,7 +64,7 @@
             <div class="flex-fill p-4 bg-light overflow-auto" id="tablesManagement">
                 <!-- Stats Cards -->
                 <div class="row g-4 mb-4">
-                    <div class="col-xl-3 col-lg-6 col-md-6">
+                    <div class="col-lg-4 col-md-6">
                         <div class="card border-0 shadow-sm h-100">
                             <div class="card-body p-4">
                                 <div class="d-flex align-items-center justify-content-between">
@@ -79,7 +79,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-xl-3 col-lg-6 col-md-6">
+                    <div class="col-lg-4 col-md-6">
                         <div class="card border-0 shadow-sm h-100">
                             <div class="card-body p-4">
                                 <div class="d-flex align-items-center justify-content-between">
@@ -94,22 +94,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-xl-3 col-lg-6 col-md-6">
-                        <div class="card border-0 shadow-sm h-100">
-                            <div class="card-body p-4">
-                                <div class="d-flex align-items-center justify-content-between">
-                                    <div>
-                                        <p class="text-muted mb-1 small">Cần dọn bàn</p>
-                                        <h3 class="display-6 fw-bold mb-0" id="cleaningTables">0</h3>
-                                    </div>
-                                    <div class="bg-warning bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                                        <i data-lucide="clock" class="text-warning" style="width: 24px; height: 24px;"></i>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-xl-3 col-lg-6 col-md-6">
+                    <div class="col-xl-4 col-lg-4 col-md-6">
                         <div class="card border-0 shadow-sm h-100">
                             <div class="card-body p-4">
                                 <div class="d-flex align-items-center justify-content-between">
@@ -130,10 +115,21 @@
                 <div class="card border-0 shadow-sm">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center">
                         <h5 class="card-title mb-0">Sơ đồ bàn</h5>
-                        <div class="d-flex gap-3">
-                            <span class="badge bg-success">Trống</span>
-                            <span class="badge bg-primary">Đang phục vụ</span>
-                            <span class="badge bg-warning">Cần dọn</span>
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="d-flex gap-3">
+                                <span class="badge bg-success">Trống</span>
+                                <span class="badge bg-primary">Đang phục vụ</span>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-warning btn-sm" onclick="showMergeTablesModal()">
+                                    <i data-lucide="link" style="width: 16px; height: 16px;"></i>
+                                    Ghép bàn
+                                </button>
+                                <button class="btn btn-primary btn-sm" onclick="showCreateTableModal()">
+                                    <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                                    Tạo bàn
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body p-4">
@@ -470,6 +466,10 @@
                             <i data-lucide="plus-circle" style="width: 20px; height: 20px;"></i>
                             Thêm món
                         </button>
+                        <button class="btn btn-secondary btn-lg" id="splitTableBtn" onclick="splitMergedTable()" style="display: none;">
+                            <i data-lucide="unlink" style="width: 20px; height: 20px;"></i>
+                            Tách bàn
+                        </button>
                         <button class="btn btn-warning btn-lg" onclick="callWaiter()">
                             <i data-lucide="bell" style="width: 20px; height: 20px;"></i>
                             Gọi phục vụ
@@ -651,7 +651,249 @@
                 </div>
             </div>
         </div>
-    </div>    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    </div>    <!-- Create Table Modal -->
+    <div class="modal fade" id="createTableModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-primary text-white border-0">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-white bg-opacity-20 rounded-circle p-2 me-3">
+                            <i data-lucide="plus-circle" class="text-white" style="width: 24px; height: 24px;"></i>
+                        </div>
+                        <div>
+                            <h5 class="modal-title mb-0">Tạo bàn mới</h5>
+                            <small class="opacity-75">Thêm bàn vào sơ đồ nhà hàng</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                
+                <div class="modal-body p-4">
+                    <form id="createTableForm">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-medium">
+                                    <i data-lucide="hash" style="width: 16px; height: 16px;"></i>
+                                    Số bàn *
+                                </label>
+                                <input type="number" class="form-control" id="tableNumber" min="1" max="999" placeholder="VD: 6" required>
+                                <div class="form-text">Số bàn phải là duy nhất. Sẽ tạo ID: T001, T002...</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-medium">
+                                    <i data-lucide="users" style="width: 16px; height: 16px;"></i>
+                                    Số chỗ ngồi *
+                                </label>
+                                <select class="form-select" id="tableCapacity" required>
+                                    <option value="">-- Chọn số chỗ --</option>
+                                    <option value="2">2 người</option>
+                                    <option value="4">4 người</option>
+                                    <option value="6">6 người</option>
+                                    <option value="8">8 người</option>
+                                    <option value="10">10 người</option>
+                                    <option value="12">12 người</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-medium">
+                                    <i data-lucide="map-pin" style="width: 16px; height: 16px;"></i>
+                                    Vị trí
+                                </label>
+                                <select class="form-select" id="tableLocation">
+                                    <option value="indoor">Trong nhà</option>
+                                    <option value="outdoor">Ngoài trời</option>
+                                    <option value="vip">Khu VIP</option>
+                                    <option value="private">Phòng riêng</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-medium">
+                                    <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
+                                    Ghi chú
+                                </label>
+                                <textarea class="form-control" id="tableNotes" rows="3" placeholder="Ghi chú đặc biệt về bàn (gần cửa sổ, view đẹp, v.v.)"></textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-info mt-3">
+                            <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+                            <strong>Lưu ý:</strong> Bàn mới sẽ được tạo với trạng thái "Có sẵn" và sẵn sàng phục vụ khách hàng.
+                        </div>
+                    </form>
+                </div>
+                
+                <div class="modal-footer bg-light border-0 p-4">
+                    <div class="d-flex gap-3 w-100">
+                        <button type="button" class="btn btn-outline-secondary flex-fill" data-bs-dismiss="modal">
+                            <i data-lucide="x" style="width: 16px; height: 16px;"></i>
+                            Hủy
+                        </button>
+                        <button type="button" class="btn btn-primary flex-fill" onclick="createNewTable()">
+                            <i data-lucide="check" style="width: 16px; height: 16px;"></i>
+                            Tạo bàn
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Merge Tables Modal -->
+    <div class="modal fade" id="mergeTablesModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-warning text-dark border-0">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-dark bg-opacity-20 rounded-circle p-2 me-3">
+                            <i data-lucide="link" class="text-dark" style="width: 24px; height: 24px;"></i>
+                        </div>
+                        <div>
+                            <h5 class="modal-title mb-0">Ghép bàn</h5>
+                            <small class="opacity-75">Gộp nhiều bàn thành một bàn lớn</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                
+                <div class="modal-body p-4">
+                    <form id="mergeTablesForm">
+                        <div class="row g-4">
+                            <!-- Step 1: Select Main Table -->
+                            <div class="col-12">
+                                <h6 class="fw-bold text-primary mb-3">
+                                    <i data-lucide="star" style="width: 18px; height: 18px;"></i>
+                                    Bước 1: Chọn bàn chính
+                                </h6>
+                                <div class="alert alert-info">
+                                    <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+                                    Bàn chính sẽ giữ nguyên số bàn và order. Các bàn khác sẽ được gộp vào.
+                                </div>
+                                <select class="form-select" id="mainTable" required>
+                                    <option value="">-- Chọn bàn chính --</option>
+                                </select>
+                            </div>
+
+                            <!-- Step 2: Select Tables to Merge -->
+                            <div class="col-12">
+                                <h6 class="fw-bold text-primary mb-3">
+                                    <i data-lucide="users" style="width: 18px; height: 18px;"></i>
+                                    Bước 2: Chọn các bàn cần ghép
+                                </h6>
+                                <div class="alert alert-warning">
+                                    <i data-lucide="alert-triangle" style="width: 16px; height: 16px;"></i>
+                                    Chỉ có thể ghép các bàn trống. Các bàn đang phục vụ cần hoàn thành order trước.
+                                </div>
+                                <div class="tables-selection" id="tablesSelection">
+                                    <!-- Available tables will be rendered here -->
+                                </div>
+                            </div>
+
+                            <!-- Step 3: Merged Table Info -->
+                            <div class="col-12" id="mergedTableInfo" style="display: none;">
+                                <h6 class="fw-bold text-primary mb-3">
+                                    <i data-lucide="info" style="width: 18px; height: 18px;"></i>
+                                    Thông tin bàn sau khi ghép
+                                </h6>
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <div class="row g-3">
+                                            <div class="col-md-4">
+                                                <label class="form-label small text-muted mb-1">Tên bàn</label>
+                                                <div class="fw-bold" id="mergedTableName">-</div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small text-muted mb-1">Tổng sức chứa</label>
+                                                <div class="fw-bold" id="mergedTableCapacity">0 người</div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small text-muted mb-1">Số bàn ghép</label>
+                                                <div class="fw-bold" id="mergedTableCount">0 bàn</div>
+                                            </div>
+                                        </div>
+                                        <div class="mt-3">
+                                            <label class="form-label small text-muted mb-1">Danh sách bàn ghép</label>
+                                            <div id="mergedTablesList" class="d-flex flex-wrap gap-1">
+                                                <!-- Merged tables badges will be shown here -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Notes -->
+                            <div class="col-12">
+                                <label class="form-label fw-medium">
+                                    <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
+                                    Ghi chú ghép bàn
+                                </label>
+                                <textarea class="form-control" id="mergeNotes" rows="3" 
+                                          placeholder="Ghi chú lý do ghép bàn (gia đình lớn, sự kiện đặc biệt, v.v.)"></textarea>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                
+                <div class="modal-footer bg-light border-0 p-4">
+                    <div class="d-flex gap-3 w-100">
+                        <button type="button" class="btn btn-outline-secondary flex-fill" data-bs-dismiss="modal">
+                            <i data-lucide="x" style="width: 16px; height: 16px;"></i>
+                            Hủy
+                        </button>
+                        <button type="button" class="btn btn-warning flex-fill" id="mergTablesBtn" onclick="mergeTables()" disabled>
+                            <i data-lucide="link" style="width: 16px; height: 16px;"></i>
+                            Ghép bàn
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Merge Confirmation Modal -->
+    <div class="modal fade" id="mergeConfirmationModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-warning text-dark border-0">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-dark bg-opacity-20 rounded-circle p-2 me-3">
+                            <i data-lucide="alert-triangle" class="text-dark" style="width: 24px; height: 24px;"></i>
+                        </div>
+                        <div>
+                            <h5 class="modal-title mb-0">Xác nhận ghép bàn</h5>
+                            <small class="opacity-75">Vui lòng kiểm tra thông tin trước khi ghép</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                
+                <div class="modal-body p-4">
+                    <div class="alert alert-warning">
+                        <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+                        <strong>Lưu ý:</strong> Sau khi ghép bàn, các bàn được chọn sẽ bị xóa và không thể khôi phục riêng lẻ. Chỉ có thể tách toàn bộ bàn ghép.
+                    </div>
+                    
+                    <div id="mergeConfirmationDetails">
+                        <!-- Merge details will be populated here -->
+                    </div>
+                </div>
+                
+                <div class="modal-footer bg-light border-0 p-4">
+                    <div class="d-flex gap-3 w-100">
+                        <button type="button" class="btn btn-outline-secondary flex-fill" data-bs-dismiss="modal">
+                            <i data-lucide="x" style="width: 16px; height: 16px;"></i>
+                            Hủy
+                        </button>
+                        <button type="button" class="btn btn-warning flex-fill" id="confirmMergeBtn" onclick="confirmMergeTables()">
+                            <i data-lucide="check" style="width: 16px; height: 16px;"></i>
+                            Xác nhận ghép bàn
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script></script>
     <script type="module" src="waiter-script.js"></script>
 </body>
 </html>

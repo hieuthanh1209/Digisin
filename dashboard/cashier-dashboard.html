@@ -114,7 +114,17 @@
                 <div class="card border-0 shadow-sm">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center">
                         <h5 class="card-title mb-0">Hóa đơn chờ thanh toán</h5>
-                        <span class="badge bg-warning text-dark fs-6" id="pendingBadge">0 đơn</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <button class="btn btn-outline-info btn-sm" onclick="showMergeInvoicesModal()" title="Ghép hóa đơn">
+                                <i data-lucide="merge" style="width: 16px; height: 16px;"></i>
+                                Ghép đơn
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm" onclick="showSplitInvoiceModal()" title="Tách hóa đơn">
+                                <i data-lucide="split" style="width: 16px; height: 16px;"></i>
+                                Tách đơn
+                            </button>
+                            <span class="badge bg-warning text-dark fs-6" id="pendingBadge">0 đơn</span>
+                        </div>
                     </div>
                     <div class="card-body p-4">
                         <!-- Search Bar -->
@@ -303,6 +313,136 @@
                     <button type="button" class="btn btn-primary" onclick="window.print()">
                         <i data-lucide="printer" style="width: 16px; height: 16px;"></i>
                         In hóa đơn
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Merge Invoices Modal -->
+    <div class="modal fade" id="mergeInvoicesModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">
+                        <i data-lucide="merge" style="width: 20px; height: 20px;"></i>
+                        Ghép hóa đơn
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <!-- Left Column: Invoice Selection -->
+                        <div class="col-lg-6">
+                            <h6 class="fw-bold mb-3">
+                                <i data-lucide="list" style="width: 18px; height: 18px;"></i>
+                                Chọn hóa đơn cần ghép
+                            </h6>
+                            
+                            <!-- Search Box -->
+                            <div class="mb-3">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i data-lucide="search" style="width: 16px; height: 16px;"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="mergeInvoiceSearch" placeholder="Tìm kiếm theo mã đơn, bàn...">
+                                </div>
+                            </div>
+
+                            <div id="mergeInvoicesList" class="invoices-list" style="max-height: 400px; overflow-y: auto;">
+                                <!-- Invoice items will be rendered here -->
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Merge Preview -->
+                        <div class="col-lg-6">
+                            <h6 class="fw-bold mb-3">
+                                <i data-lucide="eye" style="width: 18px; height: 18px;"></i>
+                                Xem trước hóa đơn ghép
+                            </h6>
+                            
+                            <div id="mergePreview" class="merge-preview">
+                                <div class="text-muted text-center py-4">
+                                    <i data-lucide="file-plus" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i>
+                                    <p>Chọn ít nhất 2 hóa đơn để xem trước</p>
+                                </div>
+                            </div>
+
+                            <!-- Merge Notes -->
+                            <div class="mt-3">
+                                <label class="form-label fw-semibold">Ghi chú ghép đơn</label>
+                                <textarea class="form-control" id="mergeNotes" rows="3" placeholder="Nhập lý do ghép hóa đơn (tùy chọn)"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-info" id="confirmMergeBtn" onclick="mergeInvoices()" disabled>
+                        <i data-lucide="merge" style="width: 16px; height: 16px;"></i>
+                        Ghép hóa đơn
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Split Invoice Modal -->
+    <div class="modal fade" id="splitInvoiceModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title">
+                        <i data-lucide="split" style="width: 20px; height: 20px;"></i>
+                        Tách hóa đơn
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <!-- Left Column: Invoice Selection & Items -->
+                        <div class="col-lg-6">
+                            <h6 class="fw-bold mb-3">
+                                <i data-lucide="file-text" style="width: 18px; height: 18px;"></i>
+                                Chọn hóa đơn cần tách
+                            </h6>
+                            
+                            <select class="form-select mb-3" id="splitInvoiceSelect">
+                                <option value="">-- Chọn hóa đơn --</option>
+                            </select>
+
+                            <div id="splitItemsList" class="split-items-list">
+                                <div class="text-muted text-center py-4">
+                                    <i data-lucide="package" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i>
+                                    <p>Chọn hóa đơn để xem danh sách món ăn</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: New Invoices -->
+                        <div class="col-lg-6">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold mb-0">
+                                    <i data-lucide="file-plus" style="width: 18px; height: 18px;"></i>
+                                    Hóa đơn mới
+                                </h6>
+                                <button class="btn btn-sm btn-outline-success" onclick="addNewInvoice()">
+                                    <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
+                                    Thêm hóa đơn
+                                </button>
+                            </div>
+                            
+                            <div id="newInvoicesList" class="new-invoices-list">
+                                <!-- New invoices will be rendered here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="button" class="btn btn-warning" id="confirmSplitBtn" onclick="splitInvoice()" disabled>
+                        <i data-lucide="split" style="width: 16px; height: 16px;"></i>
+                        Tách hóa đơn
                     </button>
                 </div>
             </div>

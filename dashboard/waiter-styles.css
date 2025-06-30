@@ -49,6 +49,94 @@
     box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
 }
 
+/* Merge Tables Styles */
+.tables-selection {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+}
+
+.table-checkbox-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    margin: 0.25rem 0;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    background-color: white;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.table-checkbox-item:hover {
+    border-color: #ffc107;
+    background-color: #fff3cd;
+    transform: translateX(4px);
+}
+
+.table-checkbox-item.selected {
+    border-color: #ffc107;
+    background-color: #fff3cd;
+    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.2);
+}
+
+.table-checkbox-item input[type="checkbox"] {
+    margin-right: 0.75rem;
+    transform: scale(1.2);
+}
+
+.table-checkbox-item .table-info {
+    flex: 1;
+}
+
+.table-checkbox-item .table-name {
+    font-weight: 600;
+    color: #212529;
+}
+
+.table-checkbox-item .table-details {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.merged-table-badge {
+    background-color: #ffc107;
+    color: #212529;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+/* Merged table indicator */
+.table-card.merged {
+    border: 2px solid #ffc107;
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+}
+
+.merge-indicator {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-size: 14px;
+    background: rgba(255, 193, 7, 0.8);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.table-card.merged::before {
+    content: "";
+}
+
 /* Redesigned Order Modal */
 .bg-gradient-primary {
     background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
@@ -1034,3 +1122,68 @@
 .modal.show .modal-dialog {
     transform: none;
 }
+
+/* Merge confirmation modal */
+.merge-confirmation-details {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.merge-confirmation-details .badge {
+    font-size: 0.85rem;
+    padding: 0.375rem 0.75rem;
+}
+
+/* Enhanced table grid display */
+.table-card {
+    position: relative;
+    border-radius: 1rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.table-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.table-card.available {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border: 2px solid #198754;
+}
+
+.table-card.occupied {
+    background: linear-gradient(135deg, #cff4fc 0%, #b6effb 100%);
+    border: 2px solid #0dcaf0;
+}
+
+.table-card.cleaning {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+    border: 2px solid #ffc107;
+}
+
+/* Table card content */
+.table-card .table-number {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #212529;
+}
+
+.table-card .table-capacity {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.table-card .table-status {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-weight: 600;
+}
+
+/* Merge indicator improvements */

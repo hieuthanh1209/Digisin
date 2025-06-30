@@ -16,6 +16,7 @@ import {
   getDoc,
   updateDoc,
   addDoc,
+  setDoc,
   Timestamp,
   getDocs,
   limit,
@@ -268,19 +269,59 @@ function renderPendingOrders() {
     ordersHtml += `
       <div class="col-lg-6">
         <div class="card border-0 shadow-sm order-card h-100">
-          <div class="card-body p-3">
-            <div class="d-flex justify-content-between align-items-start mb-2">
+          <div class="card-body p-3">            <div class="d-flex justify-content-between align-items-start mb-2">
               <div>
                 <h6 class="fw-bold mb-1">${order.id}</h6>
-                <span class="badge bg-primary">${order.table}</span>
+                <div class="d-flex gap-1 flex-wrap">
+                  <span class="badge bg-primary">${order.table}</span>
+                  ${
+                    order.isMerged
+                      ? '<span class="merge-badge">GHÉP ĐƠN</span>'
+                      : ""
+                  }
+                  ${
+                    order.isSplit
+                      ? '<span class="split-badge">TÁCH ĐƠN</span>'
+                      : ""
+                  }
+                </div>
               </div>
               <div class="text-end">
                 <small class="text-muted">${timeAgo}</small>
                 <div class="mt-1">
                   <span class="badge bg-warning text-dark">Chờ thanh toán</span>
                 </div>
-              </div>
             </div>
+            </div>
+            
+            ${
+              order.isMerged
+                ? `
+              <div class="mb-2 p-2 bg-light rounded">
+                <small class="text-muted">
+                  <i data-lucide="merge" style="width: 12px; height: 12px;"></i>
+                  Ghép từ: ${
+                    order.mergedFrom ? order.mergedFrom.join(", ") : "N/A"
+                  }
+                  ${order.mergeNotes ? `<br>Ghi chú: ${order.mergeNotes}` : ""}
+                </small>
+              </div>
+            `
+                : ""
+            }
+            
+            ${
+              order.isSplit
+                ? `
+              <div class="mb-2 p-2 bg-light rounded">
+                <small class="text-muted">
+                  <i data-lucide="split" style="width: 12px; height: 12px;"></i>
+                  Tách từ: ${order.splitFrom || "N/A"}
+                </small>
+              </div>
+            `
+                : ""
+            }
             
             <div class="order-items mb-3">
               ${orderItems
@@ -691,10 +732,16 @@ async function processPayment() {
       changeAmount: changeAmount,
     };
 
-    await processPaymentInFirestore(currentOrder.id, paymentData);
+    await processPaymentInFirestore(
+      currentOrder.firestoreId || currentOrder.id,
+      paymentData
+    );
 
     // Create finance transaction
-    await createFinanceTransaction(currentOrder.id, paymentData);
+    await createFinanceTransaction(
+      currentOrder.firestoreId || currentOrder.id,
+      paymentData
+    );
 
     // Reset form
     selectedDiscountCode = null;
@@ -1110,10 +1157,9 @@ function updateUserUI(userData) {
 
 function loadOrdersFromFirestore() {
   try {
-    console.log("Loading orders from Firestore..."); // Load orders ready for payment (completed by chef, not yet paid)
+    console.log("Loading orders from Firestore..."); // Load all orders and filter in JavaScript for payment-ready orders
     const pendingQuery = query(
       collection(db, "orders"),
-      where("status", "==", "completed"),
       orderBy("updatedAt", "desc")
     );
 
@@ -1121,21 +1167,38 @@ function loadOrdersFromFirestore() {
       pendingQuery,
       (snapshot) => {
         console.log("Pending payment orders snapshot received:", snapshot.size);
-        // Filter orders that are completed but not yet paid
+        console.log(
+          "All documents:",
+          snapshot.docs.map((doc) => ({
+            id: doc.id,
+            status: doc.data().status,
+            paymentStatus: doc.data().paymentStatus,
+          }))
+        );
+
+        // Filter orders that are ready for payment (completed, merged, or split but not yet paid)
         pendingPaymentOrders = snapshot.docs
           .filter((doc) => {
             const data = doc.data();
-            // Only show orders that are completed by chef but not yet paid by cashier
-            return (
-              data.status === "completed" &&
-              (!data.paymentStatus || data.paymentStatus !== "paid")
+            // Show orders that are:
+            // 1. Completed by chef but not yet paid by cashier
+            // 2. Merged orders that are ready for payment
+            // 3. Split orders that are ready for payment
+            // EXCLUDE any orders that are already paid
+            const isEligible =
+              (data.status === "completed" || data.status === "ready") &&
+              (!data.paymentStatus || data.paymentStatus !== "paid");
+            console.log(
+              `Order ${doc.id}: status=${data.status}, paymentStatus=${data.paymentStatus}, eligible=${isEligible}, isMerged=${data.isMerged}`
             );
+            return isEligible;
           })
           .map((doc) => {
             const data = doc.data();
             return {
-              id: doc.id,
-              table: data.tableName || `Bàn ${data.tableId}`,
+              id: data.id || doc.id, // Use custom ID if available, fallback to Firestore document ID
+              firestoreId: doc.id, // Keep original document ID for Firestore operations
+              table: data.tableName || data.table || `Bàn ${data.tableId}`,
               tableId: data.tableId,
               items: data.items || [],
               subtotal: data.subtotal || 0,
@@ -1144,6 +1207,13 @@ function loadOrdersFromFirestore() {
               notes: data.notes || "",
               status: data.status,
               paymentStatus: data.paymentStatus || null,
+              // Merge information
+              isMerged: data.isMerged || false,
+              mergedFrom: data.mergedFrom || null,
+              mergeNotes: data.mergeNotes || null,
+              // Split information
+              isSplit: data.isSplit || false,
+              splitFrom: data.splitFrom || null,
               orderTime:
                 data.cookingCompletedTime?.toDate() ||
                 data.updatedAt?.toDate() ||
@@ -1159,10 +1229,19 @@ function loadOrdersFromFirestore() {
             };
           });
         console.log("Pending orders loaded:", pendingPaymentOrders.length);
+        console.log(
+          "Pending orders details:",
+          pendingPaymentOrders.map((o) => ({
+            id: o.id,
+            status: o.status,
+            paymentStatus: o.paymentStatus,
+          }))
+        );
         updateStats();
         renderPendingOrders();
       },
       (error) => {
+        console.error("Error loading pending orders:", error);
         handleFirestoreError(error, "tải đơn hàng chờ thanh toán");
       }
     ); // Load paid orders from today (for payment history)
@@ -1183,8 +1262,9 @@ function loadOrdersFromFirestore() {
         completedOrders = snapshot.docs.map((doc) => {
           const data = doc.data();
           return {
-            id: doc.id,
-            table: data.tableName || `Bàn ${data.tableId}`,
+            id: data.id || doc.id, // Use custom ID if available, fallback to Firestore document ID
+            firestoreId: doc.id, // Keep original document ID for Firestore operations
+            table: data.tableName || data.table || `Bàn ${data.tableId}`,
             tableId: data.tableId,
             items: data.items || [],
             subtotal: data.subtotal || 0,
@@ -1201,6 +1281,13 @@ function loadOrdersFromFirestore() {
             paymentTime: data.paymentTime?.toDate() || new Date(),
             cashierId: data.cashierId || "",
             cashierName: data.cashierName || "N/A",
+            // Merge information
+            isMerged: data.isMerged || false,
+            mergedFrom: data.mergedFrom || null,
+            mergeNotes: data.mergeNotes || null,
+            // Split information
+            isSplit: data.isSplit || false,
+            splitFrom: data.splitFrom || null,
           };
         });
         console.log("Completed orders loaded:", completedOrders.length);
@@ -1517,13 +1604,891 @@ function showNotification(message, type = "info") {
   }, 3000);
 }
 
-// Make functions available globally for testing/debugging
-window.setUserInfo = setUserInfo;
-window.getUserInfo = getUserInfo;
+// ========================================
+// MERGE AND SPLIT INVOICE FUNCTIONALITY
+// ========================================
+
+// Global variables for merge/split functionality
+let selectedInvoicesForMerge = [];
+let invoiceToSplit = null;
+let newInvoicesForSplit = [];
+let nextNewInvoiceId = 1;
+
+// ========================================
+// MERGE INVOICES FUNCTIONALITY
+// ========================================
+
+/**
+ * Show merge invoices modal
+ */
+function showMergeInvoicesModal() {
+  const modal = new bootstrap.Modal(
+    document.getElementById("mergeInvoicesModal")
+  );
+  modal.show();
+
+  // Reset state
+  selectedInvoicesForMerge = [];
+  document.getElementById("mergeNotes").value = "";
+
+  // Populate invoices for merge
+  populateInvoicesForMerge();
+  updateMergePreview();
+
+  // Setup search functionality
+  setupMergeInvoiceSearch();
+}
+
+/**
+ * Populate invoices that can be merged
+ */
+function populateInvoicesForMerge() {
+  const container = document.getElementById("mergeInvoicesList");
+
+  // Filter orders that can be merged (already filtered by pendingPaymentOrders, just exclude merged ones)
+  const mergeableOrders = pendingPaymentOrders.filter(
+    (order) => !order.isMerged
+  );
+
+  if (mergeableOrders.length < 2) {
+    container.innerHTML = `
+      <div class="text-center py-4">
+        <i data-lucide="info" style="width: 48px; height: 48px; margin-bottom: 1rem; color: #ffc107;"></i>
+        <p class="text-muted">Cần ít nhất 2 hóa đơn chờ thanh toán để thực hiện ghép đơn</p>
+      </div>
+    `;
+    lucide.createIcons();
+    return;
+  }
+
+  container.innerHTML = mergeableOrders
+    .map((order) => {
+      const isSelected = selectedInvoicesForMerge.includes(order.id);
+      return `
+      <div class="invoice-checkbox-item ${
+        isSelected ? "selected" : ""
+      }" onclick="toggleInvoiceSelection('${order.id}')">
+        <input type="checkbox" class="form-check-input" ${
+          isSelected ? "checked" : ""
+        } onclick="event.stopPropagation()">
+        <div class="invoice-item-header">
+          <h6 class="mb-1 fw-bold">${order.id}</h6>
+          <span class="badge bg-primary">${order.table}</span>
+        </div>
+        <div class="invoice-item-details">
+          <div class="d-flex justify-content-between mb-1">
+            <span>${order.items?.length || 0} món</span>
+            <span class="fw-medium text-success">${formatCurrency(
+              order.total
+            )}</span>
+          </div>
+          <div class="text-muted small">
+            ${getTimeAgo(order.orderTime || new Date())}
+          </div>
+        </div>
+      </div>
+    `;
+    })
+    .join("");
+
+  lucide.createIcons();
+}
+
+/**
+ * Toggle invoice selection for merge
+ */
+function toggleInvoiceSelection(orderId) {
+  const index = selectedInvoicesForMerge.indexOf(orderId);
+
+  if (index > -1) {
+    selectedInvoicesForMerge.splice(index, 1);
+  } else {
+    selectedInvoicesForMerge.push(orderId);
+  }
+
+  // Re-render the list to update UI
+  populateInvoicesForMerge();
+  updateMergePreview();
+}
+
+/**
+ * Update merge preview
+ */
+function updateMergePreview() {
+  const container = document.getElementById("mergePreview");
+  const confirmBtn = document.getElementById("confirmMergeBtn");
+
+  if (selectedInvoicesForMerge.length < 2) {
+    container.innerHTML = `
+      <div class="text-muted text-center py-4">
+        <i data-lucide="file-plus" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i>
+        <p>Chọn ít nhất 2 hóa đơn để xem trước</p>
+      </div>
+    `;
+    confirmBtn.disabled = true;
+    lucide.createIcons();
+    return;
+  }
+
+  // Get selected orders
+  const selectedOrders = pendingPaymentOrders.filter((order) =>
+    selectedInvoicesForMerge.includes(order.id)
+  );
+
+  // Calculate totals
+  const totalAmount = selectedOrders.reduce(
+    (sum, order) => sum + order.total,
+    0
+  );
+  const totalItems = selectedOrders.reduce(
+    (sum, order) => sum + (order.items?.length || 0),
+    0
+  );
+  const tables = selectedOrders.map((order) => order.table).join(", ");
+
+  // Combine all items
+  const allItems = [];
+  selectedOrders.forEach((order) => {
+    if (order.items) {
+      order.items.forEach((item) => {
+        const existingItem = allItems.find(
+          (existing) => existing.name === item.name
+        );
+        if (existingItem) {
+          existingItem.quantity += item.quantity;
+        } else {
+          allItems.push({ ...item });
+        }
+      });
+    }
+  });
+
+  container.className = "merge-preview has-content";
+  container.innerHTML = `
+    <div class="merged-invoice-info">
+      <h6 class="fw-bold mb-3">
+        <span class="merge-badge me-2">GHÉP ĐƠN</span>
+        Hóa đơn mới
+      </h6>
+      
+      <div class="row mb-3">
+        <div class="col-6">
+          <div class="text-muted small">Số hóa đơn ghép</div>
+          <div class="fw-medium">${selectedInvoicesForMerge.length} đơn</div>
+        </div>
+        <div class="col-6">
+          <div class="text-muted small">Bàn</div>
+          <div class="fw-medium">${tables}</div>
+        </div>
+      </div>
+      
+      <div class="row mb-3">
+        <div class="col-6">
+          <div class="text-muted small">Tổng món</div>
+          <div class="fw-medium">${totalItems} món</div>
+        </div>
+        <div class="col-6">
+          <div class="text-muted small">Tổng tiền</div>
+          <div class="fw-bold text-success">${formatCurrency(totalAmount)}</div>
+        </div>
+      </div>
+      
+      <h6 class="fw-bold mb-2">Danh sách món ăn</h6>
+      <div class="merged-items-list">
+        ${allItems
+          .map(
+            (item) => `
+          <div class="merged-item">
+            <span>${item.quantity}x ${item.name}</span>
+            <span class="fw-medium">${formatCurrency(
+              item.quantity * item.price
+            )}</span>
+          </div>
+        `
+          )
+          .join("")}
+      </div>
+    </div>
+  `;
+
+  confirmBtn.disabled = false;
+  lucide.createIcons();
+}
+
+/**
+ * Setup search functionality for merge invoices
+ */
+function setupMergeInvoiceSearch() {
+  const searchInput = document.getElementById("mergeInvoiceSearch");
+
+  searchInput.addEventListener("input", (e) => {
+    const searchTerm = e.target.value.toLowerCase();
+    const items = document.querySelectorAll(
+      "#mergeInvoicesList .invoice-checkbox-item"
+    );
+
+    items.forEach((item) => {
+      const text = item.textContent.toLowerCase();
+      if (text.includes(searchTerm)) {
+        item.style.display = "block";
+      } else {
+        item.style.display = "none";
+      }
+    });
+  });
+}
+
+/**
+ * Merge selected invoices
+ */
+async function mergeInvoices() {
+  if (selectedInvoicesForMerge.length < 2) {
+    showToast("Cần chọn ít nhất 2 hóa đơn để ghép", "error");
+    return;
+  }
+
+  try {
+    // Show loading
+    const confirmBtn = document.getElementById("confirmMergeBtn");
+    const originalText = confirmBtn.innerHTML;
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML =
+      '<span class="spinner-border spinner-border-sm me-2"></span>Đang xử lý...';
+
+    // Get selected orders
+    const selectedOrders = pendingPaymentOrders.filter((order) =>
+      selectedInvoicesForMerge.includes(order.id)
+    );
+
+    // Generate new merged order ID
+    const timestamp = Date.now();
+    const newOrderId = `DS-GHEP-${timestamp}`;
+
+    // Combine all items
+    const allItems = [];
+    selectedOrders.forEach((order) => {
+      if (order.items) {
+        order.items.forEach((item) => {
+          const existingItem = allItems.find(
+            (existing) => existing.name === item.name
+          );
+          if (existingItem) {
+            existingItem.quantity += item.quantity;
+          } else {
+            allItems.push({ ...item });
+          }
+        });
+      }
+    });
+
+    // Calculate totals
+    const totalAmount = selectedOrders.reduce(
+      (sum, order) => sum + order.total,
+      0
+    );
+    const tables = selectedOrders.map((order) => order.table).join(", ");
+    const mergeNotes = document.getElementById("mergeNotes").value;
+
+    // Create new merged order
+    const mergedOrder = {
+      id: newOrderId,
+      table: tables,
+      items: allItems,
+      total: totalAmount,
+      status: "ready",
+      isMerged: true,
+      mergedFrom: selectedInvoicesForMerge,
+      mergeNotes: mergeNotes || null,
+      orderTime: Timestamp.now(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    };
+
+    // Add to Firestore with custom document ID
+    const ordersRef = collection(db, "orders");
+    const mergedDocRef = doc(ordersRef, newOrderId); // Use DS-GHEP-xxx as document ID
+    await setDoc(mergedDocRef, mergedOrder);
+
+    // Update original orders to mark as merged
+    for (const orderId of selectedInvoicesForMerge) {
+      // Find the order to get its firestoreId
+      const orderData = selectedOrders.find((o) => o.id === orderId);
+      const actualOrderId = orderData?.firestoreId || orderId;
+
+      const orderRef = doc(db, "orders", actualOrderId);
+      await updateDoc(orderRef, {
+        status: "merged",
+        mergedInto: newOrderId,
+        mergedAt: Timestamp.now(),
+      });
+    }
+
+    // Close modal
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("mergeInvoicesModal")
+    );
+    modal.hide();
+
+    // Show success message
+    showToast(
+      `Đã ghép thành công ${selectedInvoicesForMerge.length} hóa đơn thành đơn ${newOrderId}`,
+      "success"
+    );
+
+    // Reset state
+    selectedInvoicesForMerge = [];
+  } catch (error) {
+    console.error("Error merging invoices:", error);
+    showToast("Lỗi khi ghép hóa đơn: " + error.message, "error");
+
+    // Restore button
+    const confirmBtn = document.getElementById("confirmMergeBtn");
+    confirmBtn.disabled = false;
+    confirmBtn.innerHTML = originalText;
+  }
+}
+
+// ========================================
+// SPLIT INVOICE FUNCTIONALITY
+// ========================================
+
+/**
+ * Show split invoice modal
+ */
+function showSplitInvoiceModal() {
+  const modal = new bootstrap.Modal(
+    document.getElementById("splitInvoiceModal")
+  );
+  modal.show();
+
+  // Reset state
+  invoiceToSplit = null;
+  newInvoicesForSplit = [];
+  nextNewInvoiceId = 1;
+
+  // Populate invoice selection
+  populateInvoicesForSplit();
+  updateSplitUI();
+}
+
+/**
+ * Populate invoices that can be split
+ */
+function populateInvoicesForSplit() {
+  const select = document.getElementById("splitInvoiceSelect");
+
+  // Filter orders that can be split (already filtered by pendingPaymentOrders, needs multiple items, not split before)
+  const splittableOrders = pendingPaymentOrders.filter(
+    (order) => !order.isSplit && order.items && order.items.length > 1
+  );
+
+  select.innerHTML = '<option value="">-- Chọn hóa đơn --</option>';
+
+  if (splittableOrders.length === 0) {
+    select.innerHTML =
+      '<option value="">Không có hóa đơn nào có thể tách</option>';
+    return;
+  }
+
+  select.innerHTML += splittableOrders
+    .map(
+      (order) => `
+    <option value="${order.id}">${order.id} - ${order.table} (${
+        order.items.length
+      } món - ${formatCurrency(order.total)})</option>
+  `
+    )
+    .join("");
+
+  // Setup change handler
+  select.addEventListener("change", (e) => {
+    selectInvoiceToSplit(e.target.value);
+  });
+}
+
+/**
+ * Select invoice to split
+ */
+function selectInvoiceToSplit(orderId) {
+  if (!orderId) {
+    invoiceToSplit = null;
+    updateSplitUI();
+    return;
+  }
+
+  invoiceToSplit = pendingPaymentOrders.find((order) => order.id === orderId);
+  if (!invoiceToSplit) {
+    showToast("Không tìm thấy hóa đơn", "error");
+    return;
+  }
+
+  // Reset new invoices
+  newInvoicesForSplit = [];
+  nextNewInvoiceId = 1;
+
+  updateSplitUI();
+}
+
+/**
+ * Update split UI
+ */
+function updateSplitUI() {
+  updateSplitItemsList();
+  updateNewInvoicesList();
+  updateSplitConfirmButton();
+}
+
+/**
+ * Update split items list
+ */
+function updateSplitItemsList() {
+  const container = document.getElementById("splitItemsList");
+
+  if (!invoiceToSplit) {
+    container.innerHTML = `
+      <div class="text-muted text-center py-4">
+        <i data-lucide="package" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i>
+        <p>Chọn hóa đơn để xem danh sách món ăn</p>
+      </div>
+    `;
+    lucide.createIcons();
+    return;
+  }
+
+  // Get items that haven't been moved to new invoices
+  const usedItems = newInvoicesForSplit.reduce((acc, invoice) => {
+    invoice.items.forEach((item) => {
+      const key = `${item.name}-${item.price}`;
+      acc[key] = (acc[key] || 0) + item.quantity;
+    });
+    return acc;
+  }, {});
+
+  const availableItems = invoiceToSplit.items
+    .filter((item) => {
+      const key = `${item.name}-${item.price}`;
+      const usedQuantity = usedItems[key] || 0;
+      return item.quantity > usedQuantity;
+    })
+    .map((item) => {
+      const key = `${item.name}-${item.price}`;
+      const usedQuantity = usedItems[key] || 0;
+      return {
+        ...item,
+        quantity: item.quantity - usedQuantity,
+      };
+    });
+
+  container.innerHTML = `
+    <h6 class="fw-bold mb-3">Món ăn có thể tách (${availableItems.length})</h6>
+    ${availableItems
+      .map(
+        (item) => `
+      <div class="draggable-item" draggable="true" data-item='${JSON.stringify(
+        item
+      )}'>
+        <div>
+          <div class="fw-medium">${item.name}</div>
+          <div class="text-muted small">${formatCurrency(item.price)} x ${
+          item.quantity
+        }</div>
+        </div>
+        <div class="fw-bold text-success">${formatCurrency(
+          item.price * item.quantity
+        )}</div>
+      </div>
+    `
+      )
+      .join("")}
+  `;
+
+  // Setup drag and drop
+  setupDragAndDrop();
+  lucide.createIcons();
+}
+
+/**
+ * Update new invoices list
+ */
+function updateNewInvoicesList() {
+  const container = document.getElementById("newInvoicesList");
+
+  if (newInvoicesForSplit.length === 0) {
+    container.innerHTML = `
+      <div class="text-muted text-center py-4">
+        <i data-lucide="file-plus" style="width: 48px; height: 48px; margin-bottom: 1rem;"></i>
+        <p>Bấm "Thêm hóa đơn" để tạo hóa đơn mới</p>
+        <button class="btn btn-outline-success" onclick="addNewInvoice()">
+          <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+          Thêm hóa đơn đầu tiên
+        </button>
+      </div>
+    `;
+    lucide.createIcons();
+    return;
+  }
+
+  container.innerHTML = newInvoicesForSplit
+    .map((invoice) => {
+      const total = invoice.items.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      );
+
+      return `
+      <div class="new-invoice-card" data-invoice-id="${invoice.id}">
+        <button class="remove-invoice-btn" onclick="removeNewInvoice('${
+          invoice.id
+        }')" title="Xóa hóa đơn">×</button>
+        
+        <div class="new-invoice-header">
+          <h6 class="fw-bold mb-0">
+            <span class="split-badge me-2">TÁCH</span>
+            ${invoice.name}
+          </h6>
+          <div class="new-invoice-total">${formatCurrency(total)}</div>
+        </div>
+        
+        <div class="drag-drop-area" data-invoice-id="${invoice.id}">
+          ${
+            invoice.items.length === 0
+              ? `
+            <div class="text-muted text-center py-3">
+              <i data-lucide="package" style="width: 32px; height: 32px; margin-bottom: 0.5rem;"></i>
+              <p class="mb-0">Kéo món ăn vào đây</p>
+            </div>
+          `
+              : ""
+          }
+          
+          <div class="dropped-items-list">
+            ${invoice.items
+              .map(
+                (item) => `
+              <div class="dropped-item">
+                <div>
+                  <div class="fw-medium">${item.name}</div>
+                  <div class="text-muted small">${formatCurrency(
+                    item.price
+                  )} x ${item.quantity}</div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="fw-bold">${formatCurrency(
+                    item.price * item.quantity
+                  )}</span>
+                  <button class="remove-item-btn" onclick="removeItemFromNewInvoice('${
+                    invoice.id
+                  }', '${item.name}', ${item.price})" title="Xóa món">×</button>
+                </div>
+              </div>
+            `
+              )
+              .join("")}
+          </div>
+        </div>
+      </div>
+    `;
+    })
+    .join("");
+
+  // Setup drop zones
+  setupDropZones();
+  lucide.createIcons();
+}
+
+/**
+ * Add new invoice for split
+ */
+function addNewInvoice() {
+  if (!invoiceToSplit) {
+    showToast("Vui lòng chọn hóa đơn cần tách trước", "error");
+    return;
+  }
+
+  const newInvoice = {
+    id: `new-${nextNewInvoiceId++}`,
+    name: `Hóa đơn ${nextNewInvoiceId - 1}`,
+    items: [],
+  };
+
+  newInvoicesForSplit.push(newInvoice);
+  updateNewInvoicesList();
+  updateSplitConfirmButton();
+}
+
+/**
+ * Remove new invoice
+ */
+function removeNewInvoice(invoiceId) {
+  const index = newInvoicesForSplit.findIndex(
+    (invoice) => invoice.id === invoiceId
+  );
+  if (index > -1) {
+    newInvoicesForSplit.splice(index, 1);
+    updateSplitUI();
+  }
+}
+
+/**
+ * Remove item from new invoice
+ */
+function removeItemFromNewInvoice(invoiceId, itemName, itemPrice) {
+  const invoice = newInvoicesForSplit.find((inv) => inv.id === invoiceId);
+  if (!invoice) return;
+
+  const itemIndex = invoice.items.findIndex(
+    (item) => item.name === itemName && item.price === itemPrice
+  );
+
+  if (itemIndex > -1) {
+    invoice.items.splice(itemIndex, 1);
+    updateSplitUI();
+  }
+}
+
+/**
+ * Setup drag and drop functionality
+ */
+function setupDragAndDrop() {
+  const draggableItems = document.querySelectorAll(".draggable-item");
+
+  draggableItems.forEach((item) => {
+    item.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/plain", e.target.dataset.item);
+      e.target.classList.add("dragging");
+    });
+
+    item.addEventListener("dragend", (e) => {
+      e.target.classList.remove("dragging");
+    });
+  });
+}
+
+/**
+ * Setup drop zones
+ */
+function setupDropZones() {
+  const dropZones = document.querySelectorAll(".drag-drop-area");
+
+  dropZones.forEach((zone) => {
+    zone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      zone.classList.add("drag-over");
+    });
+
+    zone.addEventListener("dragleave", (e) => {
+      if (!zone.contains(e.relatedTarget)) {
+        zone.classList.remove("drag-over");
+      }
+    });
+
+    zone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      zone.classList.remove("drag-over");
+
+      const itemData = JSON.parse(e.dataTransfer.getData("text/plain"));
+      const invoiceId = zone.dataset.invoiceId;
+
+      addItemToNewInvoice(invoiceId, itemData);
+    });
+  });
+}
+
+/**
+ * Add item to new invoice
+ */
+function addItemToNewInvoice(invoiceId, itemData) {
+  const invoice = newInvoicesForSplit.find((inv) => inv.id === invoiceId);
+  if (!invoice) return;
+
+  // Check if item already exists in this invoice
+  const existingItem = invoice.items.find(
+    (item) => item.name === itemData.name && item.price === itemData.price
+  );
+
+  if (existingItem) {
+    existingItem.quantity += 1;
+  } else {
+    invoice.items.push({
+      ...itemData,
+      quantity: 1,
+    });
+  }
+
+  updateSplitUI();
+}
+
+/**
+ * Update split confirm button
+ */
+function updateSplitConfirmButton() {
+  const confirmBtn = document.getElementById("confirmSplitBtn");
+
+  // Enable if we have an invoice to split and at least one new invoice with items
+  const hasValidSplit =
+    invoiceToSplit &&
+    newInvoicesForSplit.length > 0 &&
+    newInvoicesForSplit.some((invoice) => invoice.items.length > 0);
+
+  confirmBtn.disabled = !hasValidSplit;
+}
+
+/**
+ * Split invoice
+ */
+async function splitInvoice() {
+  if (!invoiceToSplit || newInvoicesForSplit.length === 0) {
+    showToast("Vui lòng thiết lập đầy đủ thông tin tách đơn", "error");
+    return;
+  }
+
+  // Validate that we have items in new invoices
+  const validInvoices = newInvoicesForSplit.filter(
+    (invoice) => invoice.items.length > 0
+  );
+  if (validInvoices.length === 0) {
+    showToast("Vui lòng thêm món ăn vào các hóa đơn mới", "error");
+    return;
+  }
+
+  try {
+    // Show loading
+    const confirmBtn = document.getElementById("confirmSplitBtn");
+    const originalText = confirmBtn.innerHTML;
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML =
+      '<span class="spinner-border spinner-border-sm me-2"></span>Đang xử lý...';
+
+    const timestamp = Date.now();
+
+    // Create new split orders
+    for (let i = 0; i < validInvoices.length; i++) {
+      const splitInvoice = validInvoices[i];
+      const total = splitInvoice.items.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      );
+
+      const newOrderId = `${invoiceToSplit.id}-SPLIT-${i + 1}`;
+
+      const splitOrder = {
+        id: newOrderId,
+        table: invoiceToSplit.table,
+        items: splitInvoice.items,
+        total: total,
+        status: "ready",
+        isSplit: true,
+        splitFrom: invoiceToSplit.id,
+        orderTime: Timestamp.now(),
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      };
+
+      // Add to Firestore
+      const ordersRef = collection(db, "orders");
+      await addDoc(ordersRef, splitOrder);
+    }
+
+    // Update original order
+    const remainingItems = [];
+    const usedItems = validInvoices.reduce((acc, invoice) => {
+      invoice.items.forEach((item) => {
+        const key = `${item.name}-${item.price}`;
+        acc[key] = (acc[key] || 0) + item.quantity;
+      });
+      return acc;
+    }, {});
+
+    // Calculate remaining items
+    invoiceToSplit.items.forEach((item) => {
+      const key = `${item.name}-${item.price}`;
+      const usedQuantity = usedItems[key] || 0;
+      const remainingQuantity = item.quantity - usedQuantity;
+
+      if (remainingQuantity > 0) {
+        remainingItems.push({
+          ...item,
+          quantity: remainingQuantity,
+        });
+      }
+    });
+
+    const orderRef = doc(db, "orders", invoiceToSplit.id);
+
+    if (remainingItems.length > 0) {
+      // Update original order with remaining items
+      const remainingTotal = remainingItems.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      );
+
+      await updateDoc(orderRef, {
+        items: remainingItems,
+        total: remainingTotal,
+        splitInto: validInvoices.map(
+          (_, i) => `${invoiceToSplit.id}-SPLIT-${i + 1}`
+        ),
+        splitAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    } else {
+      // Mark original order as completely split
+      await updateDoc(orderRef, {
+        status: "split",
+        splitInto: validInvoices.map(
+          (_, i) => `${invoiceToSplit.id}-SPLIT-${i + 1}`
+        ),
+        splitAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    }
+
+    // Close modal
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("splitInvoiceModal")
+    );
+    modal.hide();
+
+    // Show success message
+    showToast(
+      `Đã tách thành công hóa đơn ${invoiceToSplit.id} thành ${validInvoices.length} hóa đơn mới`,
+      "success"
+    );
+
+    // Reset state
+    invoiceToSplit = null;
+    newInvoicesForSplit = [];
+    nextNewInvoiceId = 1;
+  } catch (error) {
+    console.error("Error splitting invoice:", error);
+    showToast("Lỗi khi tách hóa đơn: " + error.message, "error");
+
+    // Restore button
+    const confirmBtn = document.getElementById("confirmSplitBtn");
+    confirmBtn.disabled = false;
+    confirmBtn.innerHTML = originalText;
+  }
+}
+
+// ========================================
+// GLOBAL EXPORTS FOR MERGE/SPLIT
+// ========================================
+
+// Export merge functions
+window.showMergeInvoicesModal = showMergeInvoicesModal;
+window.toggleInvoiceSelection = toggleInvoiceSelection;
+window.mergeInvoices = mergeInvoices;
+
+// Export split functions
+window.showSplitInvoiceModal = showSplitInvoiceModal;
+window.addNewInvoice = addNewInvoice;
+window.removeNewInvoice = removeNewInvoice;
+window.removeItemFromNewInvoice = removeItemFromNewInvoice;
+window.splitInvoice = splitInvoice;
 
 // Make functions globally available
 window.printPendingInvoiceFromModal = printPendingInvoiceFromModal;
-window.printCompletedOrder = printCompletedOrder;
-window.showQRCodePreview = showQRCodePreview;
 window.printPendingInvoice = printPendingInvoice;
 window.openPaymentModal = openPaymentModal;
+window.printInvoice = printInvoice;
+window.printCompletedOrder = printCompletedOrder;
