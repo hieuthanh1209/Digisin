@@ -2490,51 +2490,6 @@ function showMergeConfirmation(mainTableId, selectedCheckboxes, notes) {
   const totalTables = 1 + selectedTables.length;
 
   // Populate confirmation details
-  const detailsDiv = document.getElementById("mergeConfirmationDetails");
-  detailsDiv.innerHTML = `
-    <div class="card bg-light">
-      <div class="card-body">
-        <h6 class="fw-bold text-primary mb-3">
-          <i data-lucide="info" style="width: 18px; height: 18px;"></i>
-          Thông tin bàn sau khi ghép
-        </h6>
-        <div class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label small text-muted mb-1">Bàn chính</label>
-            <div class="fw-bold">${mainTable.name} (${
-    mainTable.capacity
-  } chỗ)</div>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label small text-muted mb-1">Sức chứa mới</label>
-            <div class="fw-bold text-primary">${newCapacity} người</div>
-          </div>
-          <div class="col-12">
-            <label class="form-label small text-muted mb-1">Các bàn sẽ được ghép</label>
-            <div class="d-flex flex-wrap gap-1">
-              ${selectedTables
-                .map(
-                  (table) =>
-                    `<span class="badge bg-warning text-dark">${table.name} (${table.capacity} chỗ)</span>`
-                )
-                .join("")}
-            </div>
-          </div>
-          ${
-            notes
-              ? `
-          <div class="col-12">
-            <label class="form-label small text-muted mb-1">Ghi chú</label>
-            <div class="text-muted">${notes}</div>
-          </div>`
-              : ""
-          }
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Store data for confirmation
   window.pendingMergeData = {
     mainTableId,
     selectedTableIds,
@@ -2631,85 +2586,540 @@ async function confirmMergeTables() {
   }
 }
 
-// Export merge functions to global scope
-window.showMergeTablesModal = showMergeTablesModal;
-window.mergeTables = mergeTables;
-window.confirmMergeTables = confirmMergeTables;
+// New Split Tables Functions
+function showSplitTablesModal() {
+  const modal = new bootstrap.Modal(
+    document.getElementById("splitTablesModal")
+  );
+  modal.show();
 
-// Split Table Function
-async function splitMergedTable() {
-  if (!currentTable || !currentTable.isMerged) {
-    showToast("Bàn này không phải là bàn ghép", "error");
+  // Reset form
+  document.getElementById("splitTablesForm").reset();
+  document.getElementById("splitConfiguration").style.display = "none";
+  document.getElementById("splitPreview").style.display = "none";
+  document.getElementById("customSplitSelection").style.display = "none";
+  document.getElementById("splitTablesBtn").disabled = true;
+
+  // Populate merged tables that can be split
+  populateMergedTablesForSplit();
+
+  // Add event listeners
+  setupSplitEventListeners();
+}
+
+function populateMergedTablesForSplit() {
+  const tableSelect = document.getElementById("tableToSplit");
+  tableSelect.innerHTML = '<option value="">-- Chọn bàn ghép cần tách --</option>';
+
+  // Filter merged tables that are available (no active orders)
+  const mergedTables = tables.filter(
+    (table) => table.isMerged && table.status === "available"
+  );
+
+  if (mergedTables.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "Không có bàn ghép trống để tách";
+    option.disabled = true;
+    tableSelect.appendChild(option);
     return;
   }
 
-  try {
-    // Calculate capacity for each original table (assume equal distribution)
-    const totalMergedTables = currentTable.mergedTables.length;
-    const originalCapacity = Math.floor(
-      currentTable.capacity / (totalMergedTables + 1)
-    );
+  mergedTables.forEach((table) => {
+    const option = document.createElement("option");
+    option.value = table.id;
+    option.textContent = `${table.name} (${table.capacity} chỗ, ghép ${table.mergedTables?.length || 0} bàn)`;
+    tableSelect.appendChild(option);
+  });
+}
 
-    // Restore original tables that were merged
-    for (const mergedTableId of currentTable.mergedTables) {
+function setupSplitEventListeners() {
+  // Table selection change
+  document.getElementById("tableToSplit").addEventListener("change", function() {
+    const selectedTableId = this.value;
+    if (selectedTableId) {
+      showSplitConfiguration(selectedTableId);
+    } else {
+      document.getElementById("splitConfiguration").style.display = "none";
+      document.getElementById("splitPreview").style.display = "none";
+      document.getElementById("splitTablesBtn").disabled = true;
+    }
+  });
+
+  // Split option change
+  document.querySelectorAll('input[name="splitOption"]').forEach(radio => {
+    radio.addEventListener("change", function() {
+      updateSplitOptions();
+      updateSplitPreview();
+    });
+  });
+}
+
+function showSplitConfiguration(tableId) {
+  const table = tables.find(t => t.id === tableId);
+  if (!table) return;
+
+  // Show configuration section
+  document.getElementById("splitConfiguration").style.display = "block";
+
+  // Update current table info
+  document.getElementById("currentTableName").textContent = table.name;
+  document.getElementById("currentTableCapacity").textContent = `${table.capacity} người`;
+  document.getElementById("currentTableStatus").textContent = getTableStatusText(table.status);
+  document.getElementById("mergedTablesCount").textContent = `${table.mergedTables?.length || 0} bàn`;
+
+  // Update merged tables list
+  const mergedTablesList = document.getElementById("currentMergedTablesList");
+  mergedTablesList.innerHTML = "";
+  
+  if (table.mergedTables && table.mergedTables.length > 0) {
+    table.mergedTables.forEach(mergedTableId => {
+      const badge = document.createElement("span");
+      badge.className = "badge bg-secondary";
+      badge.textContent = `Bàn ${mergedTableId.replace("T", "").replace(/^0+/, "")}`;
+      mergedTablesList.appendChild(badge);
+    });
+  }
+
+  // Setup custom split options
+  setupCustomSplitOptions(table);
+
+  // Update split options
+  updateSplitOptions();
+
+  // Enable split button
+  document.getElementById("splitTablesBtn").disabled = false;
+}
+
+function setupCustomSplitOptions(table) {
+  const container = document.getElementById("tablesForCustomSplit");
+  container.innerHTML = "";
+
+  if (!table.mergedTables || table.mergedTables.length === 0) return;
+
+  // Add main table option
+  const mainTableDiv = document.createElement("div");
+  mainTableDiv.className = "col-md-4";
+  mainTableDiv.innerHTML = `
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="split_${table.id}" value="${table.id}">
+      <label class="form-check-label" for="split_${table.id}">
+        ${table.name} (chính)
+      </label>
+    </div>
+  `;
+  container.appendChild(mainTableDiv);
+
+  // Add merged tables options
+  table.mergedTables.forEach(mergedTableId => {
+    const tableNumber = mergedTableId.replace("T", "").replace(/^0+/, "");
+    const tableDiv = document.createElement("div");
+    tableDiv.className = "col-md-4";
+    tableDiv.innerHTML = `
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="split_${mergedTableId}" value="${mergedTableId}">
+        <label class="form-check-label" for="split_${mergedTableId}">
+          Bàn ${tableNumber}
+        </label>
+      </div>
+    `;
+    container.appendChild(tableDiv);
+  });
+
+  // Add change event listeners to checkboxes
+  container.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+    checkbox.addEventListener("change", updateSplitPreview);
+  });
+}
+
+function updateSplitOptions() {
+  const splitOption = document.querySelector('input[name="splitOption"]:checked').value;
+  const customSelection = document.getElementById("customSplitSelection");
+  
+  if (splitOption === "custom") {
+    customSelection.style.display = "block";
+  } else {
+    customSelection.style.display = "none";
+  }
+  
+  updateSplitPreview();
+}
+
+function updateSplitPreview() {
+  const selectedTableId = document.getElementById("tableToSplit").value;
+  if (!selectedTableId) return;
+
+  const table = tables.find(t => t.id === selectedTableId);
+  if (!table) return;
+
+  const splitOption = document.querySelector('input[name="splitOption"]:checked').value;
+  const previewContainer = document.getElementById("splitPreviewContent");
+  
+  document.getElementById("splitPreview").style.display = "block";
+  
+  if (splitOption === "completely") {
+    // Show complete split preview
+    previewContainer.innerHTML = generateCompleteSplitPreview(table);
+  } else {
+    // Show custom split preview
+    const selectedTables = Array.from(document.querySelectorAll('#tablesForCustomSplit input[type="checkbox"]:checked'))
+      .map(cb => cb.value);
+    previewContainer.innerHTML = generateCustomSplitPreview(table, selectedTables);
+  }
+}
+
+function generateCompleteSplitPreview(table) {
+  const originalCapacity = Math.floor(table.capacity / ((table.mergedTables?.length || 0) + 1));
+  
+  let html = `
+    <div class="col-12">
+      <div class="alert alert-success">
+        <h6 class="alert-heading">Kết quả tách hoàn toàn:</h6>
+        <p class="mb-0">Bàn ghép sẽ được tách thành ${(table.mergedTables?.length || 0) + 1} bàn riêng biệt</p>
+      </div>
+    </div>
+  `;
+
+  // Main table preview
+  html += `
+    <div class="col-md-6">
+      <div class="card border-success">
+        <div class="card-body">
+          <h6 class="card-title text-success">${table.name}</h6>
+          <p class="card-text small">Sức chứa: ${originalCapacity} người</p>
+          <span class="badge bg-success">Bàn chính</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Merged tables preview
+  if (table.mergedTables && table.mergedTables.length > 0) {
+    table.mergedTables.forEach(mergedTableId => {
+      const tableNumber = mergedTableId.replace("T", "").replace(/^0+/, "");
+      html += `
+        <div class="col-md-6">
+          <div class="card border-info">
+            <div class="card-body">
+              <h6 class="card-title text-info">Bàn ${tableNumber}</h6>
+              <p class="card-text small">Sức chứa: ${originalCapacity} người</p>
+              <span class="badge bg-info">Tách ra</span>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  return html;
+}
+
+function generateCustomSplitPreview(table, selectedTables) {
+  if (selectedTables.length === 0) {
+    return `
+      <div class="col-12">
+        <div class="alert alert-warning">
+          <i data-lucide="alert-triangle" style="width: 16px; height: 16px;"></i>
+          Vui lòng chọn ít nhất một bàn để tách ra
+        </div>
+      </div>
+    `;
+  }
+
+  const originalCapacity = Math.floor(table.capacity / ((table.mergedTables?.length || 0) + 1));
+  const remainingTables = [table.id, ...(table.mergedTables || [])].filter(id => !selectedTables.includes(id));
+  
+  let html = `
+    <div class="col-12">
+      <div class="alert alert-info">
+        <h6 class="alert-heading">Kết quả tách tùy chỉnh:</h6>
+        <p class="mb-0">${selectedTables.length} bàn sẽ được tách ra, ${remainingTables.length} bàn còn lại sẽ vẫn ghép với nhau</p>
+      </div>
+    </div>
+  `;
+
+  // Split tables
+  html += `<div class="col-12"><h6 class="text-info">Bàn sẽ được tách ra:</h6></div>`;
+  selectedTables.forEach(tableId => {
+    const isMainTable = tableId === table.id;
+    const tableNumber = isMainTable ? table.name : `Bàn ${tableId.replace("T", "").replace(/^0+/, "")}`;
+    html += `
+      <div class="col-md-6">
+        <div class="card border-info">
+          <div class="card-body">
+            <h6 class="card-title text-info">${tableNumber}</h6>
+            <p class="card-text small">Sức chứa: ${originalCapacity} người</p>
+            <span class="badge bg-info">Tách ra</span>
+            ${isMainTable ? '<span class="badge bg-secondary ms-1">Bàn chính</span>' : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  });
+
+  // Remaining tables
+  if (remainingTables.length > 0) {
+    html += `<div class="col-12 mt-3"><h6 class="text-success">Bàn vẫn ghép với nhau:</h6></div>`;
+    remainingTables.forEach(tableId => {
+      const isMainTable = tableId === table.id;
+      const tableNumber = isMainTable ? table.name : `Bàn ${tableId.replace("T", "").replace(/^0+/, "")}`;
+      const newCapacity = originalCapacity * remainingTables.length;
+      html += `
+        <div class="col-md-6">
+          <div class="card border-success">
+            <div class="card-body">
+              <h6 class="card-title text-success">${tableNumber}</h6>
+              <p class="card-text small">Sức chứa: ${isMainTable ? newCapacity : originalCapacity} người</p>
+              <span class="badge bg-success">Vẫn ghép</span>
+              ${isMainTable ? '<span class="badge bg-secondary ms-1">Bàn chính</span>' : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  return html;
+}
+
+async function splitTables() {
+  const selectedTableId = document.getElementById("tableToSplit").value;
+  if (!selectedTableId) {
+    showToast("Vui lòng chọn bàn cần tách", "error");
+    return;
+  }
+
+  const table = tables.find(t => t.id === selectedTableId);
+  if (!table) {
+    showToast("Không tìm thấy bàn", "error");
+    return;
+  }
+
+  const splitOption = document.querySelector('input[name="splitOption"]:checked').value;
+  
+  // Store split data for confirmation
+  window.pendingSplitData = {
+    table,
+    splitOption,
+    selectedTables: splitOption === "custom" ? 
+      Array.from(document.querySelectorAll('#tablesForCustomSplit input[type="checkbox"]:checked')).map(cb => cb.value) : 
+      [],
+    notes: document.getElementById("splitNotes").value
+  };
+
+  // Show confirmation modal
+  showSplitConfirmation();
+}
+
+function showSplitConfirmation() {
+  const { table, splitOption, selectedTables, notes } = window.pendingSplitData;
+  
+  // Populate confirmation details
+  const detailsContainer = document.getElementById("splitConfirmationDetails");
+  
+  let html = `
+    <div class="card">
+      <div class="card-body">
+        <h6 class="card-title">Thông tin tách bàn:</h6>
+        <div class="row g-2">
+          <div class="col-md-6">
+            <strong>Bàn cần tách:</strong><br>
+            ${table.name} (${table.capacity} chỗ)
+          </div>
+          <div class="col-md-6">
+            <strong>Phương thức tách:</strong><br>
+            ${splitOption === "completely" ? "Tách hoàn toàn" : "Tách tùy chỉnh"}
+          </div>
+        </div>
+  `;
+
+  if (splitOption === "custom" && selectedTables.length > 0) {
+    html += `
+        <div class="mt-3">
+          <strong>Bàn sẽ được tách ra:</strong><br>
+          ${selectedTables.map(id => {
+            const isMainTable = id === table.id;
+            return isMainTable ? table.name : `Bàn ${id.replace("T", "").replace(/^0+/, "")}`;
+          }).join(", ")}
+        </div>
+    `;
+  }
+
+  if (notes) {
+    html += `
+        <div class="mt-3">
+          <strong>Ghi chú:</strong><br>
+          ${notes}
+        </div>
+    `;
+  }
+
+  html += `
+      </div>
+    </div>
+  `;
+
+  detailsContainer.innerHTML = html;
+
+  // Show confirmation modal
+  const confirmModal = new bootstrap.Modal(document.getElementById("splitConfirmationModal"));
+  confirmModal.show();
+}
+
+async function confirmSplitTables() {
+  if (!window.pendingSplitData) {
+    showToast("Không có dữ liệu tách bàn", "error");
+    return;
+  }
+
+  const { table, splitOption, selectedTables, notes } = window.pendingSplitData;
+
+  try {
+    if (splitOption === "completely") {
+      await performCompleteSplit(table, notes);
+    } else {
+      await performCustomSplit(table, selectedTables, notes);
+    }
+
+    // Close modals
+    const splitModal = bootstrap.Modal.getInstance(document.getElementById("splitTablesModal"));
+    const confirmModal = bootstrap.Modal.getInstance(document.getElementById("splitConfirmationModal"));
+    
+    if (splitModal) splitModal.hide();
+    if (confirmModal) confirmModal.hide();
+
+    // Show success message
+    showToast("Đã tách bàn thành công!", "success");
+
+    // Clear pending data
+    window.pendingSplitData = null;
+
+  } catch (error) {
+    console.error("Error splitting tables:", error);
+    showToast("Lỗi khi tách bàn: " + error.message, "error");
+  }
+}
+
+async function performCompleteSplit(table, notes) {
+  const originalCapacity = Math.floor(table.capacity / ((table.mergedTables?.length || 0) + 1));
+
+  // Restore original merged tables
+  if (table.mergedTables && table.mergedTables.length > 0) {
+    for (const mergedTableId of table.mergedTables) {
       const tableNumber = mergedTableId.replace("T", "").replace(/^0+/, "");
       const restoredTableData = {
         id: mergedTableId,
         name: `Bàn ${tableNumber}`,
         capacity: originalCapacity,
         status: "available",
-        location: currentTable.location || "indoor",
+        location: table.location || "indoor",
         currentOrder: null,
         isMerged: false,
         mergedTables: [],
         mergeNotes: null,
+        splitAt: serverTimestamp(),
+        splitNotes: notes,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
 
       await setDoc(doc(db, "tables", mergedTableId), restoredTableData);
     }
+  }
 
-    // Update main table - remove merge info and restore original capacity
-    const mainTableRef = doc(db, "tables", currentTable.id);
-    await updateDoc(mainTableRef, {
-      capacity: originalCapacity,
-      mergedTables: [],
-      mergeNotes: null,
-      isMerged: false,
+  // Update main table - remove merge info and restore original capacity
+  const mainTableRef = doc(db, "tables", table.id);
+  await updateDoc(mainTableRef, {
+    capacity: originalCapacity,
+    mergedTables: [],
+    mergeNotes: null,
+    isMerged: false,
+    splitAt: serverTimestamp(),
+    splitNotes: notes,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+async function performCustomSplit(table, selectedTables, notes) {
+  const originalCapacity = Math.floor(table.capacity / ((table.mergedTables?.length || 0) + 1));
+  const allTables = [table.id, ...(table.mergedTables || [])];
+  const remainingTables = allTables.filter(id => !selectedTables.includes(id));
+
+  // Create/restore selected tables as individual tables
+  for (const tableId of selectedTables) {
+    if (tableId === table.id) {
+      // Update main table if it's selected for split
+      const mainTableRef = doc(db, "tables", table.id);
+      await updateDoc(mainTableRef, {
+        capacity: originalCapacity,
+        mergedTables: [],
+        mergeNotes: null,
+        isMerged: false,
+        splitAt: serverTimestamp(),
+        splitNotes: notes,
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      // Restore merged table
+      const tableNumber = tableId.replace("T", "").replace(/^0+/, "");
+      const restoredTableData = {
+        id: tableId,
+        name: `Bàn ${tableNumber}`,
+        capacity: originalCapacity,
+        status: "available",
+        location: table.location || "indoor",
+        currentOrder: null,
+        isMerged: false,
+        mergedTables: [],
+        mergeNotes: null,
+        splitAt: serverTimestamp(),
+        splitNotes: notes,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      await setDoc(doc(db, "tables", tableId), restoredTableData);
+    }
+  }
+
+  // Update remaining tables (keep them merged)
+  if (remainingTables.length > 1) {
+    // Find the main table among remaining tables (prioritize original main table)
+    const newMainTableId = remainingTables.includes(table.id) ? table.id : remainingTables[0];
+    const newMergedTables = remainingTables.filter(id => id !== newMainTableId);
+    const newCapacity = originalCapacity * remainingTables.length;
+
+    // Update new main table
+    const newMainTableRef = doc(db, "tables", newMainTableId);
+    await updateDoc(newMainTableRef, {
+      capacity: newCapacity,
+      mergedTables: newMergedTables,
+      isMerged: true,
       splitAt: serverTimestamp(),
+      splitNotes: notes,
       updatedAt: serverTimestamp(),
     });
 
-    // Close modal
-    const modal = bootstrap.Modal.getInstance(
-      document.getElementById("tableActionsModal")
-    );
-    if (modal) {
-      modal.hide();
+    // Remove remaining merged tables from database (they're now part of the new main table)
+    for (const tableId of newMergedTables) {
+      if (tableId !== newMainTableId) {
+        await deleteDoc(doc(db, "tables", tableId));
+      }
     }
-
-    // Show success message
-    showToast(
-      `Đã tách bàn thành công! ${currentTable.name} đã được tách thành ${
-        totalMergedTables + 1
-      } bàn riêng biệt`,
-      "success"
-    );
-
-    console.log("Table split successfully:", {
-      mainTable: currentTable.id,
-      restoredTables: currentTable.mergedTables,
-      originalCapacity,
-    });
-
-    currentTable = null;
-  } catch (error) {
-    console.error("Error splitting table:", error);
-    showToast("Lỗi khi tách bàn: " + error.message, "error");
   }
 }
 
-// Export split function to global scope
-window.splitMergedTable = splitMergedTable;
-window.openTableActionsModal = openTableActionsModal;
+function getTableStatusText(status) {
+  const statusTexts = {
+    available: "Có sẵn",
+    occupied: "Đang phục vụ",
+    reserved: "Đã đặt",
+    cleaning: "Đang dọn dẹp"
+  };
+  return statusTexts[status] || status;
+}
+
+// Export new split functions to global scope
+window.showSplitTablesModal = showSplitTablesModal;
+window.splitTables = splitTables;
+window.confirmSplitTables = confirmSplitTables;
