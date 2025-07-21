@@ -2,15 +2,24 @@
 
 Server PayOS được deploy trên Render.com để xử lý thanh toán cho website https://digisin-27mb.vercel.app
 
+## ⚠️ Render.com Port Configuration
+
+**QUAN TRỌNG**: Render.com tự động gán PORT environment variable. **KHÔNG** được override PORT trong Environment Variables.
+
+- ✅ **Đúng**: Để Render tự động gán port
+- ❌ **Sai**: Set PORT=10000 trong Environment Variables
+
 ## Environment Variables cần thiết:
 
+**CHỈ CẦN 4 biến sau:**
 ```
 PAYOS_CLIENT_ID=your_client_id
 PAYOS_API_KEY=your_api_key  
 PAYOS_CHECKSUM_KEY=your_checksum_key
 NODE_ENV=production
-PORT=10000
 ```
+
+**KHÔNG thiết lập PORT** - Render sẽ tự động cung cấp.
 
 ## API Endpoints:
 
@@ -24,10 +33,42 @@ PORT=10000
 
 ## Deploy trên Render:
 
-1. Tạo repository trên GitHub với code này
-2. Kết nối với Render.com
-3. Cấu hình Environment Variables
-4. Deploy
+1. **Tạo Web Service** từ GitHub repo
+2. **Build Command**: `npm install`
+3. **Start Command**: `npm start`
+4. **Environment Variables**: Chỉ thêm 4 biến PayOS (không có PORT)
+5. **Health Check Path**: `/health`
+
+## Troubleshooting:
+
+### Port Scan Timeout Error
+```
+Port scan timeout reached, failed to detect open port 10000
+```
+
+**Nguyên nhân**: Render không thể bind vào port cố định.
+
+**Giải pháp**:
+- ✅ Server code: `const PORT = process.env.PORT || 3000;`
+- ✅ Listen: `app.listen(PORT, '0.0.0.0', callback)`
+- ❌ KHÔNG set PORT trong Environment Variables
+- ❌ KHÔNG hardcode port 10000
+
+### CORS Issues
+Server đã cấu hình CORS cho:
+- `https://digisin-27mb.vercel.app`
+- `http://localhost:8000` (development)
+
+### PayOS Configuration
+Check `/health` endpoint để verify:
+```json
+{
+  "env": {
+    "has_payos_config": true,
+    "payos_client_id": "configured"
+  }
+}
+```
 
 ## Sử dụng từ Vercel:
 
@@ -49,3 +90,9 @@ const response = await fetch(`${PAYOS_SERVER_URL}/create-payment-link`, {
     })
 });
 ```
+
+## Logs & Monitoring:
+
+- **Render Dashboard**: Real-time logs
+- **Health Check**: `GET /health`
+- **Test Connection**: `GET /test`

@@ -5,7 +5,7 @@ const PayOS = require('@payos/node');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 3000;
 
 // Initialize PayOS
 const payOS = new PayOS(
@@ -53,6 +53,7 @@ app.get('/', (req, res) => {
         timestamp: new Date().toISOString(),
         env: process.env.NODE_ENV,
         port: PORT,
+        actual_port: process.env.PORT || 'not set',
         vercel_connected: 'https://digisin-27mb.vercel.app'
     });
 });
@@ -67,6 +68,7 @@ app.get('/health', (req, res) => {
         env: {
             node_env: process.env.NODE_ENV,
             port: PORT,
+            render_port: process.env.PORT,
             has_payos_config: !!(process.env.PAYOS_CLIENT_ID && process.env.PAYOS_API_KEY),
             payos_client_id: process.env.PAYOS_CLIENT_ID ? 'configured' : 'missing',
             connected_domains: [
@@ -269,6 +271,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 PayOS Server running on port ${PORT}`);
     console.log(`📍 Environment: ${process.env.NODE_ENV}`);
     console.log(`🌐 Server URL: http://0.0.0.0:${PORT}`);
+    console.log(`⚙️  Render PORT env: ${process.env.PORT}`);
     console.log(`🔗 Connected to Vercel: https://digisin-27mb.vercel.app`);
     console.log(`💳 PayOS configured: ${!!(process.env.PAYOS_CLIENT_ID && process.env.PAYOS_API_KEY)}`);
 });
