@@ -901,10 +901,30 @@ function addToOrder(itemId) {
   console.log("Found item:", item);
   console.log("menuItems array:", menuItems);
   if (item) {
+    // Add visual feedback to the clicked menu item
+    const menuItemElement = document.querySelector(
+      `[onclick="addToOrder('${itemId}')"]`
+    );
+    if (menuItemElement) {
+      menuItemElement.classList.add("added");
+      setTimeout(() => {
+        menuItemElement.classList.remove("added");
+      }, 600);
+    }
+
     addItemToOrder(item);
 
-    // Show visual feedback
-    showToast(`Đã thêm ${item.name} vào order`, "success");
+    // Show toast with enhanced styling
+    showToast(`✨ Đã thêm ${item.name} vào order`, "success");
+
+    // Animate the order count badge
+    const orderCountBadge = document.getElementById("orderItemCount");
+    if (orderCountBadge) {
+      orderCountBadge.classList.add("updated");
+      setTimeout(() => {
+        orderCountBadge.classList.remove("updated");
+      }, 300);
+    }
   } else {
     console.error("Item not found for id:", itemId);
   }
@@ -949,6 +969,53 @@ function addItemToOrder(item) {
   }
 }
 
+// Remove item from order
+function removeItemFromOrder(itemId) {
+  console.log("Removing item from order:", itemId);
+  // Convert itemId to string for comparison since it comes from HTML onclick as string
+  const itemIdStr = String(itemId);
+  currentOrder = currentOrder.filter((item) => String(item.id) !== itemIdStr);
+  updateOrderDisplay();
+  updateSubmitButton();
+}
+
+// Update item quantity in order
+function updateItemQuantity(itemId, quantity) {
+  console.log(
+    "Updating item quantity:",
+    itemId,
+    "to:",
+    quantity,
+    "typeof itemId:",
+    typeof itemId
+  );
+  // Convert itemId to string for comparison since it comes from HTML onclick as string
+  const itemIdStr = String(itemId);
+  console.log("Looking for item with id:", itemIdStr);
+  console.log("Current order:", currentOrder);
+  const item = currentOrder.find(
+    (orderItem) => String(orderItem.id) === itemIdStr
+  );
+  console.log("Found item:", item);
+  if (item) {
+    if (quantity <= 0) {
+      console.log("Removing item due to quantity <= 0");
+      removeItemFromOrder(itemId);
+    } else {
+      item.quantity = quantity;
+      console.log("Updated quantity to:", item.quantity);
+      updateOrderDisplay();
+      updateSubmitButton();
+    }
+  } else {
+    console.error("Item not found for quantity update:", itemId);
+    console.error(
+      "Available items:",
+      currentOrder.map((item) => ({ id: item.id, name: item.name }))
+    );
+  }
+}
+
 // Make functions available globally
 window.addItemToOrder = addItemToOrder;
 window.removeItemFromOrder = removeItemFromOrder;
@@ -958,6 +1025,10 @@ window.addToOrder = addToOrder;
 console.log(
   "addToOrder function exported to window:",
   typeof window.addToOrder
+);
+console.log(
+  "updateItemQuantity function exported to window:",
+  typeof window.updateItemQuantity
 );
 
 // Export all functions needed by HTML onclick handlers
@@ -973,27 +1044,6 @@ window.updateOrderStatus = updateOrderStatus;
 window.markOrderCompleted = markOrderCompleted;
 window.viewOrderDetail = viewOrderDetail;
 window.editOrderInline = editOrderInline;
-
-// Remove item from order
-function removeItemFromOrder(itemId) {
-  currentOrder = currentOrder.filter((item) => item.id !== itemId);
-  updateOrderDisplay();
-  updateSubmitButton();
-}
-
-// Update item quantity in order
-function updateItemQuantity(itemId, quantity) {
-  const item = currentOrder.find((orderItem) => orderItem.id === itemId);
-  if (item) {
-    if (quantity <= 0) {
-      removeItemFromOrder(itemId);
-    } else {
-      item.quantity = quantity;
-    }
-  }
-  updateOrderDisplay();
-  updateSubmitButton();
-}
 
 // Update order display in modal
 function updateOrderDisplay() {
@@ -1024,7 +1074,10 @@ function updateOrderDisplay() {
     (total, item) => total + item.price * item.quantity,
     0
   );
-  const vat = Math.round(orderTotal * 0.1);
+  
+  // Get VAT rate from system settings
+  const vatRate = typeof getCurrentVatRate === 'function' ? getCurrentVatRate() : 0.1;
+  const vat = Math.round(orderTotal * vatRate);
   const finalTotal = orderTotal + vat;
   orderContainer.innerHTML = `
     <div class="order-items-list">
@@ -1038,15 +1091,15 @@ function updateOrderDisplay() {
           </div>
           <div class="order-item-controls">
             <div class="quantity-controls">
-              <button class="btn btn-outline-secondary btn-sm" onclick="updateItemQuantity(${
+              <button class="btn btn-outline-secondary btn-sm" onclick="updateItemQuantity('${
                 item.id
-              }, ${item.quantity - 1})">
+              }', ${item.quantity - 1})">
                 <i data-lucide="minus" style="width: 14px; height: 14px;"></i>
               </button>
               <span class="quantity-display">${item.quantity}</span>
-              <button class="btn btn-outline-secondary btn-sm" onclick="updateItemQuantity(${
+              <button class="btn btn-outline-secondary btn-sm" onclick="updateItemQuantity('${
                 item.id
-              }, ${item.quantity + 1})">
+              }', ${item.quantity + 1})">
                 <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
               </button>
             </div>
@@ -1066,6 +1119,22 @@ function updateOrderDisplay() {
   document.getElementById("vatAmount").textContent = formatCurrency(vat);
   document.getElementById("orderTotal").textContent =
     formatCurrency(finalTotal);
+
+  // Update VAT label with current rate
+  const vatLabels = document.querySelectorAll('[data-vat-label]');
+  if (vatLabels.length === 0) {
+    // Find VAT labels by text content if data attribute doesn't exist
+    const spanElements = document.querySelectorAll('span');
+    spanElements.forEach(span => {
+      if (span.textContent.includes('VAT (') && span.textContent.includes('%):')) {
+        span.textContent = `VAT (${(vatRate * 100).toFixed(1)}%):`;
+      }
+    });
+  } else {
+    vatLabels.forEach(label => {
+      label.textContent = `VAT (${(vatRate * 100).toFixed(1)}%):`;
+    });
+  }
 
   orderCountElement.textContent = currentOrder.length.toString();
 
@@ -1087,24 +1156,51 @@ function updateSubmitButton() {
     const shouldDisable = currentOrder.length === 0;
     console.log("Should disable button:", shouldDisable);
     console.log("Button disabled before:", submitBtn.disabled);
+
+    // Update disabled state
     submitBtn.disabled = shouldDisable;
     console.log("Button disabled after:", submitBtn.disabled);
 
     // Also remove/add disabled attribute explicitly
     if (shouldDisable) {
       submitBtn.setAttribute("disabled", "disabled");
+      submitBtn.classList.add("disabled");
     } else {
       submitBtn.removeAttribute("disabled");
+      submitBtn.classList.remove("disabled");
     }
 
     // Update button text based on editing state
     const buttonText = editingOrderId ? "Cập nhật Order" : "Tạo Order";
-    if (!submitBtn.disabled) {
-      submitBtn.innerHTML = `<i data-lucide="check" style="width: 16px; height: 16px;"></i> ${buttonText}`;
-      // Re-initialize Lucide icons
+    const buttonIcon = editingOrderId ? "edit" : "check";
+
+    // Update button content with enhanced styling
+    const textSpan = submitBtn.querySelector(".ms-2");
+    const iconElement = submitBtn.querySelector("i");
+
+    if (textSpan) textSpan.textContent = buttonText;
+    if (iconElement) {
+      iconElement.setAttribute("data-lucide", buttonIcon);
+      // Re-initialize the icon
       if (typeof lucide !== "undefined") {
         lucide.createIcons();
       }
+    }
+
+    // Add visual feedback when button becomes enabled
+    if (!shouldDisable && !submitBtn.classList.contains("was-enabled")) {
+      submitBtn.classList.add("was-enabled");
+      // Small celebration animation
+      setTimeout(() => {
+        submitBtn.style.transform = "scale(1.05)";
+        setTimeout(() => {
+          submitBtn.style.transform = "";
+        }, 200);
+      }, 100);
+    }
+
+    if (shouldDisable) {
+      submitBtn.classList.remove("was-enabled");
     }
 
     console.log(
@@ -1652,8 +1748,25 @@ async function submitOrder() {
     const submitBtn = document.getElementById("submitOrder");
     if (submitBtn) {
       submitBtn.disabled = true;
+      submitBtn.classList.add("loading");
       const loadingText = editingOrderId ? "Đang cập nhật..." : "Đang tạo...";
-      submitBtn.innerHTML = `<i data-lucide="loader" style="width: 16px; height: 16px;"></i> ${loadingText}`;
+
+      // Show loading state with spinner
+      const textSpan = submitBtn.querySelector(".ms-2");
+      const iconElement = submitBtn.querySelector("i");
+      const loadingDiv = submitBtn.querySelector(".btn-loading");
+
+      if (textSpan) textSpan.textContent = loadingText;
+      if (iconElement) {
+        iconElement.setAttribute("data-lucide", "loader");
+        iconElement.style.animation = "spin 1s linear infinite";
+      }
+      if (loadingDiv) loadingDiv.classList.remove("d-none");
+
+      // Re-initialize Lucide icons
+      if (typeof lucide !== "undefined") {
+        lucide.createIcons();
+      }
     }
 
     // Calculate totals
@@ -1661,7 +1774,10 @@ async function submitOrder() {
       (total, item) => total + item.price * item.quantity,
       0
     );
-    const vat = Math.round(subtotal * 0.1);
+    
+    // Get VAT rate from system settings
+    const vatRate = typeof getCurrentVatRate === 'function' ? getCurrentVatRate() : 0.1;
+    const vat = Math.round(subtotal * vatRate);
     const total = subtotal + vat; // Get order notes
     const notesEl = document.getElementById("orderNotes");
     const notes = notesEl ? notesEl.value.trim() : "";
@@ -1687,6 +1803,10 @@ async function submitOrder() {
       total: total,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
+      vatRate: typeof getCurrentVatRate === 'function' ? getCurrentVatRate() : 0.1, // Store VAT rate used
+      orderTimestamp: new Date().toISOString(), // Store timestamp for VAT history tracking
+      vatLabel: `Thuế VAT (${((typeof getCurrentVatRate === 'function' ? getCurrentVatRate() : 0.1) * 100).toFixed(1)}%):`, // Store VAT label with current rate
+      vatLabelEn: `VAT (${((typeof getCurrentVatRate === 'function' ? getCurrentVatRate() : 0.1) * 100).toFixed(1)}%):`, // Store English VAT label with current rate
     }; // Add order to Firestore with custom ID
     await setDoc(doc(db, "orders", customOrderId), orderData);
 
@@ -1736,12 +1856,27 @@ async function submitOrder() {
     console.error("Error submitting order:", error);
     showToast("Có lỗi xảy ra khi tạo order: " + error.message, "error");
   } finally {
-    // Re-enable submit button
+    // Re-enable submit button and reset visual state
     const submitBtn = document.getElementById("submitOrder");
     if (submitBtn) {
       submitBtn.disabled = false;
+      submitBtn.classList.remove("loading");
+
       const buttonText = editingOrderId ? "Cập nhật Order" : "Tạo Order";
-      submitBtn.innerHTML = `<i data-lucide="check" style="width: 16px; height: 16px;"></i> ${buttonText}`;
+      const buttonIcon = editingOrderId ? "edit" : "check";
+
+      // Reset button content
+      const textSpan = submitBtn.querySelector(".ms-2");
+      const iconElement = submitBtn.querySelector("i");
+      const loadingDiv = submitBtn.querySelector(".btn-loading");
+
+      if (textSpan) textSpan.textContent = buttonText;
+      if (iconElement) {
+        iconElement.setAttribute("data-lucide", buttonIcon);
+        iconElement.style.animation = "";
+      }
+      if (loadingDiv) loadingDiv.classList.add("d-none");
+
       // Re-initialize Lucide icons
       if (typeof lucide !== "undefined") {
         lucide.createIcons();
@@ -1856,12 +1991,11 @@ function renderFilteredMenuItems(items) {
   };
   console.log("About to render HTML for", items.length, "items");
 
-  menuContainer.innerHTML = `
-    <div class="menu-grid p-3">
-      ${items
-        .map((item) => {
-          console.log(`Generating HTML for item: ${item.name}`);
-          return `
+  // Apply grid styles directly to menuContainer without extra wrapper
+  menuContainer.innerHTML = items
+    .map((item) => {
+      console.log(`Generating HTML for item: ${item.name}`);
+      return `
         <div class="menu-item-card" onclick="addToOrder('${item.id}')">
           <div class="menu-item-image">
             <img src="${item.image || getPlaceholderImage(item.category)}" 
@@ -1884,12 +2018,21 @@ function renderFilteredMenuItems(items) {
           </div>
         </div>
       `;
-        })
-        .join("")}
-    </div>
-  `;
+    })
+    .join("");
 
   console.log("HTML rendered successfully");
+
+  // Force grid layout after rendering
+  setTimeout(() => {
+    const container = document.getElementById("menuItems");
+    if (container) {
+      container.style.display = 'grid';
+      container.style.gridTemplateColumns = 'repeat(2, 1fr)';
+      container.style.gap = '1rem';
+      console.log("Forced grid layout applied");
+    }
+  }, 100);
 
   // Re-initialize Lucide icons
   if (typeof lucide !== "undefined") {
@@ -1933,8 +2076,74 @@ function handleMenuSearch() {
   renderFilteredMenuItems(filteredItems);
 }
 
-// Function to setup menu search
+// Enhanced search functionality
 function setupMenuSearch() {
+  const searchInput = document.getElementById("menuSearch");
+  const clearButton = document.getElementById("clearSearch");
+  const searchBox = searchInput?.parentElement;
+
+  if (searchInput) {
+    // Handle input events
+    searchInput.addEventListener("input", function(e) {
+      const value = e.target.value;
+      
+      // Toggle search box states
+      if (value.length > 0) {
+        searchBox?.classList.add("has-text");
+        if (value.length >= 2) {
+          searchBox?.classList.add("has-results");
+        } else {
+          searchBox?.classList.remove("has-results");
+        }
+      } else {
+        searchBox?.classList.remove("has-text", "has-results");
+      }
+      
+      // Perform search
+      handleMenuSearch();
+    });
+
+    // Handle focus/blur for animations
+    searchInput.addEventListener("focus", function() {
+      searchBox?.classList.add("focused");
+    });
+
+    searchInput.addEventListener("blur", function() {
+      searchBox?.classList.remove("focused");
+    });
+
+    // Handle Enter key
+    searchInput.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleMenuSearch();
+      }
+    });
+  }
+
+  // Clear button functionality
+  if (clearButton) {
+    clearButton.addEventListener("click", function() {
+      if (searchInput) {
+        searchInput.value = "";
+        searchInput.focus();
+        searchBox?.classList.remove("has-text", "has-results");
+        
+        // Reset to show all items
+        selectedCategory = "all";
+        renderMenuItems();
+        
+        // Update category buttons
+        document.querySelectorAll(".category-btn").forEach(btn => {
+          btn.classList.toggle("active", btn.dataset.category === "all");
+        });
+      }
+    });
+  }
+}
+
+// Function to setup menu search
+function setupMenuSearchLegacy() {
   const searchInput = document.getElementById("menuSearch");
   if (searchInput) {
     searchInput.addEventListener("input", handleMenuSearch);
@@ -2609,7 +2818,8 @@ function showSplitTablesModal() {
 
 function populateMergedTablesForSplit() {
   const tableSelect = document.getElementById("tableToSplit");
-  tableSelect.innerHTML = '<option value="">-- Chọn bàn ghép cần tách --</option>';
+  tableSelect.innerHTML =
+    '<option value="">-- Chọn bàn ghép cần tách --</option>';
 
   // Filter merged tables that are available (no active orders)
   const mergedTables = tables.filter(
@@ -2628,27 +2838,31 @@ function populateMergedTablesForSplit() {
   mergedTables.forEach((table) => {
     const option = document.createElement("option");
     option.value = table.id;
-    option.textContent = `${table.name} (${table.capacity} chỗ, ghép ${table.mergedTables?.length || 0} bàn)`;
+    option.textContent = `${table.name} (${table.capacity} chỗ, ghép ${
+      table.mergedTables?.length || 0
+    } bàn)`;
     tableSelect.appendChild(option);
   });
 }
 
 function setupSplitEventListeners() {
   // Table selection change
-  document.getElementById("tableToSplit").addEventListener("change", function() {
-    const selectedTableId = this.value;
-    if (selectedTableId) {
-      showSplitConfiguration(selectedTableId);
-    } else {
-      document.getElementById("splitConfiguration").style.display = "none";
-      document.getElementById("splitPreview").style.display = "none";
-      document.getElementById("splitTablesBtn").disabled = true;
-    }
-  });
+  document
+    .getElementById("tableToSplit")
+    .addEventListener("change", function () {
+      const selectedTableId = this.value;
+      if (selectedTableId) {
+        showSplitConfiguration(selectedTableId);
+      } else {
+        document.getElementById("splitConfiguration").style.display = "none";
+        document.getElementById("splitPreview").style.display = "none";
+        document.getElementById("splitTablesBtn").disabled = true;
+      }
+    });
 
   // Split option change
-  document.querySelectorAll('input[name="splitOption"]').forEach(radio => {
-    radio.addEventListener("change", function() {
+  document.querySelectorAll('input[name="splitOption"]').forEach((radio) => {
+    radio.addEventListener("change", function () {
       updateSplitOptions();
       updateSplitPreview();
     });
@@ -2656,7 +2870,7 @@ function setupSplitEventListeners() {
 }
 
 function showSplitConfiguration(tableId) {
-  const table = tables.find(t => t.id === tableId);
+  const table = tables.find((t) => t.id === tableId);
   if (!table) return;
 
   // Show configuration section
@@ -2664,19 +2878,26 @@ function showSplitConfiguration(tableId) {
 
   // Update current table info
   document.getElementById("currentTableName").textContent = table.name;
-  document.getElementById("currentTableCapacity").textContent = `${table.capacity} người`;
-  document.getElementById("currentTableStatus").textContent = getTableStatusText(table.status);
-  document.getElementById("mergedTablesCount").textContent = `${table.mergedTables?.length || 0} bàn`;
+  document.getElementById(
+    "currentTableCapacity"
+  ).textContent = `${table.capacity} người`;
+  document.getElementById("currentTableStatus").textContent =
+    getTableStatusText(table.status);
+  document.getElementById("mergedTablesCount").textContent = `${
+    table.mergedTables?.length || 0
+  } bàn`;
 
   // Update merged tables list
   const mergedTablesList = document.getElementById("currentMergedTablesList");
   mergedTablesList.innerHTML = "";
-  
+
   if (table.mergedTables && table.mergedTables.length > 0) {
-    table.mergedTables.forEach(mergedTableId => {
+    table.mergedTables.forEach((mergedTableId) => {
       const badge = document.createElement("span");
       badge.className = "badge bg-secondary";
-      badge.textContent = `Bàn ${mergedTableId.replace("T", "").replace(/^0+/, "")}`;
+      badge.textContent = `Bàn ${mergedTableId
+        .replace("T", "")
+        .replace(/^0+/, "")}`;
       mergedTablesList.appendChild(badge);
     });
   }
@@ -2711,7 +2932,7 @@ function setupCustomSplitOptions(table) {
   container.appendChild(mainTableDiv);
 
   // Add merged tables options
-  table.mergedTables.forEach(mergedTableId => {
+  table.mergedTables.forEach((mergedTableId) => {
     const tableNumber = mergedTableId.replace("T", "").replace(/^0+/, "");
     const tableDiv = document.createElement("div");
     tableDiv.className = "col-md-4";
@@ -2727,21 +2948,23 @@ function setupCustomSplitOptions(table) {
   });
 
   // Add change event listeners to checkboxes
-  container.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+  container.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
     checkbox.addEventListener("change", updateSplitPreview);
   });
 }
 
 function updateSplitOptions() {
-  const splitOption = document.querySelector('input[name="splitOption"]:checked').value;
+  const splitOption = document.querySelector(
+    'input[name="splitOption"]:checked'
+  ).value;
   const customSelection = document.getElementById("customSplitSelection");
-  
+
   if (splitOption === "custom") {
     customSelection.style.display = "block";
   } else {
     customSelection.style.display = "none";
   }
-  
+
   updateSplitPreview();
 }
 
@@ -2749,33 +2972,45 @@ function updateSplitPreview() {
   const selectedTableId = document.getElementById("tableToSplit").value;
   if (!selectedTableId) return;
 
-  const table = tables.find(t => t.id === selectedTableId);
+  const table = tables.find((t) => t.id === selectedTableId);
   if (!table) return;
 
-  const splitOption = document.querySelector('input[name="splitOption"]:checked').value;
+  const splitOption = document.querySelector(
+    'input[name="splitOption"]:checked'
+  ).value;
   const previewContainer = document.getElementById("splitPreviewContent");
-  
+
   document.getElementById("splitPreview").style.display = "block";
-  
+
   if (splitOption === "completely") {
     // Show complete split preview
     previewContainer.innerHTML = generateCompleteSplitPreview(table);
   } else {
     // Show custom split preview
-    const selectedTables = Array.from(document.querySelectorAll('#tablesForCustomSplit input[type="checkbox"]:checked'))
-      .map(cb => cb.value);
-    previewContainer.innerHTML = generateCustomSplitPreview(table, selectedTables);
+    const selectedTables = Array.from(
+      document.querySelectorAll(
+        '#tablesForCustomSplit input[type="checkbox"]:checked'
+      )
+    ).map((cb) => cb.value);
+    previewContainer.innerHTML = generateCustomSplitPreview(
+      table,
+      selectedTables
+    );
   }
 }
 
 function generateCompleteSplitPreview(table) {
-  const originalCapacity = Math.floor(table.capacity / ((table.mergedTables?.length || 0) + 1));
-  
+  const originalCapacity = Math.floor(
+    table.capacity / ((table.mergedTables?.length || 0) + 1)
+  );
+
   let html = `
     <div class="col-12">
       <div class="alert alert-success">
         <h6 class="alert-heading">Kết quả tách hoàn toàn:</h6>
-        <p class="mb-0">Bàn ghép sẽ được tách thành ${(table.mergedTables?.length || 0) + 1} bàn riêng biệt</p>
+        <p class="mb-0">Bàn ghép sẽ được tách thành ${
+          (table.mergedTables?.length || 0) + 1
+        } bàn riêng biệt</p>
       </div>
     </div>
   `;
@@ -2795,7 +3030,7 @@ function generateCompleteSplitPreview(table) {
 
   // Merged tables preview
   if (table.mergedTables && table.mergedTables.length > 0) {
-    table.mergedTables.forEach(mergedTableId => {
+    table.mergedTables.forEach((mergedTableId) => {
       const tableNumber = mergedTableId.replace("T", "").replace(/^0+/, "");
       html += `
         <div class="col-md-6">
@@ -2826,9 +3061,13 @@ function generateCustomSplitPreview(table, selectedTables) {
     `;
   }
 
-  const originalCapacity = Math.floor(table.capacity / ((table.mergedTables?.length || 0) + 1));
-  const remainingTables = [table.id, ...(table.mergedTables || [])].filter(id => !selectedTables.includes(id));
-  
+  const originalCapacity = Math.floor(
+    table.capacity / ((table.mergedTables?.length || 0) + 1)
+  );
+  const remainingTables = [table.id, ...(table.mergedTables || [])].filter(
+    (id) => !selectedTables.includes(id)
+  );
+
   let html = `
     <div class="col-12">
       <div class="alert alert-info">
@@ -2840,9 +3079,11 @@ function generateCustomSplitPreview(table, selectedTables) {
 
   // Split tables
   html += `<div class="col-12"><h6 class="text-info">Bàn sẽ được tách ra:</h6></div>`;
-  selectedTables.forEach(tableId => {
+  selectedTables.forEach((tableId) => {
     const isMainTable = tableId === table.id;
-    const tableNumber = isMainTable ? table.name : `Bàn ${tableId.replace("T", "").replace(/^0+/, "")}`;
+    const tableNumber = isMainTable
+      ? table.name
+      : `Bàn ${tableId.replace("T", "").replace(/^0+/, "")}`;
     html += `
       <div class="col-md-6">
         <div class="card border-info">
@@ -2850,7 +3091,11 @@ function generateCustomSplitPreview(table, selectedTables) {
             <h6 class="card-title text-info">${tableNumber}</h6>
             <p class="card-text small">Sức chứa: ${originalCapacity} người</p>
             <span class="badge bg-info">Tách ra</span>
-            ${isMainTable ? '<span class="badge bg-secondary ms-1">Bàn chính</span>' : ''}
+            ${
+              isMainTable
+                ? '<span class="badge bg-secondary ms-1">Bàn chính</span>'
+                : ""
+            }
           </div>
         </div>
       </div>
@@ -2860,18 +3105,26 @@ function generateCustomSplitPreview(table, selectedTables) {
   // Remaining tables
   if (remainingTables.length > 0) {
     html += `<div class="col-12 mt-3"><h6 class="text-success">Bàn vẫn ghép với nhau:</h6></div>`;
-    remainingTables.forEach(tableId => {
+    remainingTables.forEach((tableId) => {
       const isMainTable = tableId === table.id;
-      const tableNumber = isMainTable ? table.name : `Bàn ${tableId.replace("T", "").replace(/^0+/, "")}`;
+      const tableNumber = isMainTable
+        ? table.name
+        : `Bàn ${tableId.replace("T", "").replace(/^0+/, "")}`;
       const newCapacity = originalCapacity * remainingTables.length;
       html += `
         <div class="col-md-6">
           <div class="card border-success">
             <div class="card-body">
               <h6 class="card-title text-success">${tableNumber}</h6>
-              <p class="card-text small">Sức chứa: ${isMainTable ? newCapacity : originalCapacity} người</p>
+              <p class="card-text small">Sức chứa: ${
+                isMainTable ? newCapacity : originalCapacity
+              } người</p>
               <span class="badge bg-success">Vẫn ghép</span>
-              ${isMainTable ? '<span class="badge bg-secondary ms-1">Bàn chính</span>' : ''}
+              ${
+                isMainTable
+                  ? '<span class="badge bg-secondary ms-1">Bàn chính</span>'
+                  : ""
+              }
             </div>
           </div>
         </div>
@@ -2889,22 +3142,29 @@ async function splitTables() {
     return;
   }
 
-  const table = tables.find(t => t.id === selectedTableId);
+  const table = tables.find((t) => t.id === selectedTableId);
   if (!table) {
     showToast("Không tìm thấy bàn", "error");
     return;
   }
 
-  const splitOption = document.querySelector('input[name="splitOption"]:checked').value;
-  
+  const splitOption = document.querySelector(
+    'input[name="splitOption"]:checked'
+  ).value;
+
   // Store split data for confirmation
   window.pendingSplitData = {
     table,
     splitOption,
-    selectedTables: splitOption === "custom" ? 
-      Array.from(document.querySelectorAll('#tablesForCustomSplit input[type="checkbox"]:checked')).map(cb => cb.value) : 
-      [],
-    notes: document.getElementById("splitNotes").value
+    selectedTables:
+      splitOption === "custom"
+        ? Array.from(
+            document.querySelectorAll(
+              '#tablesForCustomSplit input[type="checkbox"]:checked'
+            )
+          ).map((cb) => cb.value)
+        : [],
+    notes: document.getElementById("splitNotes").value,
   };
 
   // Show confirmation modal
@@ -2913,10 +3173,10 @@ async function splitTables() {
 
 function showSplitConfirmation() {
   const { table, splitOption, selectedTables, notes } = window.pendingSplitData;
-  
+
   // Populate confirmation details
   const detailsContainer = document.getElementById("splitConfirmationDetails");
-  
+
   let html = `
     <div class="card">
       <div class="card-body">
@@ -2928,7 +3188,9 @@ function showSplitConfirmation() {
           </div>
           <div class="col-md-6">
             <strong>Phương thức tách:</strong><br>
-            ${splitOption === "completely" ? "Tách hoàn toàn" : "Tách tùy chỉnh"}
+            ${
+              splitOption === "completely" ? "Tách hoàn toàn" : "Tách tùy chỉnh"
+            }
           </div>
         </div>
   `;
@@ -2937,10 +3199,14 @@ function showSplitConfirmation() {
     html += `
         <div class="mt-3">
           <strong>Bàn sẽ được tách ra:</strong><br>
-          ${selectedTables.map(id => {
-            const isMainTable = id === table.id;
-            return isMainTable ? table.name : `Bàn ${id.replace("T", "").replace(/^0+/, "")}`;
-          }).join(", ")}
+          ${selectedTables
+            .map((id) => {
+              const isMainTable = id === table.id;
+              return isMainTable
+                ? table.name
+                : `Bàn ${id.replace("T", "").replace(/^0+/, "")}`;
+            })
+            .join(", ")}
         </div>
     `;
   }
@@ -2962,7 +3228,9 @@ function showSplitConfirmation() {
   detailsContainer.innerHTML = html;
 
   // Show confirmation modal
-  const confirmModal = new bootstrap.Modal(document.getElementById("splitConfirmationModal"));
+  const confirmModal = new bootstrap.Modal(
+    document.getElementById("splitConfirmationModal")
+  );
   confirmModal.show();
 }
 
@@ -2982,9 +3250,13 @@ async function confirmSplitTables() {
     }
 
     // Close modals
-    const splitModal = bootstrap.Modal.getInstance(document.getElementById("splitTablesModal"));
-    const confirmModal = bootstrap.Modal.getInstance(document.getElementById("splitConfirmationModal"));
-    
+    const splitModal = bootstrap.Modal.getInstance(
+      document.getElementById("splitTablesModal")
+    );
+    const confirmModal = bootstrap.Modal.getInstance(
+      document.getElementById("splitConfirmationModal")
+    );
+
     if (splitModal) splitModal.hide();
     if (confirmModal) confirmModal.hide();
 
@@ -2993,7 +3265,6 @@ async function confirmSplitTables() {
 
     // Clear pending data
     window.pendingSplitData = null;
-
   } catch (error) {
     console.error("Error splitting tables:", error);
     showToast("Lỗi khi tách bàn: " + error.message, "error");
@@ -3001,7 +3272,9 @@ async function confirmSplitTables() {
 }
 
 async function performCompleteSplit(table, notes) {
-  const originalCapacity = Math.floor(table.capacity / ((table.mergedTables?.length || 0) + 1));
+  const originalCapacity = Math.floor(
+    table.capacity / ((table.mergedTables?.length || 0) + 1)
+  );
 
   // Restore original merged tables
   if (table.mergedTables && table.mergedTables.length > 0) {
@@ -3041,9 +3314,13 @@ async function performCompleteSplit(table, notes) {
 }
 
 async function performCustomSplit(table, selectedTables, notes) {
-  const originalCapacity = Math.floor(table.capacity / ((table.mergedTables?.length || 0) + 1));
+  const originalCapacity = Math.floor(
+    table.capacity / ((table.mergedTables?.length || 0) + 1)
+  );
   const allTables = [table.id, ...(table.mergedTables || [])];
-  const remainingTables = allTables.filter(id => !selectedTables.includes(id));
+  const remainingTables = allTables.filter(
+    (id) => !selectedTables.includes(id)
+  );
 
   // Create/restore selected tables as individual tables
   for (const tableId of selectedTables) {
@@ -3085,8 +3362,12 @@ async function performCustomSplit(table, selectedTables, notes) {
   // Update remaining tables (keep them merged)
   if (remainingTables.length > 1) {
     // Find the main table among remaining tables (prioritize original main table)
-    const newMainTableId = remainingTables.includes(table.id) ? table.id : remainingTables[0];
-    const newMergedTables = remainingTables.filter(id => id !== newMainTableId);
+    const newMainTableId = remainingTables.includes(table.id)
+      ? table.id
+      : remainingTables[0];
+    const newMergedTables = remainingTables.filter(
+      (id) => id !== newMainTableId
+    );
     const newCapacity = originalCapacity * remainingTables.length;
 
     // Update new main table
@@ -3114,7 +3395,7 @@ function getTableStatusText(status) {
     available: "Có sẵn",
     occupied: "Đang phục vụ",
     reserved: "Đã đặt",
-    cleaning: "Đang dọn dẹp"
+    cleaning: "Đang dọn dẹp",
   };
   return statusTexts[status] || status;
 }

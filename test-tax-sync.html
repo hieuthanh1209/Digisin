@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Tax Rate Synchronization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .section {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #e9ecef;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Tax Rate Synchronization</h1>
+    
+    <div class="section">
+        <h3>Add New Tax Rate</h3>
+        <label>Tax Rate (%): <input type="number" id="taxRateInput" value="12" step="0.1"></label><br><br>
+        <label>Effective Date: <input type="datetime-local" id="dateInput"></label><br><br>
+        <button onclick="addTaxRate()">Add Tax Rate (Tax Manager)</button>
+    </div>
+    
+    <div class="section">
+        <h3>Save Tax Settings (Manager Dashboard Style)</h3>
+        <label>Tax Rate (%): <input type="number" id="managerTaxInput" value="15" step="0.1"></label><br><br>
+        <button onclick="saveTaxSettings()">Save Tax Settings (Manager Dashboard)</button>
+    </div>
+    
+    <div class="section">
+        <h3>Get Current VAT Rate</h3>
+        <button onclick="getCurrentRate()">Get Current VAT Rate</button>
+        <button onclick="clearCache()">Clear Cache</button>
+        <div id="currentRateResult" class="result"></div>
+    </div>
+    
+    <div class="section">
+        <h3>Event Log</h3>
+        <button onclick="clearLog()">Clear Log</button>
+        <div id="eventLog" class="result"></div>
+    </div>
+
+    <!-- Include the necessary scripts -->
+    <script src="dashboard/tax-manager.js"></script>
+    <script src="src/utils/vat-manager.js"></script>
+
+    <script>
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set default date to now
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('dateInput').value = now.toISOString().slice(0, 16);
+            
+            // Initialize tax manager
+            if (typeof initTaxSettingsManager === 'function') {
+                initTaxSettingsManager();
+            }
+            
+            logEvent('System initialized');
+        });
+
+        // Listen for tax rate updated events
+        document.addEventListener('taxRateUpdated', function(event) {
+            logEvent(`Tax rate updated event received: ${JSON.stringify(event.detail)}`);
+        });
+
+        function addTaxRate() {
+            const rate = parseFloat(document.getElementById('taxRateInput').value);
+            const date = document.getElementById('dateInput').value;
+            
+            if (typeof addTaxRateEntry === 'function') {
+                const success = addTaxRateEntry(rate, new Date(date));
+                logEvent(`addTaxRateEntry(${rate}, ${date}): ${success}`);
+            } else {
+                logEvent('addTaxRateEntry function not found');
+            }
+        }
+
+        function saveTaxSettings() {
+            const rate = parseFloat(document.getElementById('managerTaxInput').value);
+            
+            // Simulate the manager dashboard saveTaxSettings function
+            try {
+                // Add entry to tax history (new system)
+                if (typeof addTaxRateEntry === 'function') {
+                    const success = addTaxRateEntry(rate, new Date());
+                    logEvent(`Manager saveTaxSettings - addTaxRateEntry(${rate}): ${success}`);
+                }
+                
+                // Also save to old system for backward compatibility
+                const systemSettings = JSON.parse(localStorage.getItem('systemSettings') || '{}');
+                if (!systemSettings.business) {
+                    systemSettings.business = {};
+                }
+                systemSettings.business.vatRate = rate / 100; // Convert to decimal
+                localStorage.setItem('systemSettings', JSON.stringify(systemSettings));
+                
+                // Dispatch event manually (simulating manager dashboard)
+                document.dispatchEvent(new CustomEvent('taxRateUpdated', {
+                    detail: { 
+                        rate: rate, 
+                        effectiveDate: new Date().toISOString(),
+                        source: 'manager-dashboard'
+                    }
+                }));
+                
+                logEvent(`Manager saveTaxSettings completed - rate set to ${rate}%`);
+            } catch (error) {
+                logEvent(`Manager saveTaxSettings error: ${error.message}`);
+            }
+        }
+
+        function getCurrentRate() {
+            if (typeof getCurrentVatRate === 'function') {
+                const rate = getCurrentVatRate();
+                const percentage = (rate * 100).toFixed(2);
+                document.getElementById('currentRateResult').textContent = 
+                    `Current VAT Rate: ${rate} (${percentage}%)`;
+                logEvent(`getCurrentVatRate() returned: ${rate} (${percentage}%)`);
+            } else {
+                document.getElementById('currentRateResult').textContent = 
+                    'getCurrentVatRate function not found';
+                logEvent('getCurrentVatRate function not found');
+            }
+        }
+
+        function clearCache() {
+            // Try to clear cache (this would normally be done by the event listener)
+            if (typeof window.vatRateCache !== 'undefined') {
+                window.vatRateCache = null;
+                logEvent('Cache cleared manually');
+            } else {
+                logEvent('vatRateCache not accessible');
+            }
+        }
+
+        function logEvent(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logDiv = document.getElementById('eventLog');
+            logDiv.innerHTML += `[${timestamp}] ${message}<br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('eventLog').innerHTML = '';
+        }
+
+        // Log initial state
+        setTimeout(() => {
+            getCurrentRate();
+        }, 500);
+    </script>
+</body>
+</html>

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tạo đơn hàng ảo - Firebase Setup</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="mb-0">🚀 Tạo đơn hàng ảo cho test PayOS</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <h5>📋 Hướng dẫn:</h5>
+                            <ol>
+                                <li>Mở <strong>F12 Developer Tools</strong></li>
+                                <li>Vào tab <strong>Console</strong></li>
+                                <li>Chạy lệnh: <code>createSampleOrders()</code></li>
+                                <li>Đợi script tạo 5 đơn hàng ảo</li>
+                                <li>Quay lại <strong>cashier-dashboard.html</strong> để test PayOS</li>
+                            </ol>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <button class="btn btn-success btn-lg w-100" onclick="createSampleOrders()">
+                                    📝 Tạo 5 đơn hàng ảo
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <button class="btn btn-info btn-lg w-100" onclick="window.open('../dashboard/cashier-dashboard.html', '_blank')">
+                                    💰 Mở Cashier Dashboard
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <h5>📊 Đơn hàng sẽ được tạo:</h5>
+                            <ul class="list-group">
+                                <li class="list-group-item">✅ Trạng thái: <code>completed</code> (hoàn thành)</li>
+                                <li class="list-group-item">💳 Payment Status: <code>null</code> (chờ thanh toán)</li>
+                                <li class="list-group-item">🍽️ Món ăn: 2-5 món ngẫu nhiên</li>
+                                <li class="list-group-item">🏠 Bàn: Bàn 1-8 ngẫu nhiên</li>
+                                <li class="list-group-item">💰 Tổng tiền: 50,000₫ - 300,000₫</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <h5>🧪 Test PayOS:</h5>
+                            <ol>
+                                <li>Sau khi tạo đơn hàng, mở <strong>Cashier Dashboard</strong></li>
+                                <li>Chọn đơn hàng và nhấn <strong>"Thanh toán"</strong></li>
+                                <li>Chọn phương thức <strong>"PayOS"</strong></li>
+                                <li>Test thanh toán với server PayOS</li>
+                            </ol>
+                        </div>
+                    </div>
+                    <div class="card-footer text-muted">
+                        <small>💡 Tip: Mở Console (F12) để xem chi tiết quá trình tạo đơn hàng</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Console Output -->
+    <div class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>📱 Console Output</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="console-output" style="background: #f8f9fa; padding: 15px; border-radius: 5px; min-height: 200px; font-family: monospace;">
+                            <div class="text-muted">Console output sẽ hiển thị ở đây...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import and setup
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import {
+            getFirestore,
+            collection,
+            addDoc,
+            Timestamp,
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import firebaseConfig from "../config/firebase-config.js";
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Console output handler
+        const consoleOutput = document.getElementById('console-output');
+        const originalLog = console.log;
+        const originalError = console.error;
+
+        function addToOutput(message, type = 'log') {
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? 'text-danger' : (type === 'success' ? 'text-success' : 'text-dark');
+            const div = document.createElement('div');
+            div.className = color;
+            div.innerHTML = `[${timestamp}] ${message}`;
+            consoleOutput.appendChild(div);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToOutput(args.join(' '), 'log');
+        };
+
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToOutput(args.join(' '), 'error');
+        };
+
+        // Sample data
+        const sampleMenuItems = [
+            { name: "Phở bò tái", price: 65000, category: "Món chính" },
+            { name: "Cơm gà xối mỡ", price: 55000, category: "Món chính" },
+            { name: "Bánh mì thịt nướng", price: 25000, category: "Món phụ" },
+            { name: "Bún bò Huế", price: 60000, category: "Món chính" },
+            { name: "Gỏi cuốn tôm thịt", price: 35000, category: "Khai vị" },
+            { name: "Bánh flan", price: 25000, category: "Tráng miệng" },
+            { name: "Trà đào cam sả", price: 35000, category: "Đồ uống" },
+            { name: "Cà phê sữa đá", price: 30000, category: "Đồ uống" },
+            { name: "Nước cam tươi", price: 25000, category: "Đồ uống" },
+            { name: "Canh chua cá", price: 45000, category: "Món chính" }
+        ];
+
+        const sampleTables = ["Bàn 1", "Bàn 2", "Bàn 3", "Bàn 4", "Bàn 5", "Bàn 6", "Bàn 7", "Bàn 8"];
+
+        function generateOrderId() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let result = 'DS-';
+            for (let i = 0; i < 6; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
+        function getRandomMenuItems() {
+            const numItems = Math.floor(Math.random() * 4) + 2;
+            const selectedItems = [];
+            const usedIndices = new Set();
+            
+            for (let i = 0; i < numItems; i++) {
+                let randomIndex;
+                do {
+                    randomIndex = Math.floor(Math.random() * sampleMenuItems.length);
+                } while (usedIndices.has(randomIndex));
+                
+                usedIndices.add(randomIndex);
+                const item = sampleMenuItems[randomIndex];
+                const quantity = Math.floor(Math.random() * 3) + 1;
+                
+                selectedItems.push({
+                    id: `item-${randomIndex}`,
+                    name: item.name,
+                    price: item.price,
+                    quantity: quantity,
+                    category: item.category,
+                    notes: ""
+                });
+            }
+            
+            return selectedItems;
+        }
+
+        function calculateOrderTotals(items) {
+            const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const total = subtotal;
+            return { subtotal, total };
+        }
+
+        function createSampleOrder(orderNumber) {
+            const orderId = generateOrderId();
+            const table = sampleTables[Math.floor(Math.random() * sampleTables.length)];
+            const items = getRandomMenuItems();
+            const { subtotal, total } = calculateOrderTotals(items);
+            const now = Timestamp.now();
+            
+            return {
+                id: orderId,
+                table: table,
+                items: items,
+                subtotal: subtotal,
+                total: total,
+                status: "completed",
+                paymentStatus: null,
+                orderTime: now,
+                createdAt: now,
+                updatedAt: now,
+                customerCount: Math.floor(Math.random() * 6) + 1,
+                notes: `Đơn hàng demo #${orderNumber} - Chờ thanh toán`,
+                waiterName: "Demo Waiter",
+                waiterId: "demo-waiter-id"
+            };
+        }
+
+        async function createSampleOrders() {
+            console.log("🚀 Đang tạo 5 đơn hàng ảo trên Firebase Firestore...");
+            
+            try {
+                const orders = [];
+                
+                for (let i = 1; i <= 5; i++) {
+                    const sampleOrder = createSampleOrder(i);
+                    console.log(`📝 Tạo đơn hàng ${i}: ${sampleOrder.id} - ${sampleOrder.table} - ${sampleOrder.total.toLocaleString()}₫`);
+                    
+                    const docRef = await addDoc(collection(db, "orders"), sampleOrder);
+                    console.log(`✅ Đơn hàng ${sampleOrder.id} đã được tạo với ID: ${docRef.id}`);
+                    
+                    orders.push({
+                        ...sampleOrder,
+                        firestoreId: docRef.id
+                    });
+                }
+                
+                console.log("🎉 Hoàn thành! Đã tạo 5 đơn hàng ảo:");
+                orders.forEach((order, index) => {
+                    console.log(`${index + 1}. ${order.id} - ${order.table} - ${order.total.toLocaleString()}₫`);
+                });
+                
+                console.log("🧪 Bây giờ bạn có thể test PayOS với các đơn hàng này!");
+                console.log("📱 Reload trang cashier-dashboard.html để xem các đơn hàng mới");
+                
+                // Show success message
+                addToOutput("🎉 THÀNH CÔNG! Đã tạo 5 đơn hàng ảo!", 'success');
+                addToOutput("📱 Bạn có thể mở Cashier Dashboard để test PayOS", 'success');
+                
+                return orders;
+                
+            } catch (error) {
+                console.error("❌ Lỗi khi tạo đơn hàng ảo:", error);
+                addToOutput("❌ LỖI: " + error.message, 'error');
+                throw error;
+            }
+        }
+
+        // Export to global scope
+        window.createSampleOrders = createSampleOrders;
+
+        console.log("📦 Script tạo đơn hàng ảo đã sẵn sàng!");
+        console.log("🎯 Click nút 'Tạo 5 đơn hàng ảo' để bắt đầu");
+    </script>
+</body>
+</html>

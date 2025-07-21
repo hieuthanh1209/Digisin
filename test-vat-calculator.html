@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test VAT Percentage Calculator</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; max-width: 1000px; }
+        .section { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #007bff; }
+        button { background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        .result { background: #e9ecef; padding: 10px; margin: 10px 0; border-radius: 3px; font-family: monospace; white-space: pre-wrap; }
+        .test-case { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; background: white; }
+        .success { border-color: #28a745; background: #f8fff8; }
+        .error { border-color: #dc3545; background: #fff8f8; }
+        .warning { border-color: #ffc107; background: #fffdf8; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f2f2f2; }
+        .input-group { margin: 10px 0; }
+        .input-group label { display: inline-block; width: 120px; }
+        .input-group input { padding: 5px; border: 1px solid #ddd; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>🧮 VAT Percentage Calculator Test</h1>
+    
+    <div class="section">
+        <h3>📊 Test Known Cases</h3>
+        <p>Test các trường hợp đã biết để verify tính toán</p>
+        <button onclick="testKnownCases()">Test Known Cases</button>
+        <div id="knownCasesResult" class="result"></div>
+    </div>
+    
+    <div class="section">
+        <h3>🧪 Custom Test Calculator</h3>
+        <div class="input-group">
+            <label>Subtotal (VND):</label>
+            <input type="number" id="testSubtotal" value="65000" min="0">
+        </div>
+        <div class="input-group">
+            <label>VAT Amount (VND):</label>
+            <input type="number" id="testVATAmount" value="6500" min="0">
+        </div>
+        <button onclick="calculateCustom()">Calculate VAT Percentage</button>
+        <div id="customResult" class="result"></div>
+    </div>
+    
+    <div class="section">
+        <h3>🎯 Test Invoice Label Correction</h3>
+        <p>Test chức năng sửa label cho hóa đơn có thông tin sai</p>
+        <button onclick="testInvoiceLabelCorrection()">Test Invoice Label Correction</button>
+        <div id="labelCorrectionResult" class="result"></div>
+    </div>
+    
+    <div class="section">
+        <h3>📋 Real Invoice Simulation</h3>
+        <p>Mô phỏng hóa đơn thực tế từ ảnh bạn gửi</p>
+        <button onclick="simulateRealInvoice()">Simulate Real Invoice</button>
+        <div id="realInvoiceResult"></div>
+    </div>
+
+    <!-- Include scripts -->
+    <script src="src/utils/vat-label-calculator.js"></script>
+
+    <script>
+        function log(elementId, message, clear = false) {
+            const element = document.getElementById(elementId);
+            if (clear) element.textContent = '';
+            element.textContent += message + '\n';
+            element.scrollTop = element.scrollHeight;
+        }
+
+        function testKnownCases() {
+            log('knownCasesResult', '=== Testing Known VAT Cases ===', true);
+            
+            const testCases = [
+                { subtotal: 65000, vatAmount: 6500, expectedPercentage: 10.0, description: 'Your invoice example' },
+                { subtotal: 100000, vatAmount: 8000, expectedPercentage: 8.0, description: '8% VAT case' },
+                { subtotal: 100000, vatAmount: 10000, expectedPercentage: 10.0, description: '10% VAT case' },
+                { subtotal: 100000, vatAmount: 12000, expectedPercentage: 12.0, description: '12% VAT case' },
+                { subtotal: 100000, vatAmount: 15000, expectedPercentage: 15.0, description: '15% VAT case' },
+                { subtotal: 50000, vatAmount: 2500, expectedPercentage: 5.0, description: '5% VAT case' },
+                { subtotal: 75000, vatAmount: 7500, expectedPercentage: 10.0, description: '10% VAT on 75k' },
+                { subtotal: 0, vatAmount: 0, expectedPercentage: 0.0, description: 'Zero case' },
+                { subtotal: 100000, vatAmount: 0, expectedPercentage: 0.0, description: 'No VAT case' }
+            ];
+            
+            let passedTests = 0;
+            let totalTests = testCases.length;
+            
+            testCases.forEach((testCase, index) => {
+                log('knownCasesResult', `\nTest ${index + 1}: ${testCase.description}`);
+                log('knownCasesResult', `  Subtotal: ${formatCurrency(testCase.subtotal)}`);
+                log('knownCasesResult', `  VAT Amount: ${formatCurrency(testCase.vatAmount)}`);
+                log('knownCasesResult', `  Expected: ${testCase.expectedPercentage}%`);
+                
+                const calculatedPercentage = calculateVatPercentageFromAmount(testCase.vatAmount, testCase.subtotal);
+                const numericPercentage = parseFloat(calculatedPercentage.replace('%', ''));
+                
+                log('knownCasesResult', `  Calculated: ${calculatedPercentage}`);
+                
+                const tolerance = 0.1; // 0.1% tolerance
+                if (Math.abs(numericPercentage - testCase.expectedPercentage) <= tolerance) {
+                    log('knownCasesResult', `  ✅ PASS`);
+                    passedTests++;
+                } else {
+                    log('knownCasesResult', `  ❌ FAIL (difference: ${Math.abs(numericPercentage - testCase.expectedPercentage).toFixed(2)}%)`);
+                }
+            });
+            
+            log('knownCasesResult', `\n=== Test Summary ===`);
+            log('knownCasesResult', `Passed: ${passedTests}/${totalTests} tests`);
+            log('knownCasesResult', `Success Rate: ${((passedTests / totalTests) * 100).toFixed(1)}%`);
+        }
+
+        function calculateCustom() {
+            const subtotal = parseFloat(document.getElementById('testSubtotal').value) || 0;
+            const vatAmount = parseFloat(document.getElementById('testVATAmount').value) || 0;
+            
+            log('customResult', '=== Custom VAT Calculation ===', true);
+            log('customResult', `Subtotal: ${formatCurrency(subtotal)}`);
+            log('customResult', `VAT Amount: ${formatCurrency(vatAmount)}`);
+            
+            if (subtotal <= 0) {
+                log('customResult', '❌ Error: Subtotal must be greater than 0');
+                return;
+            }
+            
+            const calculatedPercentage = calculateVatPercentageFromAmount(vatAmount, subtotal);
+            log('customResult', `Calculated VAT Percentage: ${calculatedPercentage}`);
+            
+            // Calculate total
+            const total = subtotal + vatAmount;
+            log('customResult', `Total: ${formatCurrency(total)}`);
+            
+            // Generate labels
+            const labelVi = `Thuế VAT (${calculatedPercentage}):`;
+            const labelEn = `VAT (${calculatedPercentage}):`;
+            
+            log('customResult', `\nGenerated Labels:`);
+            log('customResult', `Vietnamese: "${labelVi}"`);
+            log('customResult', `English: "${labelEn}"`);
+            
+            // Verify calculation
+            const percentageNum = parseFloat(calculatedPercentage.replace('%', ''));
+            const expectedVatAmount = Math.round(subtotal * percentageNum / 100);
+            
+            log('customResult', `\nVerification:`);
+            log('customResult', `${subtotal} × ${percentageNum}% = ${formatCurrency(expectedVatAmount)}`);
+            
+            if (Math.abs(expectedVatAmount - vatAmount) <= 1) { // 1 VND tolerance for rounding
+                log('customResult', `✅ Calculation verified`);
+            } else {
+                log('customResult', `⚠️ Rounding difference: ${Math.abs(expectedVatAmount - vatAmount)} VND`);
+            }
+        }
+
+        function testInvoiceLabelCorrection() {
+            log('labelCorrectionResult', '=== Testing Invoice Label Correction ===', true);
+            
+            // Test scenarios with incorrect stored labels
+            const testScenarios = [
+                {
+                    name: 'Correct stored label',
+                    invoice: {
+                        subtotal: 65000,
+                        vat: 6500,
+                        vatRate: 0.10,
+                        vatLabel: 'Thuế VAT (10.0%):',
+                        vatLabelVi: 'Thuế VAT (10.0%):',
+                        vatLabelEn: 'VAT (10.0%):'
+                    },
+                    expectedPercentage: '10.0%'
+                },
+                {
+                    name: 'Incorrect stored label (shows 15% but actual is 10%)',
+                    invoice: {
+                        subtotal: 65000,
+                        vat: 6500,
+                        vatRate: 0.15, // Wrong rate stored
+                        vatLabel: 'Thuế VAT (15.0%):', // Wrong label stored
+                        vatLabelVi: 'Thuế VAT (15.0%):',
+                        vatLabelEn: 'VAT (15.0%):'
+                    },
+                    expectedPercentage: '10.0%' // Should be corrected to actual
+                },
+                {
+                    name: 'Missing stored label',
+                    invoice: {
+                        subtotal: 100000,
+                        vat: 8000,
+                        // No vatLabel, vatRate stored
+                    },
+                    expectedPercentage: '8.0%'
+                },
+                {
+                    name: 'Stored rate correct but label wrong',
+                    invoice: {
+                        subtotal: 100000,
+                        vat: 12000,
+                        vatRate: 0.12, // Correct rate
+                        vatLabel: 'Thuế VAT (10.0%):', // Wrong label
+                    },
+                    expectedPercentage: '12.0%'
+                }
+            ];
+            
+            testScenarios.forEach((scenario, index) => {
+                log('labelCorrectionResult', `\n--- Scenario ${index + 1}: ${scenario.name} ---`);
+                log('labelCorrectionResult', `Invoice data:`);
+                log('labelCorrectionResult', `  Subtotal: ${formatCurrency(scenario.invoice.subtotal)}`);
+                log('labelCorrectionResult', `  VAT: ${formatCurrency(scenario.invoice.vat)}`);
+                log('labelCorrectionResult', `  Stored Rate: ${scenario.invoice.vatRate || 'none'}`);
+                log('labelCorrectionResult', `  Stored Label: "${scenario.invoice.vatLabel || 'none'}"`);
+                
+                // Test the correction function
+                const correctedLabelVi = getCorrectVatLabel(scenario.invoice, 'vi');
+                const correctedLabelEn = getCorrectVatLabel(scenario.invoice, 'en');
+                
+                log('labelCorrectionResult', `\nCorrected Labels:`);
+                log('labelCorrectionResult', `  Vietnamese: "${correctedLabelVi}"`);
+                log('labelCorrectionResult', `  English: "${correctedLabelEn}"`);
+                
+                // Verify correctness
+                const actualPercentage = calculateVatPercentageFromAmount(scenario.invoice.vat, scenario.invoice.subtotal);
+                log('labelCorrectionResult', `  Actual percentage: ${actualPercentage}`);
+                
+                if (correctedLabelVi.includes(scenario.expectedPercentage)) {
+                    log('labelCorrectionResult', `  ✅ Correction successful`);
+                } else {
+                    log('labelCorrectionResult', `  ❌ Correction failed`);
+                }
+            });
+        }
+
+        function simulateRealInvoice() {
+            const display = document.getElementById('realInvoiceResult');
+            
+            // Invoice data from your image
+            const realInvoice = {
+                id: 'DS-593G7V',
+                table: 'Bàn T006',
+                date: '21/7/2025',
+                time: '21:28',
+                cashier: 'Thu ngân',
+                paymentMethod: 'PayOS',
+                items: [
+                    { name: 'Phở bò tái', quantity: 1, price: 65000 }
+                ],
+                subtotal: 65000,
+                vat: 6500,
+                total: 71500,
+                // Simulate incorrect stored data
+                vatLabel: 'Thuế VAT (15.0%):', // This is wrong!
+                vatRate: 0.15 // This is also wrong!
+            };
+            
+            log('labelCorrectionResult', '\n=== Real Invoice Simulation ===');
+            log('labelCorrectionResult', 'Original invoice data (with incorrect label):');
+            log('labelCorrectionResult', `  Stored VAT Label: "${realInvoice.vatLabel}"`);
+            log('labelCorrectionResult', `  Stored VAT Rate: ${realInvoice.vatRate}`);
+            log('labelCorrectionResult', `  Actual VAT Amount: ${formatCurrency(realInvoice.vat)}`);
+            log('labelCorrectionResult', `  Subtotal: ${formatCurrency(realInvoice.subtotal)}`);
+            
+            // Calculate actual percentage
+            const actualPercentage = calculateVatPercentageFromAmount(realInvoice.vat, realInvoice.subtotal);
+            log('labelCorrectionResult', `\nCalculated actual percentage: ${actualPercentage}`);
+            
+            // Get corrected label
+            const correctedLabel = getCorrectVatLabel(realInvoice, 'vi');
+            log('labelCorrectionResult', `Corrected label: "${correctedLabel}"`);
+            
+            // Generate invoice display
+            const invoiceHTML = `
+                <div class="test-case success">
+                    <h4>🧾 Corrected Invoice Display</h4>
+                    <div><strong>Hóa đơn:</strong> ${realInvoice.id}</div>
+                    <div><strong>Bàn:</strong> ${realInvoice.table}</div>
+                    <div><strong>Ngày:</strong> ${realInvoice.date}</div>
+                    <div><strong>Giờ:</strong> ${realInvoice.time}</div>
+                    <div><strong>Thu ngân:</strong> ${realInvoice.cashier}</div>
+                    <div><strong>Phương thức:</strong> ${realInvoice.paymentMethod}</div>
+                    <hr>
+                    <div><strong>1x Phở bò tái:</strong> ${formatCurrency(65000)}</div>
+                    <hr>
+                    <div><strong>Tổng tiền hàng:</strong> ${formatCurrency(realInvoice.subtotal)}</div>
+                    <div style="color: #007bff;"><strong>${correctedLabel}</strong> ${formatCurrency(realInvoice.vat)}</div>
+                    <hr>
+                    <div style="font-size: 18px; font-weight: bold;"><strong>THÀNH TIỀN:</strong> ${formatCurrency(realInvoice.total)}</div>
+                    <hr>
+                    <div style="font-size: 12px; color: #666;">
+                        <div>Original (wrong) label: "${realInvoice.vatLabel}"</div>
+                        <div>Corrected label: "${correctedLabel}"</div>
+                        <div>Actual calculation: ${formatCurrency(realInvoice.vat)} ÷ ${formatCurrency(realInvoice.subtotal)} = ${actualPercentage}</div>
+                    </div>
+                </div>
+            `;
+            
+            display.innerHTML = invoiceHTML;
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('vi-VN', {
+                style: 'currency',
+                currency: 'VND',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(amount);
+        }
+
+        // Auto-run known cases test on load
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                testKnownCases();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

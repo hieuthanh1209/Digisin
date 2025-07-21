@@ -85,3 +85,80 @@ export const getEnvironmentConfig = () => {
   
   return configs[env] || configs.development;
 }; 
+
+// System settings utility functions
+export const SystemSettings = {
+  // Get current system settings from localStorage or defaults
+  get() {
+    const defaultSettings = {
+      business: {
+        vatRate: 0.08, // 8%
+        maxTablesPerWaiter: 6,
+        orderTimeout: 30,
+        maxDiscountPercent: 50,
+        inventoryVarianceThreshold: 10
+      },
+      ui: {
+        currency: 'VNĐ',
+        dateFormat: 'DD/MM/YYYY',
+        theme: 'light',
+        locale: 'vi-VN'
+      }
+    };
+    
+    const saved = localStorage.getItem('systemSettings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          business: { ...defaultSettings.business, ...parsed.business },
+          ui: { ...defaultSettings.ui, ...parsed.ui }
+        };
+      } catch (error) {
+        console.warn('Error parsing saved settings, using defaults:', error);
+        return defaultSettings;
+      }
+    }
+    return defaultSettings;
+  },
+  
+  // Save system settings
+  save(settings) {
+    localStorage.setItem('systemSettings', JSON.stringify(settings));
+    
+    // Dispatch event for other components to listen
+    window.dispatchEvent(new CustomEvent('systemSettingsUpdated', { detail: settings }));
+  },
+  
+  // Get current VAT rate
+  getVatRate() {
+    return this.get().business.vatRate;
+  },
+  
+  // Calculate tax for a given amount
+  calculateTax(amount) {
+    return amount * this.getVatRate();
+  },
+  
+  // Calculate total with tax
+  calculateTotal(subtotal) {
+    return subtotal + this.calculateTax(subtotal);
+  },
+  
+  // Format currency based on current settings
+  formatCurrency(amount) {
+    const settings = this.get();
+    return new Intl.NumberFormat(settings.ui.locale, {
+      style: 'currency',
+      currency: settings.ui.currency === 'VNĐ' ? 'VND' : settings.ui.currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  },
+  
+  // Reset to defaults
+  reset() {
+    localStorage.removeItem('systemSettings');
+    window.dispatchEvent(new CustomEvent('systemSettingsReset'));
+  }
+};

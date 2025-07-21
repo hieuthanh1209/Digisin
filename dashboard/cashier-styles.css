@@ -349,6 +349,17 @@
     margin-top: 0.25rem;
 }
 
+.discount-percent {
+    font-weight: 700;
+    color: #dc3545;
+    font-size: 1.2rem;
+    padding: 0.25rem 0.5rem;
+    background: rgba(220, 53, 69, 0.1);
+    border-radius: 0.25rem;
+    text-align: center;
+    min-width: 60px;
+}
+
 /* Modal Enhancements */
 .modal-xl .modal-content {
     min-height: 70vh;

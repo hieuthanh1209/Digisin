@@ -3188,7 +3188,7 @@ async function editFinanceTransaction(id) {
                 )}</span>
               </div>
               <div class="mb-2">
-                <strong>Thuế (VAT):</strong> <span class="text-warning">${formatCurrency(
+                <strong>${typeof getCorrectVatLabel === 'function' ? getCorrectVatLabel(invoice, 'vi') : (invoice.vatLabel || invoice.vatLabelVi || `Thuế VAT (${invoice.vatPercentage || '10.0%'}):`)}:</strong> <span class="text-warning">${formatCurrency(
                   invoice.vat || invoice.tax || 0
                 )}</span>
               </div>
@@ -3718,7 +3718,7 @@ async function viewInvoiceDetails(transactionId) {
                   <p><strong>Tạm tính:</strong> ${formatCurrency(
                     invoice.subtotal
                   )}</p>
-                  <p><strong>Thuế (VAT):</strong> ${formatCurrency(
+                  <p><strong>${typeof getCorrectVatLabel === 'function' ? getCorrectVatLabel(invoice, 'vi') : (invoice.vatLabel || invoice.vatLabelVi || `Thuế VAT (${invoice.vatPercentage || '10.0%'}):`)}:</strong> ${formatCurrency(
                     invoice.vat || invoice.tax || 0
                   )}</p>
                   <p><strong>Giảm giá:</strong> ${formatCurrency(
@@ -3884,7 +3884,7 @@ async function printInvoice(transactionId) {
             <div>Tạm tính: <span style="float: right;">${formatCurrency(
               invoice.subtotal
             )}</span></div>
-            <div>Thuế (VAT): <span style="float: right;">${formatCurrency(
+            <div>${typeof getCorrectVatLabel === 'function' ? getCorrectVatLabel(invoice, 'vi') : (invoice.vatLabel || invoice.vatLabelVi || `Thuế VAT (${invoice.vatPercentage || '10.0%'}):`)} <span style="float: right;">${formatCurrency(
               invoice.vat || invoice.tax || 0
             )}</span></div>
             <div>Giảm giá: <span style="float: right;">${formatCurrency(

@@ -23,6 +23,9 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import firebaseConfig from "../config/firebase-config.js";
 
+// Import PayOS Configuration
+import { PAYOS_CONFIG, PayOSUtils } from "../config/payos-config.js";
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -78,7 +81,20 @@ const discountCodes = [
 
 let currentOrder = null;
 let selectedDiscountCode = null;
-const VAT_RATE = 0.1; // 8% VAT
+
+// Get VAT rate from system settings or fallback to 10%
+function getVatRate() {
+  if (typeof getCurrentVatRate === 'function') {
+    return getCurrentVatRate();
+  }
+  // Fallback to localStorage or default
+  try {
+    const settings = JSON.parse(localStorage.getItem('systemSettings'));
+    return settings?.business?.vatRate || 0.1;
+  } catch {
+    return 0.1; // 10% VAT default
+  }
+}
 
 // Initialize when page loads
 document.addEventListener("DOMContentLoaded", function () {
@@ -190,7 +206,64 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 function formatCurrency(amount) {
-  return new Intl.NumberFormat("vi-VN").format(amount) + "₫";
+  // Handle invalid values (NaN, null, undefined) and return "0₫"
+  if (isNaN(amount) || amount == null) {
+    return "0₫";
+  }
+  // Ensure amount is a number
+  const validAmount = Number(amount) || 0;
+  return new Intl.NumberFormat("vi-VN").format(validAmount) + "₫";
+}
+
+// Debug function to fix orders missing subtotal
+async function fixOrdersWithoutSubtotal() {
+  console.log("🔧 Checking and fixing orders without subtotal...");
+  
+  try {
+    // Get all orders
+    const ordersQuery = query(collection(db, "orders"));
+    const ordersSnapshot = await getDocs(ordersQuery);
+    
+    let fixedCount = 0;
+    const batch = [];
+    
+    ordersSnapshot.forEach((doc) => {
+      const order = doc.data();
+      
+      // Check if order is missing subtotal but has total
+      if (!order.subtotal && order.total && order.items) {
+        console.log(`🔧 Fixing order ${order.id} - missing subtotal`);
+        
+        // Calculate subtotal from items
+        const calculatedSubtotal = order.items.reduce((sum, item) => {
+          return sum + (Number(item.price || 0) * Number(item.quantity || 0));
+        }, 0);
+        
+        // Update the order with subtotal
+        batch.push({
+          docId: doc.id,
+          subtotal: calculatedSubtotal
+        });
+        
+        fixedCount++;
+      }
+    });
+    
+    // Apply fixes
+    for (const fix of batch) {
+      await updateDoc(doc(db, "orders", fix.docId), {
+        subtotal: fix.subtotal,
+        updatedAt: Timestamp.now()
+      });
+    }
+    
+    console.log(`✅ Fixed ${fixedCount} orders missing subtotal`);
+    return fixedCount;
+    
+  } catch (error) {
+    console.error("❌ Error fixing orders:", error);
+    return 0;
+  }
 }
 
 function getTimeAgo(orderTime) {
@@ -532,10 +605,12 @@ function renderDiscountCodes() {
     .map((code) => {
       const isSelected =
         selectedDiscountCode && selectedDiscountCode.code === code.code;
-      const canApply = currentOrder && currentOrder.total >= code.minOrder;
+      // Use the same logic as in updatePaymentSummary to get the order total
+      const orderTotal = currentOrder ? (currentOrder.subtotal || currentOrder.total || 0) : 0;
+      const canApply = currentOrder && orderTotal >= code.minOrder;
 
       return `
-        <div class="discount-card ${isSelected ? "selected" : ""} ${
+        <div class="discount-code-card ${isSelected ? "selected" : ""} ${
         !canApply ? "disabled" : ""
       }" 
              onclick="${canApply ? `selectDiscountCode('${code.code}')` : ""}"
@@ -567,14 +642,57 @@ function renderDiscountCodes() {
 }
 
 function selectDiscountCode(codeId) {
-  const code = discountCodes.find((c) => c.code === codeId);
-  if (!code || currentOrder.total < code.minOrder) return;
+  try {
+    console.log("Selecting discount code:", codeId);
+    
+    const code = discountCodes.find((c) => c.code === codeId);
+    if (!code) {
+      console.error("Discount code not found:", codeId);
+      return;
+    }
+    
+    if (!currentOrder) {
+      console.error("No current order available");
+      return;
+    }
+    
+    // Use the same logic as in updatePaymentSummary to get the order total
+    const orderTotal = currentOrder.subtotal || currentOrder.total || 0;
+    console.log("Discount code selection:", { 
+      codeId, 
+      minOrder: code.minOrder, 
+      orderTotal, 
+      canApply: orderTotal >= code.minOrder 
+    });
+    
+    if (orderTotal < code.minOrder) {
+      console.log("Order total insufficient for discount code");
+      showNotification(`Đơn hàng cần tối thiểu ${formatCurrency(code.minOrder)} để áp dụng mã ${codeId}`, "error");
+      return;
+    }
 
-  selectedDiscountCode =
-    selectedDiscountCode && selectedDiscountCode.code === codeId ? null : code;
+    // Toggle discount code selection
+    const wasSelected = selectedDiscountCode && selectedDiscountCode.code === codeId;
+    selectedDiscountCode = wasSelected ? null : code;
+    
+    console.log("Discount code updated:", { 
+      selectedCode: selectedDiscountCode?.code || "none",
+      discount: selectedDiscountCode?.discount || 0
+    });
 
-  renderDiscountCodes();
-  updatePaymentSummary();
+    renderDiscountCodes();
+    updatePaymentSummary();
+    
+    // Show success notification
+    if (selectedDiscountCode) {
+      showNotification(`Đã áp dụng mã giảm giá ${selectedDiscountCode.code} - ${selectedDiscountCode.discount}%`, "success");
+    } else {
+      showNotification("Đã hủy mã giảm giá", "info");
+    }
+  } catch (error) {
+    console.error("Error selecting discount code:", error);
+    showNotification("Có lỗi xảy ra khi áp dụng mã giảm giá", "error");
+  }
 }
 
 function setupPaymentForm() {
@@ -594,25 +712,61 @@ function setupPaymentForm() {
 
   // Process payment
   processButton.addEventListener("click", processPayment);
+
+  // Setup PayOS specific events
+  setupPayOSEvents();
+}
+
+function setupPayOSEvents() {
+  // Cancel PayOS payment
+  document.getElementById("cancelPayosPayment").addEventListener("click", function() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById("payosProcessingModal"));
+    if (modal) {
+      modal.hide();
+    }
+    showNotification("Đã hủy thanh toán PayOS", "info");
+  });
+
+  // Handle URL parameters for PayOS return
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has('code') || urlParams.has('status') || urlParams.has('orderId')) {
+    console.log('[PayOS Init] URL has PayOS parameters, processing return...');
+    console.log('[PayOS Init] All URL params:', Object.fromEntries(urlParams));
+    handlePayOSReturn(urlParams);
+  }
 }
 
 function updateCashAmountVisibility() {
   const paymentMethod = document.getElementById("paymentMethod").value;
   const cashAmountSection = document.getElementById("cashAmountSection");
+  const payosInfoSection = document.getElementById("payosInfoSection");
 
   if (paymentMethod === "cash") {
-    cashAmountSection.classList.remove("hidden");
     cashAmountSection.style.display = "block";
-  } else {
-    cashAmountSection.classList.add("hidden");
+    payosInfoSection.style.display = "none";
+  } else if (paymentMethod === "payos") {
     cashAmountSection.style.display = "none";
+    payosInfoSection.style.display = "block";
+  } else {
+    cashAmountSection.style.display = "none";
+    payosInfoSection.style.display = "none";
     document.getElementById("customerPaid").value = "";
   }
 }
 
 function updatePaymentButtons() {
-  // All payment methods now use the same button
+  const paymentMethod = document.getElementById("paymentMethod").value;
   const processButton = document.getElementById("processPayment");
+  const buttonText = document.getElementById("paymentButtonText");
+  
+  if (paymentMethod === "payos") {
+    buttonText.textContent = "Thanh toán với PayOS";
+    processButton.className = "btn btn-info";
+  } else {
+    buttonText.textContent = "Thanh toán";
+    processButton.className = "btn btn-primary";
+  }
+  
   processButton.style.display = "inline-block";
 }
 
@@ -623,18 +777,37 @@ function updatePaymentSummary() {
     parseFloat(document.getElementById("customerPaid").value) || 0;
   const paymentMethod = document.getElementById("paymentMethod").value;
 
-  // Use subtotal if available, otherwise use total as base amount
-  const subtotal = currentOrder.subtotal || currentOrder.total || 0;
-  // Calculate tax as exact amount
-  const taxAmount = parseFloat((subtotal * VAT_RATE).toFixed(0));
+  // Debug: Log current order data
+  console.log("Current order data:", {
+    subtotal: currentOrder.subtotal,
+    total: currentOrder.total,
+    items: currentOrder.items
+  });
+
+  // Use subtotal if available, otherwise use total as base amount - ensure it's a valid number
+  let subtotal = Number(currentOrder.subtotal || currentOrder.total || 0);
+  
+  // If subtotal is still 0, calculate from items
+  if (subtotal === 0 && currentOrder.items && currentOrder.items.length > 0) {
+    subtotal = currentOrder.items.reduce((sum, item) => {
+      return sum + (Number(item.price || 0) * Number(item.quantity || 0));
+    }, 0);
+    console.log("Calculated subtotal from items:", subtotal);
+  }
+
+  // Calculate tax as exact amount - ensure result is valid number
+  const vatRate = getVatRate();
+  const taxAmount = Number((subtotal * vatRate).toFixed(0));
   // Add subtotal and tax to get afterTax amount
   const afterTax = subtotal + taxAmount;
 
+  console.log("Tax calculation:", { subtotal, vatRate, taxAmount, afterTax });
+
   const discountPercent = selectedDiscountCode
-    ? selectedDiscountCode.discount
+    ? Number(selectedDiscountCode.discount || 0)
     : 0;
-  // Calculate exact discount amount
-  const discountAmount = parseFloat(
+  // Calculate exact discount amount - ensure result is valid number
+  const discountAmount = Number(
     (afterTax * (discountPercent / 100)).toFixed(0)
   );
   const finalTotal = afterTax - discountAmount;
@@ -688,18 +861,35 @@ async function processPayment() {
   }
 
   const paymentMethod = document.getElementById("paymentMethod").value;
+  
+  // Handle PayOS payment separately
+  if (paymentMethod === "payos") {
+    await processPayOSPayment();
+    return;
+  }
+
   const customerPaid =
     parseFloat(document.getElementById("customerPaid").value) || 0;
   // Calculate payment details with precise calculation to avoid floating point errors
-  const subtotal = currentOrder.subtotal || currentOrder.total || 0;
-  // Calculate tax as exact amount with rounding
-  const taxAmount = parseFloat((subtotal * VAT_RATE).toFixed(0));
+  let subtotal = Number(currentOrder.subtotal || currentOrder.total || 0);
+  
+  // If subtotal is still 0, calculate from items (same logic as updatePaymentSummary)
+  if (subtotal === 0 && currentOrder.items && currentOrder.items.length > 0) {
+    subtotal = currentOrder.items.reduce((sum, item) => {
+      return sum + (Number(item.price || 0) * Number(item.quantity || 0));
+    }, 0);
+    console.log("ProcessPayment: Calculated subtotal from items:", subtotal);
+  }
+  
+  // Calculate tax as exact amount with rounding - ensure valid number
+  const vatRate = getVatRate();
+  const taxAmount = Number((subtotal * vatRate).toFixed(0));
   const afterTax = subtotal + taxAmount;
   const discountPercent = selectedDiscountCode
-    ? selectedDiscountCode.discount
+    ? Number(selectedDiscountCode.discount || 0)
     : 0;
-  // Calculate exact discount amount with rounding
-  const discountAmount = parseFloat(
+  // Calculate exact discount amount with rounding - ensure valid number
+  const discountAmount = Number(
     (afterTax * (discountPercent / 100)).toFixed(0)
   );
   const finalTotal = afterTax - discountAmount;
@@ -721,6 +911,9 @@ async function processPayment() {
       '<i data-lucide="loader-2" style="width: 16px; height: 16px;"></i> Đang xử lý...';
 
     // Update order status in Firestore
+    const currentTimestamp = new Date().toISOString();
+    const currentVatRate = getVatRate();
+    
     const paymentData = {
       paymentMethod: getPaymentMethodText(paymentMethod),
       finalTotal: finalTotal,
@@ -730,6 +923,10 @@ async function processPayment() {
       discountCode: selectedDiscountCode?.code || "",
       customerPaid: customerPaid,
       changeAmount: changeAmount,
+      timestamp: currentTimestamp, // Add timestamp for VAT history tracking
+      vatRate: currentVatRate, // Store the VAT rate used for this order
+      vatLabel: `Thuế VAT (${(currentVatRate * 100).toFixed(1)}%):`, // Store VAT label with current rate
+      vatLabelEn: `VAT (${(currentVatRate * 100).toFixed(1)}%):`, // Store English VAT label with current rate
     };
 
     await processPaymentInFirestore(
@@ -870,6 +1067,8 @@ function getPaymentMethodText(method) {
     cash: "Tiền mặt",
     card: "Thẻ",
     transfer: "Chuyển khoản",
+    payos: "PayOS",
+    PayOS: "PayOS"
   };
   return methods[method] || "Không xác định";
 }
@@ -878,8 +1077,21 @@ function printInvoice(isCompleted = false) {
   const orderToPrint = isCompleted ? window.lastCompletedOrder : currentOrder;
   if (!orderToPrint) return;
 
-  const subtotal = orderToPrint.total;
-  const taxAmount = isCompleted ? orderToPrint.taxAmount : subtotal * VAT_RATE;
+  // Ensure subtotal is a valid number to prevent NaN
+  let subtotal = Number(orderToPrint.subtotal || orderToPrint.total || 0);
+  
+  // If subtotal is still 0, calculate from items (same logic as other functions)
+  if (subtotal === 0 && orderToPrint.items && orderToPrint.items.length > 0) {
+    subtotal = orderToPrint.items.reduce((sum, item) => {
+      return sum + (Number(item.price || 0) * Number(item.quantity || 0));
+    }, 0);
+    console.log("PrintInvoice: Calculated subtotal from items:", subtotal);
+  }
+  
+  const vatRate = getVatRate();
+  const taxAmount = isCompleted ? 
+    Number(orderToPrint.taxAmount || orderToPrint.vat || 0) : 
+    Number((subtotal * vatRate).toFixed(0));
   const afterTax = subtotal + taxAmount;
 
   let discountPercent = 0;
@@ -888,25 +1100,25 @@ function printInvoice(isCompleted = false) {
   let finalTotal = afterTax;
 
   if (isCompleted) {
-    discountPercent = orderToPrint.discount || 0;
+    discountPercent = Number(orderToPrint.discount || 0);
     discountCode = orderToPrint.discountCode || "";
     discountAmount = orderToPrint.finalTotal
-      ? afterTax - orderToPrint.finalTotal
+      ? Number(afterTax - orderToPrint.finalTotal)
       : 0;
-    finalTotal = orderToPrint.finalTotal || afterTax;
+    finalTotal = Number(orderToPrint.finalTotal || afterTax);
   } else if (selectedDiscountCode) {
-    discountPercent = selectedDiscountCode.discount;
-    discountCode = selectedDiscountCode.code;
-    discountAmount = afterTax * (discountPercent / 100);
+    discountPercent = Number(selectedDiscountCode.discount || 0);
+    discountCode = selectedDiscountCode.code || "";
+    discountAmount = Number((afterTax * (discountPercent / 100)).toFixed(0));
     finalTotal = afterTax - discountAmount;
   }
 
   const invoiceHtml = `
     <div style="max-width: 400px; margin: 0 auto; font-family: Arial, sans-serif; font-weight: bold; font-size: 14px; line-height: 1.4;">
       <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px;">
-        <h2 style="margin: 0; font-size: 18px; font-weight: bold;">NHÀ HÀNG ABC</h2>
-        <p style="margin: 5px 0 0 0; font-size: 12px;">123 Đường XYZ, Quận 1, TP.HCM</p>
-        <p style="margin: 2px 0 0 0; font-size: 12px;">Tel: 028.1234.5678</p>
+        <h2 style="margin: 0; font-size: 18px; font-weight: bold;">NHÀ HÀNG DIGISIN</h2>
+        <p style="margin: 5px 0 0 0; font-size: 12px;">10 QL22, Tân Xuân, Hóc Môn</p>
+        <p style="margin: 2px 0 0 0; font-size: 12px;">Tel: (028) 3865 0991</p>
       </div>
       
       <div style="margin-bottom: 15px;">
@@ -964,7 +1176,7 @@ function printInvoice(isCompleted = false) {
           <span>${formatCurrency(subtotal)}</span>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-          <span>Thuế VAT (10%):</span>
+          <span>${typeof getCorrectVatLabel === 'function' ? getCorrectVatLabel(orderToPrint, 'vi') : (orderToPrint.vatLabel || orderToPrint.vatLabelVi || `Thuế VAT (${(vatRate * 100).toFixed(1)}%):`)}</span>
           <span>${formatCurrency(taxAmount)}</span>
         </div>
         ${
@@ -1362,7 +1574,17 @@ async function processPaymentInFirestore(orderId, paymentData) {
   try {
     console.log("Processing payment for order:", orderId, paymentData);
 
-    const orderRef = doc(db, "orders", orderId); // Prepare payment update data    // Ensure all numeric values are properly rounded before storing
+    const orderRef = doc(db, "orders", orderId);
+    
+    // Check if the order document exists first
+    const orderSnapshot = await getDoc(orderRef);
+    if (!orderSnapshot.exists()) {
+      console.warn(`Order ${orderId} does not exist in Firestore, skipping update`);
+      throw new Error(`Đơn hàng ${orderId} không tồn tại trong hệ thống`);
+    }
+
+    // Prepare payment update data    
+    // Ensure all numeric values are properly rounded before storing
     const updateData = {
       paymentStatus: "paid",
       paymentTime: Timestamp.now(),
@@ -1381,7 +1603,12 @@ async function processPaymentInFirestore(orderId, paymentData) {
       totalAmount: parseFloat(paymentData.finalTotal.toFixed(0)) || 0,
     };
 
-    // Update the order document first
+    // Add PayOS-specific data if payment method is PayOS
+    if (paymentData.paymentMethod === "PayOS" && paymentData.payosData) {
+      updateData.payosData = paymentData.payosData;
+    }
+
+    // Update the order document
     await updateDoc(orderRef, updateData);
     console.log("Payment processed successfully for order:", orderId);
 
@@ -1501,13 +1728,15 @@ function showQRCodePreview(orderId) {
 // Utility Functions
 function calculateDiscountAmount(subtotal) {
   if (!selectedDiscountCode) return 0;
-  const taxAmount = subtotal * VAT_RATE;
+  const vatRate = getVatRate();
+  const taxAmount = subtotal * vatRate;
   const afterTax = subtotal + taxAmount;
   return Math.round(afterTax * (selectedDiscountCode.discount / 100));
 }
 
 function calculateFinalTotal(subtotal) {
-  const taxAmount = Math.round(subtotal * VAT_RATE);
+  const vatRate = getVatRate();
+  const taxAmount = Math.round(subtotal * vatRate);
   const afterTax = subtotal + taxAmount;
   const discountAmount = selectedDiscountCode
     ? Math.round(afterTax * (selectedDiscountCode.discount / 100))
@@ -2492,3 +2721,425 @@ window.printPendingInvoice = printPendingInvoice;
 window.openPaymentModal = openPaymentModal;
 window.printInvoice = printInvoice;
 window.printCompletedOrder = printCompletedOrder;
+
+// Export discount functions
+window.selectDiscountCode = selectDiscountCode;
+
+// Export debug functions
+window.fixOrdersWithoutSubtotal = fixOrdersWithoutSubtotal;
+window.renderDiscountCodes = renderDiscountCodes;
+
+// Export payment functions
+window.processPayment = processPayment;
+window.updatePaymentSummary = updatePaymentSummary;
+
+// Export utility functions for debugging
+window.testDiscountCode = function(codeId) {
+  console.log("Testing discount code:", codeId);
+  console.log("Current order:", currentOrder);
+  console.log("Available discount codes:", discountCodes);
+  if (currentOrder) {
+    const orderTotal = currentOrder.subtotal || currentOrder.total || 0;
+    console.log("Order total:", orderTotal);
+    const code = discountCodes.find(c => c.code === codeId);
+    if (code) {
+      console.log("Found code:", code);
+      console.log("Min order:", code.minOrder);
+      console.log("Can apply:", orderTotal >= code.minOrder);
+    }
+  }
+};
+
+// ========================================
+// PAYOS INTEGRATION FUNCTIONS
+// ========================================
+
+async function processPayOSPayment() {
+  try {
+    // Show PayOS processing modal
+    const processingModal = new bootstrap.Modal(document.getElementById("payosProcessingModal"));
+    processingModal.show();
+
+    // Calculate payment details
+    const subtotal = currentOrder.subtotal || currentOrder.total || 0;
+    const vatRate = getVatRate();
+    const taxAmount = parseFloat((subtotal * vatRate).toFixed(0));
+    const afterTax = subtotal + taxAmount;
+    const discountPercent = selectedDiscountCode ? selectedDiscountCode.discount : 0;
+    const discountAmount = parseFloat((afterTax * (discountPercent / 100)).toFixed(0));
+    const finalTotal = afterTax - discountAmount;
+
+    // Validate amount
+    if (!PayOSUtils.validateAmount(finalTotal)) {
+      throw new Error(`Số tiền thanh toán không hợp lệ. Phải từ ${PayOSUtils.formatCurrency(PAYOS_CONFIG.VALIDATION.MIN_AMOUNT)} đến ${PayOSUtils.formatCurrency(PAYOS_CONFIG.VALIDATION.MAX_AMOUNT)}`);
+    }
+
+    // Prepare order data for PayOS
+    const orderCode = PayOSUtils.generateOrderCode(currentOrder.firestoreId || currentOrder.id);
+    const orderDescription = PayOSUtils.sanitizeDescription(
+      `Ban ${currentOrder.table.replace('Bàn ', '')}`  // Shortened description to fit 25 char limit
+    );
+
+    // Get customer info (optional)
+    const customerEmail = document.getElementById("customerEmail")?.value?.trim() || "";
+    const customerPhone = document.getElementById("customerPhone")?.value?.trim() || "";
+
+    // Prepare items for PayOS
+    const payosItems = [];
+    if (currentOrder.items && Array.isArray(currentOrder.items)) {
+      currentOrder.items.forEach(item => {
+        payosItems.push({
+          name: (item.name || "Mon an").substring(0, 25), // Limit to 25 characters
+          quantity: item.quantity || 1,
+          price: Math.round((item.price || 0) / (item.quantity || 1))
+        });
+      });
+    }
+
+    // If no items or items are empty, create a summary item
+    if (payosItems.length === 0) {
+      payosItems.push({
+        name: `Don hang ${currentOrder.table || 'unknown'}`.substring(0, 25),
+        quantity: 1,
+        price: finalTotal
+      });
+    }
+
+    // Create payment data
+    const paymentData = {
+      orderCode: orderCode,
+      amount: finalTotal,
+      description: orderDescription,
+      returnUrl: PAYOS_CONFIG.RETURN_URL + `?orderId=${encodeURIComponent(currentOrder.firestoreId || currentOrder.id)}`,
+      cancelUrl: PAYOS_CONFIG.CANCEL_URL + `?orderId=${encodeURIComponent(currentOrder.firestoreId || currentOrder.id)}&cancelled=true`,
+      items: payosItems,
+      orderId: currentOrder.firestoreId || currentOrder.id,
+      buyerName: customerEmail ? PayOSUtils.sanitizeBuyerName("Khach hang") : "",
+      buyerEmail: customerEmail && PayOSUtils.validateEmail(customerEmail) ? customerEmail : "",
+      buyerPhone: customerPhone && PayOSUtils.validatePhone(customerPhone) ? customerPhone : ""
+    };
+
+    console.log("PayOS payment data:", paymentData);
+
+    // Call PayOS API to create payment link with improved error handling
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PAYOS_CONFIG.TIMEOUT.PAYMENT_CREATION);
+
+    const response = await fetch(PAYOS_CONFIG.API_ENDPOINTS.CREATE_PAYMENT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(paymentData),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    let result;
+    try {
+      result = await response.json();
+    } catch (parseError) {
+      console.error("Failed to parse response:", parseError);
+      throw new Error("Server trả về dữ liệu không hợp lệ");
+    }
+
+    if (!response.ok) {
+      console.error("PayOS API error:", result);
+      throw new Error(result.message || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    if (!result.checkoutUrl) {
+      throw new Error("Không nhận được liên kết thanh toán từ PayOS");
+    }
+
+    // Store payment info for tracking
+    const paymentInfo = {
+      orderCode: orderCode,
+      orderId: currentOrder.firestoreId || currentOrder.id,
+      amount: finalTotal,
+      subtotal: subtotal,
+      vat: taxAmount,
+      discount: discountPercent,
+      discountCode: selectedDiscountCode?.code || "",
+      paymentMethod: "PayOS",
+      checkoutUrl: result.checkoutUrl,
+      timestamp: new Date(),
+      status: "pending"
+    };
+
+    // Save payment info to localStorage for tracking
+    localStorage.setItem(`payos_payment_${orderCode}`, JSON.stringify(paymentInfo));
+    console.log('[PayOS] Payment info saved to localStorage:', paymentInfo);
+
+    // Hide processing modal
+    processingModal.hide();
+
+    // Close payment modal
+    const paymentModal = bootstrap.Modal.getInstance(document.getElementById("paymentModal"));
+    if (paymentModal) {
+      paymentModal.hide();
+    }
+
+    console.log('[PayOS] Redirecting to PayOS checkout:', result.checkoutUrl);
+    console.log('[PayOS] Expected return URL:', paymentData.returnUrl);
+
+    // Redirect to PayOS checkout
+    window.location.href = result.checkoutUrl;
+
+  } catch (error) {
+    console.error("Error processing PayOS payment:", error);
+    
+    // Hide processing modal
+    const processingModal = bootstrap.Modal.getInstance(document.getElementById("payosProcessingModal"));
+    if (processingModal) {
+      processingModal.hide();
+    }
+
+    // Show error message with more specific information
+    let errorMessage = "Có lỗi xảy ra khi tạo thanh toán PayOS";
+    
+    if (error.name === 'AbortError') {
+      errorMessage = "Timeout: Không thể kết nối đến server PayOS";
+    } else if (error.message.includes("Failed to fetch")) {
+      errorMessage = "Không thể kết nối đến server PayOS. Kiểm tra server có chạy trên port 3000 không.";
+    } else if (error.message.includes("CORS")) {
+      errorMessage = "Lỗi CORS: Kiểm tra cấu hình server PayOS";
+    } else {
+      errorMessage = error.message || errorMessage;
+    }
+
+    showNotification(errorMessage, "error");
+  }
+}
+
+function handlePayOSReturn(urlParams) {
+  const code = urlParams.get('code');
+  const status = urlParams.get('status');
+  const orderCode = urlParams.get('orderCode');
+  const orderId = urlParams.get('orderId');
+  const cancelled = urlParams.get('cancelled');
+
+  console.log('[PayOS Return] URL Parameters:', {
+    code, status, orderCode, orderId, cancelled
+  });
+
+  // Clear URL parameters
+  window.history.replaceState({}, document.title, window.location.pathname);
+
+  if (cancelled === 'true') {
+    showPayOSResult(false, "Thanh toán đã bị hủy bởi khách hàng", null);
+    return;
+  }
+
+  // Try to get payment info from localStorage
+  let paymentInfo = null;
+  if (orderCode) {
+    const storedInfo = localStorage.getItem(`payos_payment_${orderCode}`);
+    if (storedInfo) {
+      try {
+        paymentInfo = JSON.parse(storedInfo);
+        console.log('[PayOS Return] Found stored payment info:', paymentInfo);
+      } catch (e) {
+        console.error("Error parsing stored payment info:", e);
+      }
+    } else {
+      console.warn('[PayOS Return] No stored payment info found for orderCode:', orderCode);
+    }
+  }
+
+  // For PayOS, if we get redirected back without error parameters, 
+  // it usually means the payment was successful
+  const isSuccessful = !code || code === "00" || status === "PAID";
+
+  console.log('[PayOS Return] Payment assessment:', {
+    isSuccessful,
+    code,
+    status,
+    reasoning: isSuccessful ? 'No error code or positive indicators' : 'Error code or negative status detected'
+  });
+
+  if (isSuccessful) {
+    handleSuccessfulPayOSPayment(paymentInfo, { code, status, orderCode, orderId });
+  } else {
+    const isCancelled = status === "CANCELLED" || cancelled === "true";
+    const message = isCancelled ? "Thanh toán đã bị hủy" : "Thanh toán không thành công";
+    showPayOSResult(false, message, paymentInfo);
+  }
+}
+
+async function handleSuccessfulPayOSPayment(paymentInfo, payosResult) {
+  console.log('[PayOS Success] Processing successful payment:', { paymentInfo, payosResult });
+  
+  try {
+    if (!paymentInfo) {
+      console.warn('[PayOS Success] No payment info found, showing generic success');
+      showPayOSResult(true, "Thanh toán thành công! (PayOS Debug Mode)", null);
+      showNotification("Thanh toán PayOS thành công! (Test mode)", "success");
+      return;
+    }
+
+    console.log('[PayOS Success] Updating order in Firestore...');
+
+    // Update order status in Firestore
+    const paymentData = {
+      paymentMethod: "PayOS",
+      finalTotal: paymentInfo.amount,
+      subtotal: paymentInfo.subtotal,
+      vat: paymentInfo.vat,
+      discount: paymentInfo.discount,
+      discountCode: paymentInfo.discountCode,
+      customerPaid: paymentInfo.amount,
+      changeAmount: 0,
+      payosData: {
+        orderCode: payosResult.orderCode,
+        code: payosResult.code,
+        status: payosResult.status,
+        paidAt: new Date()
+      }
+    };
+
+    console.log('[PayOS Success] Payment data to save:', paymentData);
+
+    try {
+      await processPaymentInFirestore(paymentInfo.orderId, paymentData);
+      console.log('[PayOS Success] Order updated in Firestore successfully');
+
+      // Create finance transaction
+      console.log('[PayOS Success] Creating finance transaction...');
+      await createFinanceTransaction(paymentInfo.orderId, paymentData);
+      console.log('[PayOS Success] Finance transaction created successfully');
+
+      // Clean up localStorage
+      localStorage.removeItem(`payos_payment_${payosResult.orderCode}`);
+      console.log('[PayOS Success] Cleaned up localStorage');
+
+      // Show success result
+      showPayOSResult(true, `Thanh toán thành công! Tổng tiền: ${PayOSUtils.formatCurrency(paymentInfo.amount)}`, paymentInfo);
+      showNotification(`Thanh toán PayOS thành công! Số tiền: ${PayOSUtils.formatCurrency(paymentInfo.amount)}`, "success");
+
+    } catch (firestoreError) {
+      console.error('[PayOS Success] Firestore update failed:', firestoreError);
+      
+      // Still show success but indicate data sync issue
+      showPayOSResult(true, `Thanh toán thành công! Tổng tiền: ${PayOSUtils.formatCurrency(paymentInfo.amount)} (Có lỗi đồng bộ dữ liệu)`, paymentInfo);
+      showNotification("Thanh toán thành công nhưng có lỗi khi cập nhật dữ liệu", "warning");
+      
+      // Clean up localStorage anyway
+      localStorage.removeItem(`payos_payment_${payosResult.orderCode}`);
+    }
+
+  } catch (error) {
+    console.error("Error handling successful PayOS payment:", error);
+    showPayOSResult(false, "Có lỗi xảy ra trong quá trình xử lý thanh toán", paymentInfo);
+    showNotification("Có lỗi xảy ra trong quá trình xử lý thanh toán", "error");
+  }
+}
+
+function showPayOSResult(isSuccess, message, paymentInfo) {
+  const modal = document.getElementById("payosReturnModal");
+  const header = document.getElementById("payosReturnHeader");
+  const title = document.getElementById("payosReturnTitle");
+  const body = document.getElementById("payosReturnBody");
+  const footer = document.getElementById("payosReturnFooter");
+
+  // Update header style and content
+  if (isSuccess) {
+    header.className = "modal-header bg-success text-white";
+    header.innerHTML = `
+      <h5 class="modal-title">
+        <i data-lucide="check-circle-2" style="width: 20px; height: 20px;"></i>
+        Thanh toán thành công
+      </h5>
+      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    `;
+  } else {
+    header.className = "modal-header bg-danger text-white";
+    header.innerHTML = `
+      <h5 class="modal-title">
+        <i data-lucide="x-circle" style="width: 20px; height: 20px;"></i>
+        Thanh toán thất bại
+      </h5>
+      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    `;
+  }
+
+  // Update body content
+  const iconClass = isSuccess ? "text-success" : "text-danger";
+  const iconName = isSuccess ? "check-circle-2" : "x-circle";
+  
+  body.innerHTML = `
+    <div class="mb-3">
+      <i data-lucide="${iconName}" class="${iconClass}" style="width: 64px; height: 64px;"></i>
+    </div>
+    <h6 class="fw-bold mb-2">${isSuccess ? "Thanh toán hoàn tất!" : "Thanh toán không thành công"}</h6>
+    <p class="text-muted mb-0">${message}</p>
+  `;
+
+  // Update footer content
+  footer.innerHTML = isSuccess && paymentInfo ? `
+    <button type="button" class="btn btn-outline-primary" onclick="printPayOSInvoice()">
+      <i data-lucide="printer" style="width: 16px; height: 16px;"></i>
+      In hóa đơn
+    </button>
+    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Đóng</button>
+  ` : `
+    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Đóng</button>
+  `;
+
+  // Store payment info for printing
+  if (isSuccess && paymentInfo) {
+    window.lastProcessedPayOSOrder = paymentInfo;
+  }
+
+  // Show modal
+  const bootstrapModal = new bootstrap.Modal(modal);
+  bootstrapModal.show();
+
+  // Initialize Lucide icons
+  lucide.createIcons();
+}
+
+function printPayOSInvoice() {
+  if (window.lastProcessedPayOSOrder) {
+    // Use the existing print function with PayOS data
+    printInvoice(true);
+  }
+}
+
+// Export PayOS functions
+window.processPayOSPayment = processPayOSPayment;
+window.handlePayOSReturn = handlePayOSReturn;
+window.printPayOSInvoice = printPayOSInvoice;
+
+// Function to update VAT labels throughout the interface
+function updateVatLabels() {
+  const vatRate = getVatRate();
+  const vatPercentage = (vatRate * 100).toFixed(1);
+  
+  // Update VAT labels in payment summary
+  const vatLabels = document.querySelectorAll('[data-vat-label]');
+  if (vatLabels.length === 0) {
+    // Find VAT labels by text content if data attribute doesn't exist
+    const spans = document.querySelectorAll('span');
+    spans.forEach(span => {
+      if (span.textContent.includes('Thuế VAT (') && span.textContent.includes('%):')) {
+        span.textContent = `Thuế VAT (${vatPercentage}%):`;
+      }
+    });
+  } else {
+    vatLabels.forEach(label => {
+      label.textContent = `Thuế VAT (${vatPercentage}%):`;
+    });
+  }
+}
+
+// Export VAT functions
+window.getVatRate = getVatRate;
+window.updateVatLabels = updateVatLabels;
+
+// Update VAT labels when system settings change
+window.addEventListener('systemSettingsUpdated', function() {
+  updateVatLabels();
+});

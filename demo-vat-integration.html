@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo VAT Integration - Restaurant Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+        .demo-card {
+            transition: all 0.3s ease;
+            border-radius: 12px;
+        }
+        .demo-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+        }
+        .vat-display {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .calculation-box {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-connected { background-color: #28a745; }
+        .status-disconnected { background-color: #dc3545; }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <div class="row">
+            <div class="col-12 text-center mb-5">
+                <h1 class="display-4 fw-bold text-primary">
+                    <i data-lucide="calculator" style="width: 60px; height: 60px;" class="me-3"></i>
+                    Demo VAT Integration
+                </h1>
+                <p class="lead text-muted">Test tích hợp cài đặt thuế VAT toàn hệ thống</p>
+            </div>
+        </div>
+
+        <!-- System Settings Status -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card demo-card border-0 shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i data-lucide="settings" style="width: 20px; height: 20px;" class="me-2"></i>
+                            Trạng thái cài đặt hệ thống
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <div class="vat-display" id="currentVatRate">8.0%</div>
+                                    <small class="text-muted">Thuế VAT hiện tại</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <div id="systemStatus">
+                                        <span class="status-indicator status-connected"></span>
+                                        <span>Đã kết nối</span>
+                                    </div>
+                                    <small class="text-muted d-block">Trạng thái hệ thống</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <div id="lastUpdate">--:--:--</div>
+                                    <small class="text-muted d-block">Cập nhật cuối</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="refreshSettings()">
+                                        <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+                                        Làm mới
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick VAT Test -->
+        <div class="row mb-4">
+            <div class="col-lg-6">
+                <div class="card demo-card border-0 shadow-sm">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i data-lucide="zap" style="width: 20px; height: 20px;" class="me-2"></i>
+                            Test nhanh VAT
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Nhập số tiền (VNĐ):</label>
+                            <input type="number" class="form-control" id="testAmount" value="100000" 
+                                   placeholder="Nhập số tiền..." onInput="calculateTestVat()">
+                        </div>
+                        
+                        <div class="calculation-box">
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <strong>Tiền hàng:</strong><br>
+                                    <span id="testSubtotal" class="text-primary">100,000 VNĐ</span>
+                                </div>
+                                <div class="col-6">
+                                    <strong>Thuế VAT (<span id="testVatPercent">8.0</span>%):</strong><br>
+                                    <span id="testVatAmount" class="text-warning">8,000 VNĐ</span>
+                                </div>
+                                <div class="col-12 mt-2">
+                                    <strong>Tổng cộng:</strong><br>
+                                    <span id="testTotal" class="text-success fs-5 fw-bold">108,000 VNĐ</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card demo-card border-0 shadow-sm">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">
+                            <i data-lucide="sliders" style="width: 20px; height: 20px;" class="me-2"></i>
+                            Thay đổi thuế VAT
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Thuế suất mới (%):</label>
+                            <input type="number" class="form-control" id="newVatRate" min="0" max="100" step="0.1" 
+                                   placeholder="Nhập % thuế mới...">
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-warning" onclick="updateVatRate()">
+                                <i data-lucide="save" style="width: 16px; height: 16px;" class="me-1"></i>
+                                Cập nhật thuế VAT
+                            </button>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <h6>Presets nhanh:</h6>
+                            <div class="btn-group w-100" role="group">
+                                <button class="btn btn-outline-secondary btn-sm" onclick="setVatRate(5)">5%</button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="setVatRate(8)">8%</button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="setVatRate(10)">10%</button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="setVatRate(12)">12%</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Integration Test -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card demo-card border-0 shadow-sm">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i data-lucide="link" style="width: 20px; height: 20px;" class="me-2"></i>
+                            Test tích hợp với các component
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="text-center p-3 border rounded">
+                                    <div class="mb-2">
+                                        <i data-lucide="users" style="width: 30px; height: 30px;" class="text-primary"></i>
+                                    </div>
+                                    <h6>Waiter Dashboard</h6>
+                                    <p class="small text-muted">Tính thuế khi tạo order</p>
+                                    <a href="dashboard/waiter-dashboard.html" class="btn btn-sm btn-outline-primary">
+                                        Test Component
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-center p-3 border rounded">
+                                    <div class="mb-2">
+                                        <i data-lucide="credit-card" style="width: 30px; height: 30px;" class="text-success"></i>
+                                    </div>
+                                    <h6>Cashier Dashboard</h6>
+                                    <p class="small text-muted">Tính thuế khi thanh toán</p>
+                                    <a href="dashboard/cashier-dashboard.html" class="btn btn-sm btn-outline-success">
+                                        Test Component
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-center p-3 border rounded">
+                                    <div class="mb-2">
+                                        <i data-lucide="pie-chart" style="width: 30px; height: 30px;" class="text-danger"></i>
+                                    </div>
+                                    <h6>Manager Dashboard</h6>
+                                    <p class="small text-muted">Cài đặt thuế hệ thống</p>
+                                    <a href="dashboard/manager-dashboard.html" class="btn btn-sm btn-outline-danger">
+                                        Test Component
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Event Log -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card demo-card border-0 shadow-sm">
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i data-lucide="terminal" style="width: 20px; height: 20px;" class="me-2"></i>
+                            Event Log
+                        </h5>
+                        <button class="btn btn-sm btn-outline-light" onclick="clearLog()">
+                            <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                            Clear
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="eventLog" class="p-3" style="max-height: 300px; overflow-y: auto; background: #f8f9fa; font-family: monospace; font-size: 0.9rem;">
+                            <div class="text-muted">Đang chờ events...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="src/utils/vat-manager.js"></script>
+    
+    <script>
+        // Demo functionality
+        let eventCounter = 0;
+        
+        function logEvent(message, type = 'info') {
+            eventCounter++;
+            const timestamp = new Date().toLocaleTimeString('vi-VN');
+            const logContainer = document.getElementById('eventLog');
+            
+            const colors = {
+                info: '#17a2b8',
+                success: '#28a745', 
+                warning: '#ffc107',
+                error: '#dc3545'
+            };
+            
+            const eventDiv = document.createElement('div');
+            eventDiv.innerHTML = `
+                <span style="color: #6c757d;">[${timestamp}]</span> 
+                <span style="color: ${colors[type]}; font-weight: bold;">[${type.toUpperCase()}]</span> 
+                ${message}
+            `;
+            
+            if (logContainer.children.length > 50) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+            
+            logContainer.appendChild(eventDiv);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('eventLog').innerHTML = '<div class="text-muted">Log đã được xóa...</div>';
+            eventCounter = 0;
+        }
+        
+        function refreshSettings() {
+            logEvent('Làm mới cài đặt hệ thống...', 'info');
+            updateDisplay();
+            logEvent('Cài đặt đã được làm mới', 'success');
+        }
+        
+        function updateDisplay() {
+            const vatRate = getCurrentVatRate();
+            const vatPercent = (vatRate * 100).toFixed(1);
+            
+            document.getElementById('currentVatRate').textContent = vatPercent + '%';
+            document.getElementById('testVatPercent').textContent = vatPercent;
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('vi-VN');
+            
+            calculateTestVat();
+            logEvent(`VAT rate updated to ${vatPercent}%`, 'info');
+        }
+        
+        function calculateTestVat() {
+            const amount = parseFloat(document.getElementById('testAmount').value) || 0;
+            const vatRate = getCurrentVatRate();
+            const vatAmount = calculateTax(amount);
+            const total = amount + vatAmount;
+            
+            document.getElementById('testSubtotal').textContent = amount.toLocaleString('vi-VN') + ' VNĐ';
+            document.getElementById('testVatAmount').textContent = vatAmount.toLocaleString('vi-VN') + ' VNĐ';
+            document.getElementById('testTotal').textContent = total.toLocaleString('vi-VN') + ' VNĐ';
+        }
+        
+        function setVatRate(percent) {
+            document.getElementById('newVatRate').value = percent;
+            updateVatRate();
+        }
+        
+        function updateVatRate() {
+            const newRate = parseFloat(document.getElementById('newVatRate').value);
+            
+            if (isNaN(newRate) || newRate < 0 || newRate > 100) {
+                logEvent('Thuế suất không hợp lệ! Phải từ 0% đến 100%', 'error');
+                return;
+            }
+            
+            // Simulate updating system settings
+            const settings = {
+                business: {
+                    vatRate: newRate / 100,
+                    maxTablesPerWaiter: 6,
+                    orderTimeout: 30,
+                    maxDiscountPercent: 50,
+                    inventoryVarianceThreshold: 10
+                },
+                ui: {
+                    currency: 'VNĐ',
+                    dateFormat: 'DD/MM/YYYY'
+                }
+            };
+            
+            localStorage.setItem('systemSettings', JSON.stringify(settings));
+            
+            // Trigger system-wide update
+            window.dispatchEvent(new CustomEvent('systemSettingsUpdated', { detail: settings }));
+            
+            logEvent(`Thuế VAT đã được cập nhật thành ${newRate}%`, 'success');
+            updateDisplay();
+            
+            // Clear the input
+            document.getElementById('newVatRate').value = '';
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            logEvent('Demo VAT Integration initialized', 'success');
+            updateDisplay();
+            
+            // Initialize Lucide icons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+            
+            // Listen for system settings updates
+            window.addEventListener('systemSettingsUpdated', function(event) {
+                logEvent('System settings updated event received', 'info');
+                setTimeout(updateDisplay, 100);
+            });
+            
+            // Test automatic calculation
+            setInterval(() => {
+                if (Math.random() < 0.1) { // 10% chance every second
+                    logEvent('Auto-refresh VAT calculations', 'info');
+                    calculateTestVat();
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

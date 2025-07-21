@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Finance Data - Tạo dữ liệu mẫu</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">
+                            <i data-lucide="database" style="width: 24px; height: 24px;" class="me-2"></i>
+                            Test Finance Data - Tạo dữ liệu mẫu
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i data-lucide="info" style="width: 20px; height: 20px;" class="me-2"></i>
+                            Trang này giúp tạo dữ liệu mẫu cho collection <code>finance_transactions</code> trong Firestore.
+                        </div>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <button class="btn btn-success w-100" onclick="createSampleTransactions()">
+                                    <i data-lucide="plus" style="width: 16px; height: 16px;" class="me-2"></i>
+                                    Tạo 10 giao dịch mẫu
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <button class="btn btn-primary w-100" onclick="loadTransactions()">
+                                    <i data-lucide="refresh-cw" style="width: 16px; height: 16px;" class="me-2"></i>
+                                    Tải dữ liệu hiện tại
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <button class="btn btn-warning w-100" onclick="createTodayTransactions()">
+                                    <i data-lucide="calendar" style="width: 16px; height: 16px;" class="me-2"></i>
+                                    Tạo giao dịch hôm nay
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <button class="btn btn-danger w-100" onclick="clearAllTransactions()">
+                                    <i data-lucide="trash-2" style="width: 16px; height: 16px;" class="me-2"></i>
+                                    Xóa tất cả dữ liệu
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Statistics Display -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h5 class="text-primary" id="totalTransactions">0</h5>
+                                        <small class="text-muted">Tổng giao dịch</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h5 class="text-success" id="todayRevenue">0 VNĐ</h5>
+                                        <small class="text-muted">Doanh thu hôm nay</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h5 class="text-info" id="todayOrders">0</h5>
+                                        <small class="text-muted">Đơn hàng hôm nay</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Data Display -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">Dữ liệu Finance Transactions</h6>
+                            </div>
+                            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                                <div id="transactionsContainer">
+                                    <div class="text-center text-muted py-3">
+                                        <i data-lucide="database" style="width: 48px; height: 48px;" class="mb-2"></i>
+                                        <p>Nhấn "Tải dữ liệu hiện tại" để xem giao dịch</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <a href="dashboard/manager-dashboard.html" class="btn btn-outline-primary">
+                                <i data-lucide="arrow-left" style="width: 16px; height: 16px;" class="me-2"></i>
+                                Về Manager Dashboard
+                            </a>
+                            <a href="index.html" class="btn btn-outline-secondary ms-2">
+                                <i data-lucide="home" style="width: 16px; height: 16px;" class="me-2"></i>
+                                Trang chủ
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase and Scripts -->
+    <script type="module">
+        import { 
+            db, 
+            collection, 
+            addDoc, 
+            getDocs, 
+            query, 
+            orderBy, 
+            limit,
+            where,
+            doc,
+            deleteDoc,
+            Timestamp 
+        } from './src/firebase.js';
+        
+        // Generate sample transaction data
+        function generateSampleTransaction() {
+            const now = new Date();
+            const randomHoursAgo = Math.floor(Math.random() * 24 * 7); // Random time in last week
+            const timestamp = new Date(now.getTime() - (randomHoursAgo * 60 * 60 * 1000));
+            
+            const transactionTypes = [
+                { type: 'order_payment', amount: () => Math.floor(Math.random() * 500000) + 50000 },
+                { type: 'revenue', amount: () => Math.floor(Math.random() * 300000) + 100000 },
+                { type: 'expense', amount: () => -(Math.floor(Math.random() * 200000) + 20000) },
+                { type: 'tip', amount: () => Math.floor(Math.random() * 50000) + 10000 },
+                { type: 'refund', amount: () => -(Math.floor(Math.random() * 150000) + 30000) }
+            ];
+            
+            const randomType = transactionTypes[Math.floor(Math.random() * transactionTypes.length)];
+            const tableNumber = Math.floor(Math.random() * 15) + 1;
+            
+            const paymentMethods = ['Tiền mặt', 'Thẻ tín dụng', 'Chuyển khoản', 'Ví điện tử'];
+            const descriptions = [
+                'Thanh toán đơn hàng',
+                'Thu tiền tip từ khách',
+                'Hoàn tiền cho khách',
+                'Chi phí mua nguyên liệu',
+                'Doanh thu ca làm việc'
+            ];
+            
+            return {
+                type: randomType.type,
+                amount: randomType.amount(),
+                timestamp: Timestamp.fromDate(timestamp),
+                tableNumber: randomType.type === 'order_payment' ? tableNumber : null,
+                paymentMethod: Math.random() > 0.3 ? paymentMethods[Math.floor(Math.random() * paymentMethods.length)] : null,
+                description: descriptions[Math.floor(Math.random() * descriptions.length)],
+                staff: `Nhân viên ${Math.floor(Math.random() * 10) + 1}`,
+                createdBy: 'system',
+                createdAt: Timestamp.fromDate(new Date())
+            };
+        }
+        
+        // Generate today's transactions
+        function generateTodayTransaction() {
+            const now = new Date();
+            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const randomMinutes = Math.floor(Math.random() * (now.getHours() * 60 + now.getMinutes()));
+            const timestamp = new Date(startOfDay.getTime() + (randomMinutes * 60 * 1000));
+            
+            const todayTypes = [
+                { type: 'order_payment', amount: () => Math.floor(Math.random() * 400000) + 80000 },
+                { type: 'revenue', amount: () => Math.floor(Math.random() * 250000) + 150000 },
+                { type: 'tip', amount: () => Math.floor(Math.random() * 30000) + 15000 }
+            ];
+            
+            const randomType = todayTypes[Math.floor(Math.random() * todayTypes.length)];
+            const tableNumber = Math.floor(Math.random() * 15) + 1;
+            
+            return {
+                type: randomType.type,
+                amount: randomType.amount(),
+                timestamp: Timestamp.fromDate(timestamp),
+                tableNumber: randomType.type === 'order_payment' ? tableNumber : null,
+                paymentMethod: 'Tiền mặt',
+                description: `Giao dịch hôm nay - ${randomType.type}`,
+                staff: `Nhân viên ${Math.floor(Math.random() * 5) + 1}`,
+                createdBy: 'system_today',
+                createdAt: Timestamp.fromDate(new Date())
+            };
+        }
+        
+        // Create sample transactions
+        async function createSampleTransactions() {
+            try {
+                showLoading('Đang tạo 10 giao dịch mẫu...');
+                
+                const transactions = [];
+                for (let i = 0; i < 10; i++) {
+                    transactions.push(generateSampleTransaction());
+                }
+                
+                const promises = transactions.map(transaction => 
+                    addDoc(collection(db, 'finance_transactions'), transaction)
+                );
+                
+                await Promise.all(promises);
+                
+                showSuccess('✅ Đã tạo thành công 10 giao dịch mẫu!');
+                await loadTransactions();
+                
+            } catch (error) {
+                console.error('❌ Error creating sample transactions:', error);
+                showError('Lỗi khi tạo dữ liệu mẫu: ' + error.message);
+            }
+        }
+        
+        // Create today's transactions
+        async function createTodayTransactions() {
+            try {
+                showLoading('Đang tạo giao dịch hôm nay...');
+                
+                const transactions = [];
+                for (let i = 0; i < 5; i++) {
+                    transactions.push(generateTodayTransaction());
+                }
+                
+                const promises = transactions.map(transaction => 
+                    addDoc(collection(db, 'finance_transactions'), transaction)
+                );
+                
+                await Promise.all(promises);
+                
+                showSuccess('✅ Đã tạo thành công 5 giao dịch hôm nay!');
+                await loadTransactions();
+                
+            } catch (error) {
+                console.error('❌ Error creating today transactions:', error);
+                showError('Lỗi khi tạo giao dịch hôm nay: ' + error.message);
+            }
+        }
+        
+        // Load and display transactions
+        async function loadTransactions() {
+            try {
+                showLoading('Đang tải dữ liệu...');
+                
+                const financeRef = collection(db, 'finance_transactions');
+                const q = query(financeRef, orderBy('timestamp', 'desc'), limit(20));
+                
+                const querySnapshot = await getDocs(q);
+                const transactions = [];
+                
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    transactions.push({
+                        id: doc.id,
+                        ...data,
+                        timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(data.timestamp)
+                    });
+                });
+                
+                displayTransactions(transactions);
+                updateStatistics(transactions);
+                
+                showSuccess(`✅ Đã tải ${transactions.length} giao dịch!`);
+                
+            } catch (error) {
+                console.error('❌ Error loading transactions:', error);
+                showError('Lỗi khi tải dữ liệu: ' + error.message);
+            }
+        }
+        
+        // Display transactions in UI
+        function displayTransactions(transactions) {
+            const container = document.getElementById('transactionsContainer');
+            
+            if (transactions.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-muted py-3">
+                        <i data-lucide="inbox" style="width: 48px; height: 48px;" class="mb-2"></i>
+                        <p>Chưa có giao dịch nào</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const transactionsHtml = transactions.map(transaction => {
+                const date = new Date(transaction.timestamp);
+                const timeStr = date.toLocaleTimeString('vi-VN');
+                const dateStr = date.toLocaleDateString('vi-VN');
+                
+                const amountClass = transaction.amount >= 0 ? 'text-success' : 'text-danger';
+                const typeIcon = transaction.amount >= 0 ? 'trending-up' : 'trending-down';
+                
+                return `
+                    <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
+                        <div class="d-flex align-items-center">
+                            <i data-lucide="${typeIcon}" style="width: 16px; height: 16px;" class="me-2 ${amountClass}"></i>
+                            <div>
+                                <small class="fw-bold">${transaction.type}</small>
+                                <br>
+                                <small class="text-muted">${timeStr} - ${dateStr}</small>
+                                ${transaction.tableNumber ? `<br><small class="text-info">Bàn ${transaction.tableNumber}</small>` : ''}
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <strong class="${amountClass}">${formatCurrency(Math.abs(transaction.amount))}</strong>
+                            ${transaction.paymentMethod ? `<br><small class="text-muted">${transaction.paymentMethod}</small>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = transactionsHtml;
+            
+            // Recreate icons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+        
+        // Update statistics
+        function updateStatistics(transactions) {
+            const today = new Date();
+            const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            
+            let todayRevenue = 0;
+            let todayOrders = 0;
+            
+            transactions.forEach(transaction => {
+                const transactionDate = new Date(transaction.timestamp);
+                
+                if (transactionDate >= startOfDay) {
+                    if (transaction.type === 'order_payment' || transaction.type === 'revenue') {
+                        todayRevenue += transaction.amount || 0;
+                        if (transaction.type === 'order_payment') {
+                            todayOrders++;
+                        }
+                    }
+                }
+            });
+            
+            document.getElementById('totalTransactions').textContent = transactions.length;
+            document.getElementById('todayRevenue').textContent = formatCurrency(todayRevenue);
+            document.getElementById('todayOrders').textContent = todayOrders;
+        }
+        
+        // Clear all transactions
+        async function clearAllTransactions() {
+            if (!confirm('⚠️ Bạn có chắc muốn xóa TẤT CẢ dữ liệu finance_transactions?')) {
+                return;
+            }
+            
+            try {
+                showLoading('Đang xóa tất cả dữ liệu...');
+                
+                const financeRef = collection(db, 'finance_transactions');
+                const querySnapshot = await getDocs(financeRef);
+                
+                const deletePromises = [];
+                querySnapshot.forEach((document) => {
+                    deletePromises.push(deleteDoc(doc(db, 'finance_transactions', document.id)));
+                });
+                
+                await Promise.all(deletePromises);
+                
+                showSuccess('✅ Đã xóa tất cả dữ liệu!');
+                document.getElementById('transactionsContainer').innerHTML = `
+                    <div class="text-center text-muted py-3">
+                        <i data-lucide="trash-2" style="width: 48px; height: 48px;" class="mb-2"></i>
+                        <p>Đã xóa tất cả dữ liệu</p>
+                    </div>
+                `;
+                
+                // Reset statistics
+                document.getElementById('totalTransactions').textContent = '0';
+                document.getElementById('todayRevenue').textContent = '0 VNĐ';
+                document.getElementById('todayOrders').textContent = '0';
+                
+            } catch (error) {
+                console.error('❌ Error clearing transactions:', error);
+                showError('Lỗi khi xóa dữ liệu: ' + error.message);
+            }
+        }
+        
+        // Format currency
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('vi-VN').format(amount) + ' VNĐ';
+        }
+        
+        // UI Helper functions
+        function showLoading(message) {
+            console.log('⏳ ' + message);
+        }
+        
+        function showSuccess(message) {
+            console.log('✅ ' + message);
+            alert(message);
+        }
+        
+        function showError(message) {
+            console.error('❌ ' + message);
+            alert(message);
+        }
+        
+        // Export functions to global scope
+        window.createSampleTransactions = createSampleTransactions;
+        window.createTodayTransactions = createTodayTransactions;
+        window.loadTransactions = loadTransactions;
+        window.clearAllTransactions = clearAllTransactions;
+        
+        // Auto-load data when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize icons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+            
+            // Load existing data
+            setTimeout(loadTransactions, 1000);
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

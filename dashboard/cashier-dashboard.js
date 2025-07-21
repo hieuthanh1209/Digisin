@@ -53,9 +53,17 @@ document.addEventListener("DOMContentLoaded", function () {
                                   .join("")}
                             </ul>
                             <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
-                                <div style="display: flex; justify-content: space-between; font-weight: bold;">
-                                    <span>Tổng cộng:</span>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                    <span>Tổng tiền hàng:</span>
                                     <span>${formatCurrency(total)}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                    <span>Thuế VAT (${getCurrentVatRate ? (getCurrentVatRate() * 100).toFixed(1) : '10'}%):</span>
+                                    <span>${formatCurrency(Math.round(total * (getCurrentVatRate ? getCurrentVatRate() : 0.1)))}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-weight: bold; border-top: 1px solid #e5e7eb; padding-top: 0.5rem;">
+                                    <span>Thành tiền:</span>
+                                    <span>${formatCurrency(total + Math.round(total * (getCurrentVatRate ? getCurrentVatRate() : 0.1)))}</span>
                                 </div>
                             </div>
                         </div>

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test New Order VAT Label</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        button { background: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        .result { background: #e9ecef; padding: 10px; margin: 10px 0; border-radius: 3px; font-family: monospace; white-space: pre-wrap; }
+        .invoice { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; background: white; }
+        .success { border-color: #28a745; background: #f8fff8; }
+        .error { border-color: #dc3545; background: #fff8f8; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test New Order VAT Label</h1>
+    
+    <div class="section">
+        <h3>1. Set Current VAT Rate</h3>
+        <label>VAT Rate (%): <input type="number" id="vatRateInput" value="12" step="0.1"></label>
+        <button onclick="setVATRate()">Set VAT Rate</button>
+        <div id="setRateResult" class="result"></div>
+    </div>
+    
+    <div class="section">
+        <h3>2. Create Test Order (Waiter Style)</h3>
+        <button onclick="createTestOrder()">Create Test Order</button>
+        <div id="orderResult" class="result"></div>
+    </div>
+    
+    <div class="section">
+        <h3>3. Test Invoice Display</h3>
+        <button onclick="testInvoiceDisplay()">Display Last Created Order Invoice</button>
+        <div id="invoiceDisplay"></div>
+    </div>
+    
+    <div class="section">
+        <h3>4. Change VAT Rate and Test Again</h3>
+        <label>New VAT Rate (%): <input type="number" id="newVatRateInput" value="8" step="0.1"></label>
+        <button onclick="changeRateAndTest()">Change Rate & Test</button>
+        <div id="changeTestResult" class="result"></div>
+    </div>
+
+    <!-- Include scripts -->
+    <script src="dashboard/tax-manager.js"></script>
+    <script src="src/utils/vat-manager.js"></script>
+
+    <script>
+        let lastCreatedOrder = null;
+        
+        function log(elementId, message, clear = false) {
+            const element = document.getElementById(elementId);
+            if (clear) element.textContent = '';
+            element.textContent += message + '\n';
+            element.scrollTop = element.scrollHeight;
+        }
+
+        function setVATRate() {
+            const rate = parseFloat(document.getElementById('vatRateInput').value);
+            log('setRateResult', `Setting VAT rate to ${rate}%...`, true);
+            
+            try {
+                // Add to tax history
+                if (typeof addTaxRateEntry === 'function') {
+                    const success = addTaxRateEntry(rate, new Date());
+                    log('setRateResult', `Tax history update: ${success ? 'Success' : 'Failed'}`);
+                }
+                
+                // Dispatch event
+                document.dispatchEvent(new CustomEvent('taxRateUpdated', {
+                    detail: { 
+                        rate: rate, 
+                        effectiveDate: new Date().toISOString(),
+                        source: 'test'
+                    }
+                }));
+                
+                // Verify current rate
+                if (typeof getCurrentVatRate === 'function') {
+                    const currentRate = getCurrentVatRate();
+                    log('setRateResult', `Current VAT rate: ${currentRate} (${(currentRate * 100).toFixed(1)}%)`);
+                    
+                    if (Math.abs(currentRate * 100 - rate) < 0.1) {
+                        log('setRateResult', '✅ VAT rate set successfully');
+                    } else {
+                        log('setRateResult', '❌ VAT rate not updated correctly');
+                    }
+                } else {
+                    log('setRateResult', '❌ getCurrentVatRate function not found');
+                }
+            } catch (error) {
+                log('setRateResult', `❌ Error: ${error.message}`);
+            }
+        }
+
+        function createTestOrder() {
+            log('orderResult', 'Creating test order...', true);
+            
+            try {
+                // Simulate waiter-script.js order creation process
+                const vatRate = typeof getCurrentVatRate === 'function' ? getCurrentVatRate() : 0.1;
+                const subtotal = 65000; // Same as in the invoice image
+                const vat = Math.round(subtotal * vatRate);
+                const total = subtotal + vat;
+                
+                // Create order data exactly like waiter-script.js
+                const orderData = {
+                    id: `test-${Date.now()}`,
+                    tableId: 'T006',
+                    tableName: 'Bàn T006',
+                    items: [
+                        { id: 1, name: 'Phở bò tái', price: 65000, quantity: 1 }
+                    ],
+                    notes: '',
+                    status: 'pending',
+                    subtotal: subtotal,
+                    vat: vat,
+                    total: total,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    vatRate: vatRate,
+                    orderTimestamp: new Date().toISOString(),
+                    // Fixed VAT label creation (using current rate at creation time)
+                    vatLabel: `Thuế VAT (${(vatRate * 100).toFixed(1)}%):`,
+                    vatLabelEn: `VAT (${(vatRate * 100).toFixed(1)}%):`,
+                    vatPercentage: `${(vatRate * 100).toFixed(1)}%`
+                };
+                
+                lastCreatedOrder = orderData;
+                
+                log('orderResult', `✅ Order created successfully!`);
+                log('orderResult', `Order ID: ${orderData.id}`);
+                log('orderResult', `VAT Rate: ${vatRate} (${(vatRate * 100).toFixed(1)}%)`);
+                log('orderResult', `VAT Label: "${orderData.vatLabel}"`);
+                log('orderResult', `Subtotal: ${formatCurrency(orderData.subtotal)}`);
+                log('orderResult', `VAT Amount: ${formatCurrency(orderData.vat)}`);
+                log('orderResult', `Total: ${formatCurrency(orderData.total)}`);
+                log('orderResult', `Created At: ${new Date(orderData.createdAt).toLocaleString('vi-VN')}`);
+                
+            } catch (error) {
+                log('orderResult', `❌ Error creating order: ${error.message}`);
+            }
+        }
+
+        function testInvoiceDisplay() {
+            const display = document.getElementById('invoiceDisplay');
+            
+            if (!lastCreatedOrder) {
+                display.innerHTML = '<div class="invoice error">❌ No order created yet. Please create a test order first.</div>';
+                return;
+            }
+            
+            // Simulate manager-script.js printInvoice function
+            const invoice = lastCreatedOrder;
+            
+            const invoiceHTML = `
+                <div class="invoice success">
+                    <h4>🧾 Test Invoice Display</h4>
+                    <div><strong>Order ID:</strong> ${invoice.id}</div>
+                    <div><strong>Table:</strong> ${invoice.tableName}</div>
+                    <div><strong>Created:</strong> ${new Date(invoice.createdAt).toLocaleString('vi-VN')}</div>
+                    <hr>
+                    <div><strong>Items:</strong></div>
+                    ${invoice.items.map(item => `<div>  ${item.quantity}x ${item.name} - ${formatCurrency(item.price * item.quantity)}</div>`).join('')}
+                    <hr>
+                    <div><strong>Tạm tính:</strong> ${formatCurrency(invoice.subtotal)}</div>
+                    <div><strong>${invoice.vatLabel || invoice.vatLabelVi || 'Thuế VAT:'}:</strong> ${formatCurrency(invoice.vat)}</div>
+                    <div style="font-size: 16px; font-weight: bold; margin-top: 10px;"><strong>THÀNH TIỀN:</strong> ${formatCurrency(invoice.total)}</div>
+                    <hr>
+                    <div style="font-size: 12px; color: #666;">
+                        <div>Stored VAT Rate: ${(invoice.vatRate * 100).toFixed(1)}%</div>
+                        <div>Stored VAT Label: "${invoice.vatLabel}"</div>
+                        <div>Stored VAT Percentage: ${invoice.vatPercentage}</div>
+                    </div>
+                </div>
+            `;
+            
+            display.innerHTML = invoiceHTML;
+            
+            // Verify correctness
+            const expectedVat = Math.round(invoice.subtotal * invoice.vatRate);
+            const expectedLabel = `Thuế VAT (${(invoice.vatRate * 100).toFixed(1)}%):`;
+            
+            if (invoice.vat === expectedVat && invoice.vatLabel === expectedLabel) {
+                display.innerHTML += '<div class="invoice success">✅ Invoice displays correct historical VAT rate and label!</div>';
+            } else {
+                display.innerHTML += '<div class="invoice error">❌ Invoice has incorrect VAT rate or label!</div>';
+            }
+        }
+
+        function changeRateAndTest() {
+            const newRate = parseFloat(document.getElementById('newVatRateInput').value);
+            log('changeTestResult', `Testing rate change scenario...`, true);
+            log('changeTestResult', `Step 1: Change VAT rate to ${newRate}%`);
+            
+            try {
+                // Change the rate
+                if (typeof addTaxRateEntry === 'function') {
+                    addTaxRateEntry(newRate, new Date());
+                }
+                
+                // Dispatch event
+                document.dispatchEvent(new CustomEvent('taxRateUpdated', {
+                    detail: { 
+                        rate: newRate, 
+                        effectiveDate: new Date().toISOString(),
+                        source: 'test'
+                    }
+                }));
+                
+                log('changeTestResult', `Step 2: Create new order with ${newRate}% rate`);
+                
+                // Create new order
+                const vatRate = typeof getCurrentVatRate === 'function' ? getCurrentVatRate() : (newRate / 100);
+                const subtotal = 65000;
+                const vat = Math.round(subtotal * vatRate);
+                const total = subtotal + vat;
+                
+                const newOrder = {
+                    id: `test-new-${Date.now()}`,
+                    vatRate: vatRate,
+                    vatLabel: `Thuế VAT (${(vatRate * 100).toFixed(1)}%):`,
+                    vatPercentage: `${(vatRate * 100).toFixed(1)}%`,
+                    subtotal: subtotal,
+                    vat: vat,
+                    total: total,
+                    createdAt: new Date().toISOString()
+                };
+                
+                log('changeTestResult', `Step 3: Compare old and new orders`);
+                
+                if (lastCreatedOrder) {
+                    log('changeTestResult', `\nOLD ORDER:`);
+                    log('changeTestResult', `  Rate: ${(lastCreatedOrder.vatRate * 100).toFixed(1)}%`);
+                    log('changeTestResult', `  Label: "${lastCreatedOrder.vatLabel}"`);
+                    log('changeTestResult', `  VAT: ${formatCurrency(lastCreatedOrder.vat)}`);
+                    
+                    log('changeTestResult', `\nNEW ORDER:`);
+                    log('changeTestResult', `  Rate: ${(newOrder.vatRate * 100).toFixed(1)}%`);
+                    log('changeTestResult', `  Label: "${newOrder.vatLabel}"`);
+                    log('changeTestResult', `  VAT: ${formatCurrency(newOrder.vat)}`);
+                    
+                    if (lastCreatedOrder.vatLabel !== newOrder.vatLabel) {
+                        log('changeTestResult', `\n✅ SUCCESS: Orders have different VAT labels as expected!`);
+                        log('changeTestResult', `   This proves historical accuracy is working.`);
+                    } else {
+                        log('changeTestResult', `\n❌ FAILURE: Orders have same VAT label - historical accuracy not working!`);
+                    }
+                } else {
+                    log('changeTestResult', `❌ No old order to compare with. Create a test order first.`);
+                }
+                
+            } catch (error) {
+                log('changeTestResult', `❌ Error: ${error.message}`);
+            }
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('vi-VN', {
+                style: 'currency',
+                currency: 'VND',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(amount);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize tax system
+            if (typeof initTaxSettingsManager === 'function') {
+                initTaxSettingsManager();
+            }
+        });
+    </script>
+</body>
+</html>

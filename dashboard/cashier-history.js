@@ -745,8 +745,28 @@ document.addEventListener("DOMContentLoaded", async function () {
             `;
     });
 
-    // Calculate tax and totals
-    const taxRate = 0.1; // 10% tax
+    // Calculate tax and totals using historical VAT rate
+    let taxRate;
+    let vatLabel;
+    
+    if (typeof getOrderVatLabel === 'function') {
+        // Use new helper function that handles migration automatically
+        vatLabel = getOrderVatLabel(payment, 'vi');
+        taxRate = payment.vatRate || (payment.timestamp ? getVatRateForOrder(payment.timestamp) : getCurrentVatRate());
+    } else if (typeof getVatRateForOrder === 'function' && payment.timestamp) {
+        taxRate = getVatRateForOrder(payment.timestamp);
+        vatLabel = typeof getVatLabelForOrder === 'function' 
+            ? getVatLabelForOrder(payment.timestamp, 'vi') 
+            : `Thuế VAT (${(taxRate * 100).toFixed(1)}%):`;
+        console.log(`Using historical VAT rate ${(taxRate * 100).toFixed(1)}% for order from ${new Date(payment.timestamp).toLocaleString()}`);
+    } else {
+        taxRate = typeof getCurrentVatRate === 'function' ? getCurrentVatRate() : 0.1;
+        vatLabel = typeof getCurrentVatLabel === 'function' 
+            ? getCurrentVatLabel('vi') 
+            : `Thuế VAT (${(taxRate * 100).toFixed(1)}%):`;
+        console.log(`Using current VAT rate ${(taxRate * 100).toFixed(1)}% (no timestamp or function available)`);
+    }
+    
     const taxAmount = subtotal * taxRate;
     const discountPercent = payment.discount ? payment.discount.percent : 0;
     const discountAmount = subtotal * (discountPercent / 100);
@@ -762,7 +782,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                         <td class="text-end">${formatCurrency(subtotal)}</td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="text-end fw-medium">Thuế VAT (10%):</td>
+                        <td colspan="4" class="text-end fw-medium">${vatLabel}</td>
                         <td class="text-end">${formatCurrency(taxAmount)}</td>
                     </tr>
                 `;
@@ -946,7 +966,28 @@ document.addEventListener("DOMContentLoaded", async function () {
       subtotal += item.price * item.quantity;
     });
 
-    const taxRate = 0.1; // 10% tax
+    // Use historical VAT rate for old orders
+    let taxRate;
+    let vatLabel;
+    
+    if (typeof getOrderVatLabel === 'function') {
+        // Use new helper function that handles migration automatically
+        vatLabel = getOrderVatLabel(payment, 'vi');
+        taxRate = payment.vatRate || (payment.timestamp ? getVatRateForOrder(payment.timestamp) : getCurrentVatRate());
+    } else if (typeof getVatRateForOrder === 'function' && payment.timestamp) {
+        taxRate = getVatRateForOrder(payment.timestamp);
+        vatLabel = typeof getVatLabelForOrder === 'function' 
+            ? getVatLabelForOrder(payment.timestamp, 'vi') 
+            : `Thuế VAT (${(taxRate * 100).toFixed(1)}%):`;
+        console.log(`Receipt: Using historical VAT rate ${(taxRate * 100).toFixed(1)}% for order from ${new Date(payment.timestamp).toLocaleString()}`);
+    } else {
+        taxRate = typeof getCurrentVatRate === 'function' ? getCurrentVatRate() : 0.1;
+        vatLabel = typeof getCurrentVatLabel === 'function' 
+            ? getCurrentVatLabel('vi') 
+            : `Thuế VAT (${(taxRate * 100).toFixed(1)}%):`;
+        console.log(`Receipt: Using current VAT rate ${(taxRate * 100).toFixed(1)}% (no timestamp or function available)`);
+    }
+    
     const taxAmount = subtotal * taxRate;
     const afterTax = subtotal + taxAmount;
 
@@ -1014,7 +1055,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                     <span>${formatCurrency(subtotal)}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-                    <span>Thuế VAT (10%):</span>
+                    <span>${vatLabel}</span>
                     <span>${formatCurrency(taxAmount)}</span>
                 </div>
                 ${

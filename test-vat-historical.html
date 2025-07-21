@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test VAT Label Historical Accuracy</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .section {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #e9ecef;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .test-invoice {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: white;
+        }
+        .invoice-header {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .old-invoice {
+            border-color: #ffc107;
+            background: #fff8e1;
+        }
+        .new-invoice {
+            border-color: #28a745;
+            background: #f8fff8;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test VAT Label Historical Accuracy</h1>
+    
+    <div class="section">
+        <h3>Simulate Old Tax Rate (10%)</h3>
+        <button onclick="createOldInvoice()">Create Invoice with 10% VAT</button>
+        <p>This simulates an invoice created when VAT rate was 10%</p>
+    </div>
+    
+    <div class="section">
+        <h3>Update Tax Rate to 12%</h3>
+        <button onclick="updateTaxRate()">Update Tax Rate to 12%</button>
+        <p>This updates the current tax rate to 12%</p>
+    </div>
+    
+    <div class="section">
+        <h3>Create New Invoice (12%)</h3>
+        <button onclick="createNewInvoice()">Create Invoice with 12% VAT</button>
+        <p>This simulates an invoice created after VAT rate change</p>
+    </div>
+    
+    <div class="section">
+        <h3>Test Invoice Display</h3>
+        <button onclick="displayAllInvoices()">Display All Invoices</button>
+        <p>This shows how invoices are displayed with their historical VAT labels</p>
+    </div>
+    
+    <div id="invoicesDisplay"></div>
+    
+    <div class="section">
+        <h3>Event Log</h3>
+        <button onclick="clearLog()">Clear Log</button>
+        <div id="eventLog" class="result"></div>
+    </div>
+
+    <!-- Include the necessary scripts -->
+    <script src="dashboard/tax-manager.js"></script>
+    <script src="src/utils/vat-manager.js"></script>
+
+    <script>
+        // Mock data storage
+        let mockInvoices = [];
+        let currentInvoiceId = 1;
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize tax manager
+            if (typeof initTaxSettingsManager === 'function') {
+                initTaxSettingsManager();
+            }
+            
+            logEvent('System initialized');
+            displayCurrentTaxRate();
+        });
+
+        function displayCurrentTaxRate() {
+            if (typeof getCurrentVatRate === 'function') {
+                const rate = getCurrentVatRate();
+                const percentage = (rate * 100).toFixed(1);
+                logEvent(`Current VAT Rate: ${rate} (${percentage}%)`);
+            }
+        }
+
+        function createOldInvoice() {
+            // Simulate creating an invoice when VAT was 10%
+            const oldVatRate = 0.10;
+            const oldVatLabel = `Thuế VAT (10.0%):`;
+            const oldVatLabelEn = `VAT (10.0%):`;
+            
+            const invoice = createMockInvoice(oldVatRate, oldVatLabel, oldVatLabelEn, '2025-07-15T10:00:00Z');
+            mockInvoices.push(invoice);
+            
+            logEvent(`Created old invoice #${invoice.id} with 10% VAT`);
+            logEvent(`Old invoice VAT label: "${invoice.vatLabel}"`);
+        }
+
+        function updateTaxRate() {
+            // Update tax rate to 12%
+            if (typeof addTaxRateEntry === 'function') {
+                const success = addTaxRateEntry(12.0, new Date());
+                logEvent(`Tax rate update to 12%: ${success ? 'Success' : 'Failed'}`);
+                
+                if (success) {
+                    // Dispatch event
+                    document.dispatchEvent(new CustomEvent('taxRateUpdated', {
+                        detail: { 
+                            rate: 12.0, 
+                            effectiveDate: new Date().toISOString(),
+                            source: 'test'
+                        }
+                    }));
+                    
+                    displayCurrentTaxRate();
+                }
+            } else {
+                logEvent('addTaxRateEntry function not found');
+            }
+        }
+
+        function createNewInvoice() {
+            // Create an invoice with current VAT rate
+            let currentVatRate = 0.12; // Default to 12%
+            let currentVatLabel = `Thuế VAT (12.0%):`;
+            let currentVatLabelEn = `VAT (12.0%):`;
+            
+            if (typeof getCurrentVatRate === 'function') {
+                currentVatRate = getCurrentVatRate();
+                const percentage = (currentVatRate * 100).toFixed(1);
+                currentVatLabel = `Thuế VAT (${percentage}%):`;
+                currentVatLabelEn = `VAT (${percentage}%):`;
+            }
+            
+            if (typeof getCurrentVatLabel === 'function') {
+                currentVatLabel = getCurrentVatLabel('vi');
+                currentVatLabelEn = getCurrentVatLabel('en');
+            }
+            
+            const invoice = createMockInvoice(currentVatRate, currentVatLabel, currentVatLabelEn, new Date().toISOString());
+            mockInvoices.push(invoice);
+            
+            logEvent(`Created new invoice #${invoice.id} with ${(currentVatRate * 100).toFixed(1)}% VAT`);
+            logEvent(`New invoice VAT label: "${invoice.vatLabel}"`);
+        }
+
+        function createMockInvoice(vatRate, vatLabel, vatLabelEn, timestamp) {
+            const subtotal = 100000; // 100,000 VND
+            const vatAmount = Math.round(subtotal * vatRate);
+            const total = subtotal + vatAmount;
+            
+            return {
+                id: currentInvoiceId++,
+                subtotal: subtotal,
+                vat: vatAmount,
+                vatRate: vatRate,
+                vatLabel: vatLabel,
+                vatLabelVi: vatLabel,
+                vatLabelEn: vatLabelEn,
+                vatPercentage: `${(vatRate * 100).toFixed(1)}%`,
+                total: total,
+                discount: 0,
+                timestamp: timestamp,
+                items: [
+                    { name: 'Phở bò', quantity: 1, price: 80000 },
+                    { name: 'Trà đá', quantity: 1, price: 20000 }
+                ]
+            };
+        }
+
+        function displayAllInvoices() {
+            const display = document.getElementById('invoicesDisplay');
+            display.innerHTML = '<h3>All Invoices</h3>';
+            
+            mockInvoices.forEach(invoice => {
+                const isOld = new Date(invoice.timestamp) < new Date('2025-07-20');
+                const invoiceDiv = document.createElement('div');
+                invoiceDiv.className = `test-invoice ${isOld ? 'old-invoice' : 'new-invoice'}`;
+                
+                invoiceDiv.innerHTML = `
+                    <div class="invoice-header">
+                        Invoice #${invoice.id} - ${isOld ? 'OLD' : 'NEW'} 
+                        (Created: ${new Date(invoice.timestamp).toLocaleString('vi-VN')})
+                    </div>
+                    <div><strong>Tạm tính:</strong> ${formatCurrency(invoice.subtotal)}</div>
+                    <div><strong>${invoice.vatLabel}:</strong> ${formatCurrency(invoice.vat)}</div>
+                    <div><strong>Tổng cộng:</strong> ${formatCurrency(invoice.total)}</div>
+                    <hr>
+                    <div style="font-size: 12px; color: #666;">
+                        <div>VAT Rate: ${(invoice.vatRate * 100).toFixed(1)}%</div>
+                        <div>VAT Label (VI): ${invoice.vatLabel}</div>
+                        <div>VAT Label (EN): ${invoice.vatLabelEn}</div>
+                    </div>
+                `;
+                
+                display.appendChild(invoiceDiv);
+            });
+            
+            logEvent(`Displayed ${mockInvoices.length} invoices`);
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('vi-VN', {
+                style: 'currency',
+                currency: 'VND',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(amount);
+        }
+
+        function logEvent(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logDiv = document.getElementById('eventLog');
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('eventLog').innerHTML = '';
+        }
+
+        // Listen for tax rate updates
+        document.addEventListener('taxRateUpdated', function(event) {
+            logEvent(`Tax rate updated event received: ${JSON.stringify(event.detail)}`);
+        });
+    </script>
+</body>
+</html>

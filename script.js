@@ -1,5 +1,83 @@
 import { loginWithEmail, checkAuthState } from "./src/firebase.js";
 
+// Global function for filling demo account credentials
+window.fillDemoAccount = function(email, password) {
+  const usernameField = document.getElementById("username");
+  const passwordField = document.getElementById("password");
+  
+  if (usernameField && passwordField) {
+    // Clear existing values first with animation
+    usernameField.style.transition = "all 0.2s ease";
+    passwordField.style.transition = "all 0.2s ease";
+    
+    // Brief scale animation to show something is happening
+    usernameField.style.transform = "scale(1.02)";
+    passwordField.style.transform = "scale(1.02)";
+    
+    // Clear and fill with slight delay for better UX
+    setTimeout(() => {
+      usernameField.value = "";
+      passwordField.value = "";
+      
+      // Type effect simulation
+      let emailIndex = 0;
+      let passwordIndex = 0;
+      
+      const typeEmail = () => {
+        if (emailIndex < email.length) {
+          usernameField.value += email[emailIndex];
+          emailIndex++;
+          setTimeout(typeEmail, 30);
+        }
+      };
+      
+      const typePassword = () => {
+        if (passwordIndex < password.length) {
+          passwordField.value += password[passwordIndex];
+          passwordIndex++;
+          setTimeout(typePassword, 30);
+        } else {
+          // Finished typing, add success highlight
+          usernameField.style.backgroundColor = "#e8f5e8";
+          passwordField.style.backgroundColor = "#e8f5e8";
+          usernameField.style.borderColor = "#22c55e";
+          passwordField.style.borderColor = "#22c55e";
+          
+          // Reset transform
+          usernameField.style.transform = "scale(1)";
+          passwordField.style.transform = "scale(1)";
+          
+          // Remove highlight after 1.5 seconds
+          setTimeout(() => {
+            usernameField.style.backgroundColor = "";
+            passwordField.style.backgroundColor = "";
+            usernameField.style.borderColor = "";
+            passwordField.style.borderColor = "";
+          }, 1500);
+          
+          // Focus on login button to encourage login
+          setTimeout(() => {
+            const loginButton = document.querySelector('button[type="submit"]');
+            if (loginButton) {
+              loginButton.focus();
+              // Add a subtle pulse to the login button
+              loginButton.style.animation = "pulse 0.6s ease-in-out";
+              setTimeout(() => {
+                loginButton.style.animation = "";
+              }, 600);
+            }
+          }, 500);
+        }
+      };
+      
+      // Start typing email first, then password
+      typeEmail();
+      setTimeout(typePassword, email.length * 30 + 100);
+      
+    }, 100);
+  }
+};
+
 document.addEventListener("DOMContentLoaded", function () {
   // Get DOM elements
   const loginForm = document.getElementById("loginForm");

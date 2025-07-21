@@ -5,6 +5,7 @@
     <title>Quản lý - Hệ thống Quản lý Nhà hàng</title>    <link rel="icon" href="../assets/favicon.ico" type="image/x-icon">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="manager-styles.css">
+    <link rel="stylesheet" href="tax-settings.css">
       <!-- Custom styles for manager dashboard -->
     <style>        /* Prevent double scrollbars */
         html, body {
@@ -533,14 +534,15 @@
             }
         }
 
+        // This function is now implemented at the bottom of the file
+        // Keep this reference for backward compatibility
         function showSettings() {
-            // Show system settings modal (you can implement this later)
-            if (typeof showToast === 'function') {
-                showToast('Chức năng cài đặt hệ thống đang được phát triển', 'info');
+            if (typeof window.showSettings === 'function') {
+                window.showSettings();
             } else {
-                alert('Chức năng cài đặt hệ thống đang được phát triển');
+                alert('Chức năng cài đặt hệ thống đang được khởi tạo. Vui lòng thử lại.');
             }
-        }        function logout() {
+        }        function userLogout() {
             // Create a custom confirmation modal instead of using browser alert
             const logoutModal = document.createElement('div');
             logoutModal.innerHTML = `
@@ -599,9 +601,53 @@
             try {
                 const managerInfo = getManagerInfoFromStorage();
                 
-                // First, sign out from Firebase
-                logout().then(() => {
-                    console.log('✅ Firebase logout successful');
+                // First, sign out from Firebase using the imported logout function
+                if (typeof window.logout === 'function') {
+                    window.logout().then(() => {
+                        console.log('✅ Firebase logout successful');
+                        
+                        // Clear session data
+                        localStorage.removeItem('managerSession');
+                        localStorage.removeItem('userRole');
+                        localStorage.removeItem('loginTime');
+                        localStorage.removeItem('managerInfo');
+                        
+                        // Show logout success message
+                        if (typeof showSuccessToast === 'function') {
+                            showSuccessToast(`Tạm biệt ${managerInfo.name}, hẹn gặp lại!`, 2000);
+                        } else if (typeof showToast === 'function') {
+                            showToast('Đã đăng xuất thành công!', 'success');
+                        }
+                        
+                        // Add logout effect
+                        document.body.style.transition = 'opacity 0.5s ease';
+                        document.body.style.opacity = '0';
+                        
+                        // Redirect to main page after animation
+                        setTimeout(() => {
+                            window.location.href = '../index.html';
+                        }, 1000);
+                        
+                    }).catch((error) => {
+                        console.error('❌ Firebase logout failed:', error);
+                        
+                        // Still clear local data and redirect even if Firebase logout fails
+                        localStorage.removeItem('managerSession');
+                        localStorage.removeItem('userRole');
+                        localStorage.removeItem('loginTime');
+                        localStorage.removeItem('managerInfo');
+                        
+                        if (typeof showWarningToast === 'function') {
+                            showWarningToast('Đăng xuất thành công (có lỗi nhỏ)', 2000);
+                        }
+                        
+                        setTimeout(() => {
+                            window.location.href = '../index.html';
+                        }, 1000);
+                    });
+                } else {
+                    // Fallback if Firebase logout is not available
+                    console.warn('Firebase logout function not available, performing local logout only');
                     
                     // Clear session data
                     localStorage.removeItem('managerSession');
@@ -609,11 +655,8 @@
                     localStorage.removeItem('loginTime');
                     localStorage.removeItem('managerInfo');
                     
-                    // Show logout success message
                     if (typeof showSuccessToast === 'function') {
                         showSuccessToast(`Tạm biệt ${managerInfo.name}, hẹn gặp lại!`, 2000);
-                    } else if (typeof showToast === 'function') {
-                        showToast('Đã đăng xuất thành công!', 'success');
                     }
                     
                     // Add logout effect
@@ -624,37 +667,18 @@
                     setTimeout(() => {
                         window.location.href = '../index.html';
                     }, 1000);
-                    
-                }).catch((error) => {
-                    console.error('❌ Firebase logout failed:', error);
-                    
-                    // Still clear local data and redirect even if Firebase logout fails
-                    localStorage.removeItem('managerSession');
-                    localStorage.removeItem('userRole');
-                    localStorage.removeItem('loginTime');
-                    localStorage.removeItem('managerInfo');
-                    
-                    if (typeof showWarningToast === 'function') {
-                        showWarningToast('Đăng xuất thành công (có lỗi nhỏ)', 2000);
-                    }
-                    
-                    setTimeout(() => {
-                        window.location.href = '../index.html';
-                    }, 1000);
-                });
+                }
                 
             } catch (error) {
                 console.error('Error during logout:', error);
                 
-                // Clear local data and redirect even if there's an error
-                localStorage.removeItem('managerSession');
-                localStorage.removeItem('userRole');
-                localStorage.removeItem('loginTime');
-                localStorage.removeItem('managerInfo');
-                
+                // Force logout and redirect even if there's an error
+                localStorage.clear();
                 window.location.href = '../index.html';
             }
-        }// Function to set manager information (can be called from login page)
+        }
+        
+        // Function to set manager information (can be called from login page)
         function setManagerInfo(info) {
             try {
                 const managerInfo = {
@@ -885,7 +909,7 @@
                             </li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                                <a class="dropdown-item text-danger" href="#" onclick="logout()">
+                                <a class="dropdown-item text-danger" href="#" onclick="userLogout()">
                                     <i data-lucide="log-out" style="width: 16px; height: 16px;" class="me-2"></i>
                                     Đăng xuất
                                 </a>
@@ -1694,7 +1718,9 @@
         <div id="toastContainer"></div>
     </div>    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script><!-- Firebase -->    <script type="module">        // Import Firebase functions
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="../src/utils/vat-manager.js"></script>
+    <script src="../src/utils/vat-label-calculator.js"></script><!-- Firebase -->    <script type="module">        // Import Firebase functions
         import { 
             // Core Firebase functions
             db,
@@ -1820,6 +1846,7 @@
     </script>    
     <script src="manager-script.js"></script>
     <script src="overview-functions.js"></script>
+    <script src="tax-manager.js"></script>
        <script>
         // Enhanced Dashboard Functions
         
@@ -2478,6 +2505,201 @@
         window.forceRefreshRevenue = forceRefreshRevenue;
         window.updateRealStats = updateRealStats;
         window.calculateRevenueFromTransactions = calculateRevenueFromTransactions;
+        window.userLogout = userLogout;
+        window.performLogout = performLogout;
+        
+        // System Settings Functions
+        function showSettings() {
+            // Check if vat-manager.js is loaded
+            if (typeof getCurrentVatRate !== 'function') {
+                console.error('VAT Manager functions not found. Please ensure vat-manager.js is loaded.');
+                showErrorToast('Không thể tải chức năng cài đặt thuế. Vui lòng tải lại trang.');
+                return;
+            }
+            
+            // Load current VAT rate
+            const currentRate = getCurrentVatRate();
+            document.getElementById('currentVatRate').value = (currentRate * 100).toFixed(1);
+            document.getElementById('vatRate').value = (currentRate * 100).toFixed(1);
+            
+            // Load VAT history
+            loadVatHistory();
+            
+            // Show modal - try new modal ID first
+            try {
+                const settingsModalNew = new bootstrap.Modal(document.getElementById('systemSettingsModalNew'));
+                settingsModalNew.show();
+            } catch (e) {
+                console.warn('Error opening new modal:', e);
+                // Fallback to old modal
+                try {
+                    const settingsModalOld = new bootstrap.Modal(document.getElementById('systemSettingsModal'));
+                    settingsModalOld.show();
+                } catch (e2) {
+                    console.error('Error opening any modal:', e2);
+                }
+            }
+        }
+        
+        function loadVatHistory() {
+            const historyTable = document.getElementById('vatHistoryTable');
+            if (!historyTable) return;
+            
+            // Clear existing history
+            historyTable.innerHTML = '';
+            
+            try {
+                // Get VAT history from vat-manager.js
+                const history = getVatRateHistory();
+                
+                // Sort by timestamp (newest first)
+                const sortedHistory = [...history].sort((a, b) => 
+                    new Date(b.timestamp) - new Date(a.timestamp)
+                );
+                
+                // Add each history entry to the table
+                sortedHistory.forEach(entry => {
+                    const date = new Date(entry.timestamp);
+                    const formattedDate = date.toLocaleDateString('vi-VN') + ' ' + 
+                                         date.toLocaleTimeString('vi-VN');
+                    
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${formattedDate}</td>
+                        <td>${(entry.rate * 100).toFixed(1)}%</td>
+                        <td>${entry.changedBy || 'Hệ thống'}</td>
+                    `;
+                    
+                    historyTable.appendChild(row);
+                });
+                
+                // If no history, show a message
+                if (sortedHistory.length === 0) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = '<td colspan="3" class="text-center">Không có lịch sử thay đổi</td>';
+                    historyTable.appendChild(row);
+                }
+            } catch (error) {
+                console.error('Error loading VAT history:', error);
+                const row = document.createElement('tr');
+                row.innerHTML = '<td colspan="3" class="text-center text-danger">Lỗi khi tải lịch sử thuế</td>';
+                historyTable.appendChild(row);
+            }
+        }
+        
+        function saveSystemSettings() {
+            try {
+                // Get values from form
+                const vatRateInput = document.getElementById('vatRate');
+                const vatChangeReason = document.getElementById('vatChangeReason');
+                
+                const newVatRate = parseFloat(vatRateInput.value);
+                const reason = vatChangeReason.value.trim() || 'Điều chỉnh thuế suất';
+                
+                // Validate VAT rate
+                if (isNaN(newVatRate) || newVatRate < 0 || newVatRate > 100) {
+                    showErrorToast('Thuế suất không hợp lệ. Vui lòng nhập giá trị từ 0 đến 100.');
+                    vatRateInput.focus();
+                    return;
+                }
+                
+                // Get manager info for recording who made the change
+                let changedBy = 'Manager';
+                try {
+                    const managerInfo = getManagerInfoFromStorage();
+                    if (managerInfo && managerInfo.name) {
+                        changedBy = managerInfo.name;
+                    }
+                } catch (error) {
+                    console.warn('Could not get manager info:', error);
+                }
+                
+                // Convert percentage to decimal (e.g., 8% -> 0.08)
+                const vatRateDecimal = newVatRate / 100;
+                
+                // Update system settings in localStorage
+                updateSystemSettings(vatRateDecimal);
+                
+                // Record the change in VAT history
+                recordVatRateChange(vatRateDecimal, changedBy, reason);
+                
+                // Show success message
+                showSuccessToast(`Đã cập nhật thuế suất thành ${newVatRate.toFixed(1)}%`);
+                
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('systemSettingsModal'));
+                if (modal) modal.hide();
+                
+                // Refresh VAT-related displays
+                if (typeof updateVatLabels === 'function') {
+                    updateVatLabels();
+                }
+                
+                // Trigger refresh of any displayed data that might use VAT
+                setTimeout(() => {
+                    if (typeof refreshDashboardData === 'function') {
+                        refreshDashboardData();
+                    }
+                }, 500);
+                
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                showErrorToast('Có lỗi xảy ra khi lưu cài đặt: ' + error.message);
+            }
+        }
+        
+        function updateSystemSettings(vatRate) {
+            try {
+                // Get current settings or create defaults
+                const defaultSettings = {
+                    business: {
+                        vatRate: vatRate,
+                        maxTablesPerWaiter: 6,
+                        orderTimeout: 30,
+                        maxDiscountPercent: 50,
+                        inventoryVarianceThreshold: 10
+                    },
+                    ui: {
+                        currency: 'VNĐ',
+                        dateFormat: 'DD/MM/YYYY'
+                    }
+                };
+                
+                const savedSettings = localStorage.getItem('systemSettings');
+                let settings = defaultSettings;
+                
+                if (savedSettings) {
+                    try {
+                        const parsed = JSON.parse(savedSettings);
+                        settings = {
+                            business: { ...defaultSettings.business, ...parsed.business },
+                            ui: { ...defaultSettings.ui, ...parsed.ui }
+                        };
+                    } catch (parseError) {
+                        console.warn('Error parsing settings, using defaults:', parseError);
+                    }
+                }
+                
+                // Update VAT rate
+                settings.business.vatRate = vatRate;
+                
+                // Save back to localStorage
+                localStorage.setItem('systemSettings', JSON.stringify(settings));
+                
+                // Dispatch event to notify other components
+                window.dispatchEvent(new CustomEvent('systemSettingsUpdated', { detail: settings }));
+                
+                return true;
+            } catch (error) {
+                console.error('Error updating system settings:', error);
+                return false;
+            }
+        }
+        
+        // Add function to window scope
+        window.showSettings = showSettings;
+        window.loadVatHistory = loadVatHistory;
+        window.updateSystemSettings = updateSystemSettings;
         
         // Initialize overview when page loads
         document.addEventListener('DOMContentLoaded', function() {
@@ -2493,12 +2715,669 @@
                     syncOrdersBtn.addEventListener('click', performOrdersSync);
                 }
                 
+                // Add event listener for save VAT rate button (old system)
+                const saveVatRateBtn = document.getElementById('saveVatRateBtn');
+                if (saveVatRateBtn) {
+                    saveVatRateBtn.addEventListener('click', saveSystemSettings);
+                }
+                
+                // Add event listener for save tax settings button (new system)
+                // Get all save buttons by both ID and class
+                const saveButtons = document.querySelectorAll('#saveTaxSettingsBtn, #saveVatRateBtn');
+                saveButtons.forEach(button => {
+                    // Add event in multiple ways to ensure it works
+                    button.addEventListener('click', function(e) {
+                        console.log('Tax button clicked via event listener in DOMContentLoaded:', button.id);
+                        e.preventDefault();
+                        saveTaxSettings();
+                        return false;
+                    });
+                    
+                    // Also set direct onclick attribute
+                    button.setAttribute('onclick', "saveTaxSettings(); return false;");
+                    
+                    console.log('Đã gán sự kiện click cho nút', button.id, 'trong DOMContentLoaded');
+                });
+                
                 // Initialize Lucide icons
                 if (typeof lucide !== 'undefined') {
                     lucide.createIcons();
                 }
             }, 1000);
         });
+    </script>
+    
+    <!-- System Settings Modal -->
+    <div class="modal fade" id="systemSettingsModal" tabindex="-1" aria-labelledby="systemSettingsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="systemSettingsModalLabel">Cài đặt hệ thống</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="systemSettingsForm">
+                        <div class="mb-4">
+                            <h6 class="border-bottom pb-2">Cài đặt thuế</h6>
+                            <div class="row g-3 mt-2">
+                                <div class="col-md-6">
+                                    <label for="vatRate" class="form-label">Thuế VAT (%)</label>
+                                    <input type="number" class="form-control" id="vatRate" min="0" max="100" step="0.1" required>
+                                    <small class="text-muted">Thuế sẽ áp dụng với đơn hàng mới.</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Thuế hiện tại</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control bg-light" id="currentVatRate" disabled>
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="vatChangeReason" class="form-label">Lý do thay đổi</label>
+                            <textarea class="form-control" id="vatChangeReason" rows="2" placeholder="Nhập lý do thay đổi thuế"></textarea>
+                        </div>
+                        
+                        <!-- VAT History Section -->
+                        <div class="mt-4">
+                            <h6 class="border-bottom pb-2">Lịch sử thay đổi thuế</h6>
+                            <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                                <table class="table table-sm table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Thời gian</th>
+                                            <th>Thuế</th>
+                                            <th>Người thay đổi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="vatHistoryTable">
+                                        <!-- History will be populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="button" class="btn btn-primary" id="saveVatRateBtn" onclick="saveTaxSettings(); return false;">Lưu thay đổi</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Settings Modal (New Version) -->
+    <div class="modal fade" id="systemSettingsModalNew" tabindex="-1" aria-labelledby="systemSettingsModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title" id="systemSettingsModalLabel">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings me-2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        Cài đặt hệ thống
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-section mb-4">
+                        <h6 class="settings-section-title mb-3">Cài đặt thuế</h6>
+                        <div class="card">
+                            <div class="card-body">
+                                <form id="taxSettingsForm">
+                                    <div class="mb-3">
+                                        <label for="taxRateInput" class="form-label">Thuế suất (%)</label>
+                                        <div class="input-group">
+                                            <input type="number" class="form-control" id="taxRateInput" min="0" max="100" step="0.1" required>
+                                            <span class="input-group-text">%</span>
+                                        </div>
+                                        <div class="form-text">Thuế suất mới sẽ được áp dụng cho đơn hàng tạo sau thời điểm cập nhật.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="taxEffectiveDate" class="form-label">Ngày áp dụng</label>
+                                        <input type="datetime-local" class="form-control" id="taxEffectiveDate" required>
+                                    </div>
+                                    <div class="tax-history-container mt-4">
+                                        <h6 class="mb-2">Lịch sử thuế suất</h6>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-striped">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Thuế suất (%)</th>
+                                                        <th>Ngày áp dụng</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="taxHistoryTableBody">
+                                                    <!-- Tax history will be inserted here -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Các trường ẩn cho tương thích với hệ thống cũ -->
+                                    <input type="hidden" id="currentVatRate">
+                                    <input type="hidden" id="vatRate">
+                                    <input type="hidden" id="vatChangeReason" value="Cập nhật thuế suất">
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="button" class="btn btn-primary" id="saveTaxSettingsBtn" onclick="saveTaxSettings(); return false;">Lưu thay đổi</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Fix cho nút lưu thuế - gọi trực tiếp khi trang đã load
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                const saveTaxBtn = document.getElementById('saveTaxSettingsBtn');
+                if (saveTaxBtn) {
+                    console.log('Tìm thấy nút saveTaxSettingsBtn, gắn sự kiện');
+                    saveTaxBtn.onclick = function(e) {
+                        e.preventDefault();
+                        console.log('Nút saveTaxSettingsBtn được nhấn');
+                        saveTaxSettings();
+                    };
+                } else {
+                    console.warn('Không tìm thấy nút saveTaxSettingsBtn');
+                }
+            }, 2000);
+        });
+        
+        // Tax Settings Functions
+        function loadTaxSettings() {
+            try {
+                // Trước tiên thử lấy từ hệ thống cũ nếu có
+                let currentRate = 10.0;  // Giá trị mặc định
+                let existingHistory = [];
+                let useOldSystem = false;
+                
+                // Kiểm tra xem có hệ thống thuế cũ (vatManager) không
+                if (typeof window.vatManager !== 'undefined' && 
+                    typeof window.vatManager.getCurrentVatRate === 'function') {
+                    try {
+                        currentRate = window.vatManager.getCurrentVatRate() * 100;  // Chuyển từ định dạng 0.1 sang 10%
+                        useOldSystem = true;
+                        console.log('Đã tìm thấy hệ thống thuế cũ (vatManager), thuế suất hiện tại:', currentRate);
+                    } catch(e) {
+                        console.warn('Không thể lấy thuế suất từ hệ thống cũ (vatManager):', e);
+                    }
+                }
+                
+                // Nếu không có hệ thống cũ, lấy từ localStorage
+                if (!useOldSystem) {
+                    const taxHistory = JSON.parse(localStorage.getItem('taxHistory')) || [];
+                    existingHistory = taxHistory;
+                    
+                    if (taxHistory.length > 0) {
+                        // Sort by date in descending order
+                        taxHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+                        
+                        // Set current tax rate
+                        const currentTax = taxHistory[0];
+                        currentRate = currentTax.rate;
+                    }
+                }
+                
+                // Cập nhật giao diện
+                document.getElementById('taxRateInput').value = currentRate.toFixed(1);
+                
+                // Đồng bộ với hệ thống cũ
+                document.getElementById('currentVatRate').value = (currentRate / 100).toFixed(3);
+                document.getElementById('vatRate').value = (currentRate / 100).toFixed(3);
+                
+                // Set default effective date to now
+                const now = new Date();
+                const localDatetime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+                    .toISOString()
+                    .slice(0, 16);
+                document.getElementById('taxEffectiveDate').value = localDatetime;
+                
+                // Populate tax history table
+                renderTaxHistory(existingHistory);
+                
+                // Nếu không có lịch sử, tạo một entry ban đầu
+                if (existingHistory.length === 0) {
+                    console.log('Không có lịch sử thuế, tạo entry ban đầu với thuế suất:', currentRate);
+                    // Tạo entry ban đầu với thuế suất đã lấy được (từ hệ thống cũ hoặc mặc định)
+                    const initialEntry = {
+                        rate: currentRate,
+                        date: new Date().toISOString()
+                    };
+                    
+                    // Lưu vào localStorage
+                    localStorage.setItem('taxHistory', JSON.stringify([initialEntry]));
+                    
+                    // Cập nhật giao diện
+                    renderTaxHistory([initialEntry]);
+                }
+            } catch (error) {
+                console.error('Error loading tax settings:', error);
+                showToast('Không thể tải cài đặt thuế. Sử dụng giá trị mặc định.', 'error');
+                
+                // Set default values
+                document.getElementById('taxRateInput').value = "10.0";
+                document.getElementById('currentVatRate').value = "0.10";
+                document.getElementById('vatRate').value = "0.10";
+                
+                const now = new Date();
+                const localDatetime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+                    .toISOString()
+                    .slice(0, 16);
+                document.getElementById('taxEffectiveDate').value = localDatetime;
+            }
+        }
+        
+        function renderTaxHistory(taxHistory) {
+            const tableBody = document.getElementById('taxHistoryTableBody');
+            tableBody.innerHTML = '';
+            
+            taxHistory.forEach(entry => {
+                const row = document.createElement('tr');
+                
+                const rateCell = document.createElement('td');
+                rateCell.textContent = entry.rate + '%';
+                
+                const dateCell = document.createElement('td');
+                dateCell.textContent = formatDateTime(entry.date);
+                
+                row.appendChild(rateCell);
+                row.appendChild(dateCell);
+                
+                tableBody.appendChild(row);
+            });
+        }
+        
+        function saveTaxSettings() {
+            try {
+                console.log('saveTaxSettings function called');
+                // Try to find form fields in either modal
+                let taxRateInput = document.getElementById('taxRateInput'); // New modal
+                let taxEffectiveDateInput = document.getElementById('taxEffectiveDate'); // New modal
+                
+                // If not found in new modal, try old modal fields
+                if (!taxRateInput) {
+                    taxRateInput = document.getElementById('vatRate'); // Old modal
+                    console.log('Using vatRate field from old modal');
+                }
+                
+                // For old modal, create a fake effective date (current time)
+                if (!taxEffectiveDateInput) {
+                    console.log('No effective date field found, using current time');
+                    const now = new Date();
+                    taxEffectiveDateInput = {
+                        value: now.toISOString().slice(0, 16) // Format for datetime-local
+                    };
+                }
+                
+                if (!taxRateInput) {
+                    console.error('No tax rate input field found!');
+                    showToast('Không tìm thấy trường nhập thuế suất', 'error');
+                    return;
+                }
+                
+                console.log('Tax rate input value:', taxRateInput.value);
+                
+                // Validate inputs
+                const taxRate = parseFloat(taxRateInput.value);
+                console.log('Parsed tax rate:', taxRate);
+                
+                if (isNaN(taxRate) || taxRate < 0 || taxRate > 100) {
+                    showToast('Thuế suất phải là số từ 0 đến 100', 'error');
+                    return;
+                }
+                
+                const effectiveDate = new Date(taxEffectiveDateInput.value);
+                console.log('Parsed effective date:', effectiveDate);
+                
+                if (isNaN(effectiveDate.getTime())) {
+                    console.log('Invalid date, using current time');
+                    effectiveDate = new Date(); // Use current time if date is invalid
+                }
+                
+                // Create new tax entry
+                const newTaxEntry = {
+                    rate: taxRate,
+                    date: effectiveDate.toISOString()
+                };
+                
+                // Get existing tax history
+                let taxHistory = JSON.parse(localStorage.getItem('taxHistory')) || [];
+                
+                // Add new entry
+                taxHistory.push(newTaxEntry);
+                
+                // Sort by date in descending order
+                taxHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+                
+                // Save to localStorage
+                localStorage.setItem('taxHistory', JSON.stringify(taxHistory));
+                
+                // Update UI
+                renderTaxHistory(taxHistory);
+                
+                // Cập nhật giá trị cho hệ thống cũ
+                const vatRateDecimal = taxRate / 100;
+                document.getElementById('currentVatRate').value = vatRateDecimal.toFixed(3);
+                document.getElementById('vatRate').value = vatRateDecimal.toFixed(3);
+                
+                // Đồng bộ với hệ thống cũ nếu có
+                try {
+                    if (typeof updateSystemSettings === 'function') {
+                        updateSystemSettings(vatRateDecimal);
+                        console.log('Đã đồng bộ thuế suất với hệ thống cũ:', vatRateDecimal);
+                    }
+                    
+                    if (typeof recordVatRateChange === 'function') {
+                        const reason = document.getElementById('vatChangeReason').value || 'Cập nhật thuế suất';
+                        const managerInfo = getManagerInfoFromStorage();
+                        const changedBy = managerInfo && managerInfo.name ? managerInfo.name : 'Quản lý';
+                        
+                        recordVatRateChange(vatRateDecimal, changedBy, reason);
+                        console.log('Đã ghi nhận thay đổi thuế suất trong hệ thống cũ');
+                    }
+                } catch (syncError) {
+                    console.warn('Không thể đồng bộ với hệ thống cũ:', syncError);
+                    // Tiếp tục xử lý bình thường ngay cả khi đồng bộ thất bại
+                }
+                
+                // Show success message
+                showToast('Cài đặt thuế đã được cập nhật thành công thành ' + taxRate.toFixed(1) + '%', 'success');
+                
+                // Close modal - try both modal IDs to ensure compatibility
+                try {
+                    const modalNew = bootstrap.Modal.getInstance(document.getElementById('systemSettingsModalNew'));
+                    if (modalNew) {
+                        modalNew.hide();
+                    }
+                } catch (e) {
+                    console.warn('Error closing new modal:', e);
+                }
+                
+                try {
+                    const modalOld = bootstrap.Modal.getInstance(document.getElementById('systemSettingsModal'));
+                    if (modalOld) {
+                        modalOld.hide();
+                    }
+                } catch (e) {
+                    console.warn('Error closing old modal:', e);
+                }
+                
+                // Trigger cập nhật các thành phần khác nếu cần
+                if (typeof updateVatLabels === 'function') {
+                    try {
+                        updateVatLabels();
+                    } catch (e) {
+                        console.warn('Không thể cập nhật nhãn thuế:', e);
+                    }
+                }
+                
+                // Dispatch custom event to notify other components about tax rate change
+                window.dispatchEvent(new CustomEvent('taxRateUpdated', { 
+                    detail: { 
+                        rate: taxRate,
+                        rateDecimal: vatRateDecimal,
+                        effectiveDate: effectiveDate.toISOString()
+                    } 
+                }));
+                
+                // Force refresh VAT manager cache
+                if (typeof window.vatManager !== 'undefined' && typeof window.vatManager.refreshCache === 'function') {
+                    window.vatManager.refreshCache();
+                }
+                
+                console.log('Tax rate update completed, rate:', taxRate + '%', 'effective:', effectiveDate.toISOString());
+            } catch (error) {
+                console.error('Error saving tax settings:', error);
+                showToast('Không thể lưu cài đặt thuế', 'error');
+            }
+        }
+        
+        // Make saveTaxSettings globally available
+        window.saveTaxSettings = saveTaxSettings;
+        
+        function getCurrentTaxRate(date = new Date()) {
+            try {
+                // Avoid calling getCurrentVatRate to prevent infinite recursion
+                // Instead, access original vat-manager.js function directly if it exists
+                if (typeof window.vatManager !== 'undefined' && 
+                    typeof window.vatManager.getCurrentVatRate === 'function') {
+                    try {
+                        // Chuyển đổi từ định dạng decimal (0.1) sang phần trăm (10.0)
+                        const oldSystemRate = window.vatManager.getCurrentVatRate() * 100;
+                        console.log('Lấy thuế suất từ hệ thống cũ (vatManager):', oldSystemRate);
+                        return oldSystemRate;
+                    } catch (e) {
+                        console.warn('Không thể lấy thuế suất từ vatManager:', e);
+                        // Tiếp tục với hệ thống mới
+                    }
+                }
+                
+                // Nếu không có hệ thống cũ, lấy từ localStorage
+                const taxHistory = JSON.parse(localStorage.getItem('taxHistory')) || [];
+                
+                if (taxHistory.length === 0) {
+                    return 10.0; // Default 10% if no tax history
+                }
+                
+                // Sort by date in descending order
+                taxHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+                
+                // Find the applicable tax rate for the given date
+                const targetDate = new Date(date);
+                
+                for (const entry of taxHistory) {
+                    const entryDate = new Date(entry.date);
+                    if (entryDate <= targetDate) {
+                        return parseFloat(entry.rate);
+                    }
+                }
+                
+                // If no applicable entry found, return the oldest tax rate
+                return parseFloat(taxHistory[taxHistory.length - 1].rate);
+            } catch (error) {
+                console.error('Error getting current tax rate:', error);
+                return 10.0; // Default 10% on error
+            }
+        }
+        
+        // Hàm tương thích với hệ thống cũ để lấy thuế suất dưới dạng decimal
+        function getCurrentVatRate() {
+            try {
+                // Avoid calling getCurrentTaxRate to prevent infinite recursion
+                // Access tax history directly from localStorage
+                const taxHistory = JSON.parse(localStorage.getItem('taxHistory')) || [];
+                
+                if (taxHistory.length === 0) {
+                    return 0.10; // Default 10% (as decimal) if no tax history
+                }
+                
+                // Sort by date in descending order
+                taxHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+                
+                // Get the most recent tax rate and convert to decimal
+                const currentRate = parseFloat(taxHistory[0].rate) / 100;
+                return currentRate;
+            } catch (error) {
+                console.error('Error in getCurrentVatRate:', error);
+                return 0.10; // Default 10% (as decimal) on error
+            }
+        }
+        
+        function formatDateTime(dateString) {
+            const date = new Date(dateString);
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const year = date.getFullYear();
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            
+            return `${day}/${month}/${year} ${hours}:${minutes}`;
+        }
+        
+        function setupTaxSettingsEventListeners() {
+            // Gán sự kiện cho tất cả các nút lưu (để đảm bảo chúng đều hoạt động)
+            const allSaveButtons = document.querySelectorAll('#saveTaxSettingsBtn, #saveVatRateBtn');
+            
+            allSaveButtons.forEach(button => {
+                // Thêm cả hai cách gán sự kiện để đảm bảo hoạt động
+                button.addEventListener('click', function(e) {
+                    console.log('Button clicked via addEventListener:', e.target.id);
+                    saveTaxSettings();
+                    return false;
+                });
+                
+                // Thêm trực tiếp onclick attribute
+                button.setAttribute('onclick', "saveTaxSettings(); return false;");
+                
+                console.log('Đã gán sự kiện click cho nút:', button.id);
+            });
+            
+            if (allSaveButtons.length === 0) {
+                console.error('Không tìm thấy nút lưu với ID saveTaxSettingsBtn hoặc saveVatRateBtn');
+            } else {
+                console.log('Đã gán sự kiện cho', allSaveButtons.length, 'nút lưu');
+            }
+        }
+        
+        // Helper functions cho hệ thống thuế
+        function getTaxHistory() {
+            return JSON.parse(localStorage.getItem('taxHistory')) || [];
+        }
+        
+        function updateTaxRate(rate, effectiveDate, changedBy = 'Manager', reason = 'Cập nhật thuế suất') {
+            try {
+                // Tạo entry mới
+                const newEntry = {
+                    rate: parseFloat(rate),
+                    date: effectiveDate instanceof Date ? effectiveDate.toISOString() : effectiveDate,
+                    changedBy: changedBy,
+                    reason: reason
+                };
+                
+                // Cập nhật lịch sử
+                const history = getTaxHistory();
+                history.push(newEntry);
+                history.sort((a, b) => new Date(b.date) - new Date(a.date));
+                
+                // Lưu vào localStorage
+                localStorage.setItem('taxHistory', JSON.stringify(history));
+                
+                return true;
+            } catch (error) {
+                console.error('Error updating tax rate:', error);
+                return false;
+            }
+        }
+        
+        // Khởi tạo cho hệ thống thuế mới
+        function initTaxSystem() {
+            const history = getTaxHistory();
+            if (history.length === 0) {
+                // Khởi tạo với thuế suất mặc định hoặc từ hệ thống cũ nếu có
+                let initialRate = 10.0;
+                
+                // Kiểm tra hệ thống cũ qua vatManager object
+                if (typeof window.vatManager !== 'undefined' && 
+                    typeof window.vatManager.getCurrentVatRate === 'function') {
+                    try {
+                        initialRate = window.vatManager.getCurrentVatRate() * 100;
+                        console.log('Sử dụng thuế suất từ vatManager:', initialRate);
+                    } catch(e) {
+                        console.warn('Không thể lấy thuế suất từ vatManager:', e);
+                    }
+                } else {
+                    console.log('Sử dụng thuế suất mặc định:', initialRate);
+                }
+                
+                // Tạo entry đầu tiên
+                updateTaxRate(initialRate, new Date(), 'System', 'Khởi tạo');
+                console.log('Đã khởi tạo hệ thống thuế mới với thuế suất:', initialRate);
+            }
+        }
+        
+        // Hàm tương thích với hệ thống cũ: lấy lịch sử thuế
+        function getVatRateHistory() {
+            try {
+                const history = getTaxHistory();
+                // Chuyển đổi sang định dạng của hệ thống cũ
+                return history.map(item => ({
+                    timestamp: item.date,
+                    rate: parseFloat(item.rate) / 100, // Chuyển từ % sang decimal
+                    changedBy: item.changedBy || 'System',
+                    reason: item.reason || 'Cập nhật thuế suất'
+                }));
+            } catch (error) {
+                console.error('Error getting VAT history:', error);
+                return [];
+            }
+        }
+        
+        // Override showSettings function
+        window.showSettings = function() {
+            // Initialize icons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+            
+            // Đảm bảo hệ thống thuế đã được khởi tạo
+            initTaxSystem();
+            
+            // Load current tax settings
+            loadTaxSettings();
+            
+            // Setup event listeners for tax settings
+            setupTaxSettingsEventListeners();
+            
+            // Show the modal - use the new modal with the correct form fields
+            const modal = new bootstrap.Modal(document.getElementById('systemSettingsModalNew'));
+            modal.show();
+            
+            // Thêm sự kiện click trực tiếp cho nút lưu để đảm bảo nó hoạt động
+            setTimeout(() => {
+                console.log('Kiểm tra và gắn sự kiện cho các nút lưu');
+                
+                // Tìm tất cả các nút lưu trong modal mới
+                const saveButtons = document.querySelectorAll('#systemSettingsModalNew button.btn-primary');
+                console.log(`Tìm thấy ${saveButtons.length} nút lưu trong modal mới`);
+                
+                // Gắn sự kiện cho tất cả các nút lưu
+                saveButtons.forEach(button => {
+                    // Xóa các sự kiện cũ để tránh trùng lặp
+                    button.removeEventListener('click', saveTaxSettings);
+                    
+                    // Gắn sự kiện mới
+                    button.addEventListener('click', function(event) {
+                        event.preventDefault();
+                        console.log('Nút lưu được nhấn:', button.id || 'không có ID');
+                        saveTaxSettings();
+                    });
+                    
+                    console.log('Đã gắn sự kiện click cho nút:', button.id || 'không có ID');
+                });
+            }, 500); // Đợi một chút để đảm bảo modal đã được render hoàn toàn
+        };
+        
+        // Make tax functions available globally
+        window.taxSystem = {
+            getCurrentTaxRate,
+            getCurrentVatRate,
+            getTaxHistory,
+            updateTaxRate,
+            getVatRateHistory
+        };
+        
+        // For compatibility, also add to window directly
+        // But avoid recursive calls by ensuring we don't overwrite 
+        // any functions from vat-manager.js
+        if (typeof window.vatManager === 'undefined') {
+            window.getCurrentVatRate = getCurrentVatRate;
+            window.getVatRateHistory = getVatRateHistory;
+        }
     </script>
 </body>
 </html>

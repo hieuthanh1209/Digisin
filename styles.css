@@ -71,7 +71,15 @@ body {
   font-size: 22px;
   font-weight: 700;
   color: #1e3a8a;
+  margin-bottom: 8px;
+}
+
+.demo-hint {
+  font-size: 12px;
+  color: #6b7280;
+  font-style: italic;
   margin-bottom: 20px;
+  text-align: center;
 }
 
 .demo-grid {
@@ -111,6 +119,68 @@ body {
 
 .demo-credentials div:last-child {
   margin-bottom: 0;
+}
+
+.demo-account {
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.demo-account:hover {
+  background-color: rgba(0, 114, 255, 0.1);
+  color: #0072ff;
+  transform: translateX(2px);
+}
+
+.demo-account:active {
+  transform: translateX(1px);
+  background-color: rgba(0, 114, 255, 0.15);
+}
+
+.demo-account:hover::after {
+  content: "Click để điền tự động";
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  white-space: nowrap;
+  z-index: 1000;
+  opacity: 0;
+  animation: fadeInTooltip 0.3s ease forwards;
+}
+
+@keyframes fadeInTooltip {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(0, 114, 255, 0.7);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 8px rgba(0, 114, 255, 0.2);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(0, 114, 255, 0);
+  }
 }
 
 /* Right side - Login form */

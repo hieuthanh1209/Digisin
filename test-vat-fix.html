@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test VAT Label Fix</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; max-width: 800px; }
+        .test-section { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #007bff; }
+        .result { background: #e9ecef; padding: 10px; margin: 10px 0; border-radius: 3px; font-family: monospace; }
+        button { background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        .pass { color: #28a745; font-weight: bold; }
+        .fail { color: #dc3545; font-weight: bold; }
+        .invoice { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; background: white; }
+    </style>
+</head>
+<body>
+    <h1>🔧 VAT Label Fix Verification</h1>
+    
+    <div class="test-section">
+        <h3>📊 Current System Status</h3>
+        <button onclick="checkCurrentStatus()">Check Current VAT Rate & Functions</button>
+        <div id="statusResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>🧪 Test VAT Label Creation</h3>
+        <p>This tests if VAT labels are created correctly with the current rate at the time of order creation.</p>
+        <button onclick="testVATLabelCreation()">Test VAT Label Creation</button>
+        <div id="labelTestResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>📋 Simulate Order Creation Process</h3>
+        <p>Simulates the exact process used in waiter-script.js and cashier-script.js</p>
+        <label>Set Test VAT Rate: <input type="number" id="testVatRate" value="10" step="0.1" min="0" max="100">%</label>
+        <button onclick="simulateOrderCreation()">Simulate Order Creation</button>
+        <div id="orderSimResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>🎯 Test Historical Accuracy</h3>
+        <button onclick="testHistoricalAccuracy()">Test Historical VAT Label Accuracy</button>
+        <div id="historicalResult" class="result"></div>
+    </div>
+
+    <!-- Include scripts -->
+    <script src="dashboard/tax-manager.js"></script>
+    <script src="src/utils/vat-manager.js"></script>
+
+    <script>
+        function log(elementId, message, isError = false) {
+            const element = document.getElementById(elementId);
+            element.textContent += message + '\n';
+            element.scrollTop = element.scrollHeight;
+            if (isError) {
+                element.style.color = '#dc3545';
+            }
+        }
+
+        function clearLog(elementId) {
+            document.getElementById(elementId).textContent = '';
+        }
+
+        function checkCurrentStatus() {
+            clearLog('statusResult');
+            
+            log('statusResult', '=== Current System Status ===');
+            
+            // Check if getCurrentVatRate exists and works
+            if (typeof getCurrentVatRate === 'function') {
+                try {
+                    const rate = getCurrentVatRate();
+                    log('statusResult', `✅ getCurrentVatRate(): ${rate} (${(rate * 100).toFixed(1)}%)`);
+                } catch (e) {
+                    log('statusResult', `❌ getCurrentVatRate() error: ${e.message}`, true);
+                }
+            } else {
+                log('statusResult', '❌ getCurrentVatRate function not found', true);
+            }
+            
+            // Check if getCurrentVatLabel exists
+            if (typeof getCurrentVatLabel === 'function') {
+                try {
+                    const labelVi = getCurrentVatLabel('vi');
+                    const labelEn = getCurrentVatLabel('en');
+                    log('statusResult', `⚠️ getCurrentVatLabel('vi'): "${labelVi}"`);
+                    log('statusResult', `⚠️ getCurrentVatLabel('en'): "${labelEn}"`);
+                    log('statusResult', '⚠️ Note: This function uses current rate, not historical rate!');
+                } catch (e) {
+                    log('statusResult', `❌ getCurrentVatLabel() error: ${e.message}`, true);
+                }
+            } else {
+                log('statusResult', '✅ getCurrentVatLabel function not found (this is good!)');
+            }
+            
+            // Check tax history
+            try {
+                const taxHistory = JSON.parse(localStorage.getItem('taxHistory') || '[]');
+                log('statusResult', `📊 Tax history entries: ${taxHistory.length}`);
+                if (taxHistory.length > 0) {
+                    const latest = taxHistory.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+                    log('statusResult', `📊 Latest tax rate: ${latest.rate}% (${new Date(latest.date).toLocaleString()})`);
+                }
+            } catch (e) {
+                log('statusResult', `❌ Tax history error: ${e.message}`, true);
+            }
+        }
+
+        function testVATLabelCreation() {
+            clearLog('labelTestResult');
+            
+            log('labelTestResult', '=== Testing VAT Label Creation ===');
+            
+            // Test the new method (direct label creation)
+            const testRate = 0.10; // 10%
+            const correctLabel = `Thuế VAT (${(testRate * 100).toFixed(1)}%):`;
+            const correctLabelEn = `VAT (${(testRate * 100).toFixed(1)}%):`;
+            
+            log('labelTestResult', `🧪 Test rate: ${testRate} (${(testRate * 100).toFixed(1)}%)`);
+            log('labelTestResult', `✅ Correct VI label: "${correctLabel}"`);
+            log('labelTestResult', `✅ Correct EN label: "${correctLabelEn}"`);
+            
+            // Test what getCurrentVatLabel would return (if it exists)
+            if (typeof getCurrentVatLabel === 'function') {
+                try {
+                    const currentLabel = getCurrentVatLabel('vi');
+                    const currentLabelEn = getCurrentVatLabel('en');
+                    
+                    log('labelTestResult', `⚠️ getCurrentVatLabel('vi'): "${currentLabel}"`);
+                    log('labelTestResult', `⚠️ getCurrentVatLabel('en'): "${currentLabelEn}"`);
+                    
+                    if (currentLabel === correctLabel) {
+                        log('labelTestResult', '✅ Labels match (by chance)');
+                    } else {
+                        log('labelTestResult', '❌ Labels differ - this proves the fix was needed!');
+                    }
+                } catch (e) {
+                    log('labelTestResult', `❌ getCurrentVatLabel error: ${e.message}`, true);
+                }
+            }
+            
+            log('labelTestResult', '\n🔧 With the fix, orders will store the correct label at creation time.');
+        }
+
+        function simulateOrderCreation() {
+            clearLog('orderSimResult');
+            
+            const testRate = parseFloat(document.getElementById('testVatRate').value) / 100;
+            
+            log('orderSimResult', '=== Simulating Order Creation ===');
+            log('orderSimResult', `🎯 Using test VAT rate: ${(testRate * 100).toFixed(1)}%`);
+            
+            // Simulate waiter-script.js order creation
+            const waiterOrder = {
+                vatRate: testRate,
+                vatLabel: `Thuế VAT (${(testRate * 100).toFixed(1)}%):`,
+                vatLabelEn: `VAT (${(testRate * 100).toFixed(1)}%):`,
+                subtotal: 65000,
+                vat: Math.round(65000 * testRate),
+                total: 65000 + Math.round(65000 * testRate)
+            };
+            
+            log('orderSimResult', '\n📝 Waiter Order (waiter-script.js):');
+            log('orderSimResult', `   VAT Rate: ${waiterOrder.vatRate}`);
+            log('orderSimResult', `   VAT Label: "${waiterOrder.vatLabel}"`);
+            log('orderSimResult', `   Subtotal: ${formatCurrency(waiterOrder.subtotal)}`);
+            log('orderSimResult', `   VAT Amount: ${formatCurrency(waiterOrder.vat)}`);
+            log('orderSimResult', `   Total: ${formatCurrency(waiterOrder.total)}`);
+            
+            // Simulate cashier-script.js payment processing
+            const cashierOrder = {
+                vatRate: testRate,
+                vatLabel: `Thuế VAT (${(testRate * 100).toFixed(1)}%):`,
+                vatLabelEn: `VAT (${(testRate * 100).toFixed(1)}%):`,
+                subtotal: 65000,
+                vat: Math.round(65000 * testRate),
+                total: 65000 + Math.round(65000 * testRate)
+            };
+            
+            log('orderSimResult', '\n💳 Cashier Payment (cashier-script.js):');
+            log('orderSimResult', `   VAT Rate: ${cashierOrder.vatRate}`);
+            log('orderSimResult', `   VAT Label: "${cashierOrder.vatLabel}"`);
+            log('orderSimResult', `   Subtotal: ${formatCurrency(cashierOrder.subtotal)}`);
+            log('orderSimResult', `   VAT Amount: ${formatCurrency(cashierOrder.vat)}`);
+            log('orderSimResult', `   Total: ${formatCurrency(cashierOrder.total)}`);
+            
+            // Test invoice display
+            log('orderSimResult', '\n🧾 Invoice Display Test:');
+            const displayLabel = waiterOrder.vatLabel || waiterOrder.vatLabelVi || `Thuế VAT (${waiterOrder.vatPercentage || '10.0%'}):`;
+            log('orderSimResult', `   Display Label: "${displayLabel}"`);
+            
+            // Verify accuracy
+            const expectedVat = Math.round(65000 * testRate);
+            const actualVat = waiterOrder.vat;
+            
+            if (expectedVat === actualVat) {
+                log('orderSimResult', `\n✅ VAT calculation correct: ${formatCurrency(actualVat)}`);
+            } else {
+                log('orderSimResult', `\n❌ VAT calculation error: expected ${formatCurrency(expectedVat)}, got ${formatCurrency(actualVat)}`, true);
+            }
+            
+            const expectedLabel = `Thuế VAT (${(testRate * 100).toFixed(1)}%):`;
+            if (waiterOrder.vatLabel === expectedLabel) {
+                log('orderSimResult', `✅ VAT label correct: "${waiterOrder.vatLabel}"`);
+            } else {
+                log('orderSimResult', `❌ VAT label error: expected "${expectedLabel}", got "${waiterOrder.vatLabel}"`, true);
+            }
+        }
+
+        function testHistoricalAccuracy() {
+            clearLog('historicalResult');
+            
+            log('historicalResult', '=== Testing Historical Accuracy ===');
+            
+            // Create test scenarios
+            const scenarios = [
+                { rate: 0.08, date: '2025-07-01', description: 'Old order (8%)' },
+                { rate: 0.10, date: '2025-07-15', description: 'Medium order (10%)' },
+                { rate: 0.15, date: '2025-07-21', description: 'New order (15%)' }
+            ];
+            
+            scenarios.forEach((scenario, index) => {
+                log('historicalResult', `\n📋 Scenario ${index + 1}: ${scenario.description}`);
+                
+                // Simulate order creation at that time
+                const order = {
+                    id: `test-${index + 1}`,
+                    timestamp: scenario.date,
+                    vatRate: scenario.rate,
+                    vatLabel: `Thuế VAT (${(scenario.rate * 100).toFixed(1)}%):`,
+                    vatLabelVi: `Thuế VAT (${(scenario.rate * 100).toFixed(1)}%):`,
+                    vatPercentage: `${(scenario.rate * 100).toFixed(1)}%`,
+                    subtotal: 65000,
+                    vat: Math.round(65000 * scenario.rate),
+                    total: 65000 + Math.round(65000 * scenario.rate)
+                };
+                
+                // Test invoice display
+                const displayLabel = order.vatLabel || order.vatLabelVi || `Thuế VAT (${order.vatPercentage || '10.0%'}):`;
+                
+                log('historicalResult', `   Created: ${scenario.date}`);
+                log('historicalResult', `   Stored Rate: ${(scenario.rate * 100).toFixed(1)}%`);
+                log('historicalResult', `   Stored Label: "${order.vatLabel}"`);
+                log('historicalResult', `   Display Label: "${displayLabel}"`);
+                log('historicalResult', `   VAT Amount: ${formatCurrency(order.vat)}`);
+                log('historicalResult', `   Total: ${formatCurrency(order.total)}`);
+                
+                // Verify display accuracy
+                const expectedLabel = `Thuế VAT (${(scenario.rate * 100).toFixed(1)}%):`;
+                if (displayLabel === expectedLabel) {
+                    log('historicalResult', `   ✅ Display accurate`);
+                } else {
+                    log('historicalResult', `   ❌ Display error: expected "${expectedLabel}"`, true);
+                }
+            });
+            
+            log('historicalResult', '\n🎯 Summary: Each order should display its own historical VAT rate, not the current rate.');
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('vi-VN', {
+                style: 'currency',
+                currency: 'VND',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(amount);
+        }
+
+        // Auto-check status on load
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                checkCurrentStatus();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

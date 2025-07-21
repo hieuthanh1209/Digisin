@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo VAT History - Test Historical VAT Rates</title>
+    <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="src/utils/vat-manager.js"></script>
+    <style>
+        .bg-gradient-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.1) !important;
+            transition: all 0.2s ease;
+        }
+        
+        .order-item {
+            border-left: 4px solid #007bff;
+            background-color: #f8f9fa;
+        }
+        
+        .historical-order {
+            border-left-color: #28a745;
+        }
+        
+        .current-order {
+            border-left-color: #ffc107;
+        }
+        
+        .vat-change-indicator {
+            position: relative;
+        }
+        
+        .vat-change-indicator::before {
+            content: "🔄";
+            position: absolute;
+            left: -30px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 16px;
+        }
+        
+        .timestamp-display {
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            background-color: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        
+        .vat-history-entry {
+            border-bottom: 1px solid #dee2e6;
+            padding: 0.75rem;
+        }
+        
+        .vat-history-entry:last-child {
+            border-bottom: none;
+        }
+        
+        .current-vat-rate {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid py-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm bg-gradient-primary text-white">
+                    <div class="card-body">
+                        <h1 class="h3 mb-2">
+                            <i data-lucide="history" class="me-2" style="width: 24px; height: 24px;"></i>
+                            Demo VAT History System
+                        </h1>
+                        <p class="mb-0 opacity-75">Test historical VAT rate application for orders</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- VAT Rate Management -->
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm card-hover">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i data-lucide="settings" class="me-2" style="width: 20px; height: 20px;"></i>
+                            VAT Rate Management
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Current VAT Rate</label>
+                            <div class="input-group">
+                                <input type="number" id="newVatRate" class="form-control" 
+                                       placeholder="8.0" min="0" max="100" step="0.1">
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <div class="form-text">Current: <span id="currentVatDisplay" class="fw-bold">8.0%</span></div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Change Reason</label>
+                            <input type="text" id="changeReason" class="form-control" 
+                                   placeholder="Tax policy update">
+                        </div>
+                        
+                        <button type="button" class="btn btn-primary w-100" onclick="changeVatRate()">
+                            <i data-lucide="save" class="me-2" style="width: 16px; height: 16px;"></i>
+                            Update VAT Rate
+                        </button>
+                    </div>
+                </div>
+
+                <!-- VAT History -->
+                <div class="card border-0 shadow-sm card-hover mt-3">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i data-lucide="clock" class="me-2" style="width: 20px; height: 20px;"></i>
+                            VAT Rate History
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="vatHistoryList" style="max-height: 300px; overflow-y: auto;">
+                            <!-- VAT history will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Order Testing -->
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm card-hover">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i data-lucide="shopping-cart" class="me-2" style="width: 20px; height: 20px;"></i>
+                            Create Test Orders
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Order Items (JSON format)</label>
+                            <textarea id="orderItems" class="form-control" rows="4" 
+                                      placeholder='[{"name": "Phở bò", "price": 50000, "quantity": 2}]'></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Order Date & Time</label>
+                            <input type="datetime-local" id="orderTimestamp" class="form-control">
+                        </div>
+                        
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <button type="button" class="btn btn-success w-100" onclick="createTestOrder()">
+                                    <i data-lucide="plus" class="me-2" style="width: 16px; height: 16px;"></i>
+                                    Create Order
+                                </button>
+                            </div>
+                            <div class="col-6">
+                                <button type="button" class="btn btn-warning w-100" onclick="createCurrentOrder()">
+                                    <i data-lucide="clock" class="me-2" style="width: 16px; height: 16px;"></i>
+                                    Create Now
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <button type="button" class="btn btn-outline-danger w-100" onclick="clearAllOrders()">
+                            <i data-lucide="trash-2" class="me-2" style="width: 16px; height: 16px;"></i>
+                            Clear All Orders
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Orders Display -->
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm card-hover">
+                    <div class="card-header bg-warning text-white">
+                        <h5 class="mb-0">
+                            <i data-lucide="list" class="me-2" style="width: 20px; height: 20px;"></i>
+                            Test Orders
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="ordersList" style="max-height: 400px; overflow-y: auto;">
+                            <!-- Orders will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0">
+                            <i data-lucide="bar-chart-3" class="me-2" style="width: 20px; height: 20px;"></i>
+                            VAT Calculation Results
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="calculationResults">
+                            <div class="text-center text-muted py-4">
+                                <i data-lucide="info" style="width: 48px; height: 48px;" class="mb-3"></i>
+                                <p>Create some test orders to see VAT calculations</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            lucide.createIcons();
+            loadCurrentVatRate();
+            loadVatHistory();
+            loadTestOrders();
+            
+            // Set default order items
+            document.getElementById('orderItems').value = JSON.stringify([
+                {"name": "Phở bò", "price": 50000, "quantity": 2},
+                {"name": "Chả cá", "price": 35000, "quantity": 1}
+            ], null, 2);
+            
+            // Set current datetime
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('orderTimestamp').value = now.toISOString().slice(0, 16);
+        });
+
+        // Load current VAT rate
+        function loadCurrentVatRate() {
+            const currentRate = getCurrentVatRate();
+            document.getElementById('currentVatDisplay').textContent = (currentRate * 100).toFixed(1) + '%';
+            document.getElementById('newVatRate').value = (currentRate * 100).toFixed(1);
+        }
+
+        // Change VAT rate
+        function changeVatRate() {
+            const newRatePercent = parseFloat(document.getElementById('newVatRate').value);
+            const reason = document.getElementById('changeReason').value || 'Test change';
+            
+            if (isNaN(newRatePercent) || newRatePercent < 0 || newRatePercent > 100) {
+                showToast('Please enter a valid VAT rate (0-100%)', 'danger');
+                return;
+            }
+            
+            const newRate = newRatePercent / 100;
+            
+            // Record the change
+            if (typeof recordVatRateChange === 'function') {
+                recordVatRateChange(newRate, 'Demo User', reason);
+            }
+            
+            // Update system settings
+            const settings = JSON.parse(localStorage.getItem('systemSettings') || '{}');
+            if (!settings.business) settings.business = {};
+            settings.business.vatRate = newRate;
+            localStorage.setItem('systemSettings', JSON.stringify(settings));
+            
+            // Refresh displays
+            loadCurrentVatRate();
+            loadVatHistory();
+            refreshOrderCalculations();
+            
+            showToast(`VAT rate updated to ${newRatePercent.toFixed(1)}%`, 'success');
+            
+            // Clear reason field
+            document.getElementById('changeReason').value = '';
+        }
+
+        // Load VAT history
+        function loadVatHistory() {
+            const history = getVatRateHistory();
+            const historyList = document.getElementById('vatHistoryList');
+            
+            if (history.length === 0) {
+                historyList.innerHTML = '<div class="p-3 text-muted text-center">No VAT rate changes yet</div>';
+                return;
+            }
+            
+            const historyHtml = history.reverse().map((entry, index) => {
+                const isCurrentRate = index === 0;
+                const date = new Date(entry.timestamp);
+                
+                return `
+                    <div class="vat-history-entry ${isCurrentRate ? 'current-vat-rate' : ''}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="fw-bold">
+                                    ${(entry.rate * 100).toFixed(1)}%
+                                    ${isCurrentRate ? '<span class="badge bg-light text-primary ms-2">Current</span>' : ''}
+                                </div>
+                                <small class="text-muted">${entry.reason}</small>
+                            </div>
+                            <div class="text-end">
+                                <div class="timestamp-display">${date.toLocaleString('vi-VN')}</div>
+                                <small class="text-muted">by ${entry.changedBy}</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            historyList.innerHTML = historyHtml;
+        }
+
+        // Create test order
+        function createTestOrder() {
+            try {
+                const itemsText = document.getElementById('orderItems').value;
+                const items = JSON.parse(itemsText);
+                const timestamp = document.getElementById('orderTimestamp').value;
+                
+                if (!Array.isArray(items) || items.length === 0) {
+                    throw new Error('Order items must be a non-empty array');
+                }
+                
+                if (!timestamp) {
+                    throw new Error('Please select an order timestamp');
+                }
+                
+                const orderDate = new Date(timestamp);
+                const orderData = {
+                    id: generateOrderId(),
+                    items: items,
+                    timestamp: orderDate.toISOString(),
+                    subtotal: items.reduce((total, item) => total + (item.price * item.quantity), 0)
+                };
+                
+                // Add to test orders
+                saveTestOrder(orderData);
+                loadTestOrders();
+                refreshOrderCalculations();
+                
+                showToast('Test order created successfully', 'success');
+                
+            } catch (error) {
+                showToast('Error creating order: ' + error.message, 'danger');
+            }
+        }
+
+        // Create current order
+        function createCurrentOrder() {
+            try {
+                const itemsText = document.getElementById('orderItems').value;
+                const items = JSON.parse(itemsText);
+                
+                if (!Array.isArray(items) || items.length === 0) {
+                    throw new Error('Order items must be a non-empty array');
+                }
+                
+                const orderData = {
+                    id: generateOrderId(),
+                    items: items,
+                    timestamp: new Date().toISOString(),
+                    subtotal: items.reduce((total, item) => total + (item.price * item.quantity), 0)
+                };
+                
+                saveTestOrder(orderData);
+                loadTestOrders();
+                refreshOrderCalculations();
+                
+                showToast('Current order created successfully', 'success');
+                
+            } catch (error) {
+                showToast('Error creating order: ' + error.message, 'danger');
+            }
+        }
+
+        // Save test order
+        function saveTestOrder(orderData) {
+            const orders = JSON.parse(localStorage.getItem('testOrders') || '[]');
+            orders.push(orderData);
+            localStorage.setItem('testOrders', JSON.stringify(orders));
+        }
+
+        // Load test orders
+        function loadTestOrders() {
+            const orders = JSON.parse(localStorage.getItem('testOrders') || '[]');
+            const ordersList = document.getElementById('ordersList');
+            
+            if (orders.length === 0) {
+                ordersList.innerHTML = '<div class="p-3 text-muted text-center">No test orders yet</div>';
+                return;
+            }
+            
+            const ordersHtml = orders.map(order => {
+                const orderDate = new Date(order.timestamp);
+                const isRecent = (new Date() - orderDate) < (24 * 60 * 60 * 1000); // Last 24 hours
+                const vatRate = getVatRateForOrder(order.timestamp);
+                const vatAmount = order.subtotal * vatRate;
+                const total = order.subtotal + vatAmount;
+                
+                // Get historical VAT label
+                const vatLabel = typeof getVatLabelForOrder === 'function' 
+                    ? getVatLabelForOrder(order.timestamp, 'vi') 
+                    : `Thuế VAT (${(vatRate * 100).toFixed(1)}%):`;
+                
+                return `
+                    <div class="order-item p-3 m-2 rounded ${isRecent ? 'current-order' : 'historical-order'}">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <strong>${order.id}</strong>
+                                <span class="badge ${isRecent ? 'bg-warning' : 'bg-success'} ms-2">
+                                    ${isRecent ? 'Recent' : 'Historical'}
+                                </span>
+                            </div>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteOrder('${order.id}')">
+                                <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="small mb-2">
+                            <div class="timestamp-display d-inline-block">${orderDate.toLocaleString('vi-VN')}</div>
+                        </div>
+                        
+                        <div class="small">
+                            ${order.items.map(item => 
+                                `<div>${item.quantity}x ${item.name}: ${formatCurrency(item.price * item.quantity)}</div>`
+                            ).join('')}
+                        </div>
+                        
+                        <hr class="my-2">
+                        
+                        <div class="small">
+                            <div>Subtotal: <strong>${formatCurrency(order.subtotal)}</strong></div>
+                            <div class="vat-change-indicator">${vatLabel} <strong>${formatCurrency(vatAmount)}</strong></div>
+                            <div class="text-primary">Total: <strong>${formatCurrency(total)}</strong></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            ordersList.innerHTML = ordersHtml;
+            
+            // Recreate lucide icons
+            lucide.createIcons();
+        }
+
+        // Delete order
+        function deleteOrder(orderId) {
+            const orders = JSON.parse(localStorage.getItem('testOrders') || '[]');
+            const updatedOrders = orders.filter(order => order.id !== orderId);
+            localStorage.setItem('testOrders', JSON.stringify(updatedOrders));
+            
+            loadTestOrders();
+            refreshOrderCalculations();
+            showToast('Order deleted', 'info');
+        }
+
+        // Clear all orders
+        function clearAllOrders() {
+            if (confirm('Are you sure you want to clear all test orders?')) {
+                localStorage.removeItem('testOrders');
+                loadTestOrders();
+                refreshOrderCalculations();
+                showToast('All orders cleared', 'warning');
+            }
+        }
+
+        // Refresh order calculations
+        function refreshOrderCalculations() {
+            const orders = JSON.parse(localStorage.getItem('testOrders') || '[]');
+            const resultsDiv = document.getElementById('calculationResults');
+            
+            if (orders.length === 0) {
+                resultsDiv.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i data-lucide="info" style="width: 48px; height: 48px;" class="mb-3"></i>
+                        <p>Create some test orders to see VAT calculations</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+            
+            // Calculate summary
+            let totalSubtotal = 0;
+            let totalVat = 0;
+            let totalAmount = 0;
+            
+            const calculationDetails = orders.map(order => {
+                const vatRate = getVatRateForOrder(order.timestamp);
+                const vatAmount = order.subtotal * vatRate;
+                const total = order.subtotal + vatAmount;
+                
+                totalSubtotal += order.subtotal;
+                totalVat += vatAmount;
+                totalAmount += total;
+                
+                return {
+                    ...order,
+                    vatRate,
+                    vatAmount,
+                    total
+                };
+            });
+            
+            resultsDiv.innerHTML = `
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="card border-primary">
+                            <div class="card-body text-center">
+                                <h6 class="text-primary">Total Subtotal</h6>
+                                <h4 class="text-primary">${formatCurrency(totalSubtotal)}</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-warning">
+                            <div class="card-body text-center">
+                                <h6 class="text-warning">Total VAT</h6>
+                                <h4 class="text-warning">${formatCurrency(totalVat)}</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-success">
+                            <div class="card-body text-center">
+                                <h6 class="text-success">Grand Total</h6>
+                                <h4 class="text-success">${formatCurrency(totalAmount)}</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Order ID</th>
+                                <th>Date</th>
+                                <th>Subtotal</th>
+                                <th>VAT Rate</th>
+                                <th>VAT Amount</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${calculationDetails.map(order => `
+                                <tr>
+                                    <td><code>${order.id}</code></td>
+                                    <td>${new Date(order.timestamp).toLocaleString('vi-VN')}</td>
+                                    <td>${formatCurrency(order.subtotal)}</td>
+                                    <td><span class="badge bg-info">${(order.vatRate * 100).toFixed(1)}%</span></td>
+                                    <td>${formatCurrency(order.vatAmount)}</td>
+                                    <td><strong>${formatCurrency(order.total)}</strong></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        // Utility functions
+        function generateOrderId() {
+            return 'TEST-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('vi-VN', {
+                style: 'currency',
+                currency: 'VND',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(amount);
+        }
+
+        function showToast(message, type = 'info') {
+            const toastContainer = document.getElementById('toastContainer');
+            const toastId = 'toast-' + Date.now();
+            
+            const toastHtml = `
+                <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="toast-header bg-${type} text-white">
+                        <i data-lucide="info" style="width: 16px; height: 16px;" class="me-2"></i>
+                        <strong class="me-auto">VAT Demo</strong>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                </div>
+            `;
+            
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+            
+            const toastElement = document.getElementById(toastId);
+            const toast = new bootstrap.Toast(toastElement);
+            toast.show();
+            
+            lucide.createIcons();
+            
+            // Remove toast element after it's hidden
+            toastElement.addEventListener('hidden.bs.toast', () => {
+                toastElement.remove();
+            });
+        }
+    </script>
+</body>
+</html>

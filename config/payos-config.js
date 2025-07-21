@@ -24,10 +24,10 @@ export const PAYOS_CONFIG = {
 
   // API Endpoints
   API_ENDPOINTS: {
-    CREATE_PAYMENT: "/api/payos/create-payment",
-    GET_PAYMENT: "/api/payos/get-payment",
-    CANCEL_PAYMENT: "/api/payos/cancel-payment",
-    WEBHOOK: "/api/payos/webhook",
+    CREATE_PAYMENT: "http://localhost:3000/api/payos/create-payment",
+    GET_PAYMENT: "http://localhost:3000/api/payos/get-payment",
+    CANCEL_PAYMENT: "http://localhost:3000/api/payos/cancel-payment",
+    WEBHOOK: "http://localhost:3000/api/payos/webhook",
   },
 
   // Timeouts (milliseconds)
