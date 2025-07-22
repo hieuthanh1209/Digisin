@@ -25,11 +25,13 @@ app.use(cors({
         'http://localhost:8000',
         'http://localhost:3000',
         'https://digisin-27mb.vercel.app', // Your Vercel domain
-        'https://*.vercel.app' // Allow all Vercel preview deployments
+        'https://*.vercel.app', // Allow all Vercel preview deployments
+        'https://digisin-payos-server.onrender.com' // Allow self-requests
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    optionsSuccessStatus: 200 // Support legacy browsers
 }));
 
 // Body parsing middleware

@@ -22,12 +22,12 @@ export const PAYOS_CONFIG = {
   // Payment Settings
   CURRENCY: "VND",
 
-  // API Endpoints
+  // API Endpoints - Updated for Render deployment
   API_ENDPOINTS: {
-    CREATE_PAYMENT: "http://localhost:3000/api/payos/create-payment",
-    GET_PAYMENT: "http://localhost:3000/api/payos/get-payment",
-    CANCEL_PAYMENT: "http://localhost:3000/api/payos/cancel-payment",
-    WEBHOOK: "http://localhost:3000/api/payos/webhook",
+    CREATE_PAYMENT: "https://digisin-payos-server.onrender.com/create-payment-link",
+    GET_PAYMENT: "https://digisin-payos-server.onrender.com/get-payment-info",
+    CANCEL_PAYMENT: "https://digisin-payos-server.onrender.com/cancel-payment",
+    WEBHOOK: "https://digisin-payos-server.onrender.com/webhook",
   },
 
   // Timeouts (milliseconds)

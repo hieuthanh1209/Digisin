@@ -7,7 +7,7 @@ const PAYOS_CONFIG = {
     
     // Production (Vercel + Render)
     production: {
-        serverUrl: 'https://your-payos-server.onrender.com' // Thay bằng URL Render thực tế
+        serverUrl: 'https://digisin-payos-server.onrender.com' // Render server URL
     }
 };
 

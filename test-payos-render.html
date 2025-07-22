@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test PayOS Integration</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; max-width: 800px; }
+        .section { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        button { background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        .result { background: #e9ecef; padding: 10px; margin: 10px 0; border-radius: 3px; font-family: monospace; white-space: pre-wrap; }
+        .success { border-left: 4px solid #28a745; }
+        .error { border-left: 4px solid #dc3545; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test PayOS Render Integration</h1>
+    
+    <div class="section">
+        <h3>1. Test Server Connection</h3>
+        <button onclick="testServerConnection()">Test Connection</button>
+        <div id="connectionResult" class="result"></div>
+    </div>
+    
+    <div class="section">
+        <h3>2. Test PayOS Client</h3>
+        <button onclick="testPayOSClient()">Test Client</button>
+        <div id="clientResult" class="result"></div>
+    </div>
+    
+    <div class="section">
+        <h3>3. Test Payment Creation</h3>
+        <button onclick="testPaymentCreation()">Create Test Payment</button>
+        <div id="paymentResult" class="result"></div>
+    </div>
+
+    <!-- Include PayOS config -->
+    <script src="config/payos-vercel-config.js"></script>
+
+    <script>
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `result ${type}`;
+        }
+
+        async function testServerConnection() {
+            try {
+                log('connectionResult', '🔄 Testing server connection...', 'info');
+                
+                const serverUrl = window.PAYOS_CONFIG.serverUrl;
+                log('connectionResult', `🔄 Connecting to: ${serverUrl}`, 'info');
+                
+                const response = await fetch(`${serverUrl}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('connectionResult', `✅ Server connected successfully!\n\nServer Info:\n${JSON.stringify(data, null, 2)}`, 'success');
+                } else {
+                    log('connectionResult', `❌ Server error: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                log('connectionResult', `❌ Connection failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testPayOSClient() {
+            try {
+                log('clientResult', '🔄 Testing PayOS client...', 'info');
+                
+                if (!window.payOSClient) {
+                    throw new Error('PayOS client not found');
+                }
+                
+                const testResult = await window.payOSClient.testConnection();
+                log('clientResult', `✅ PayOS client working!\n\nClient Info:\n${JSON.stringify(testResult, null, 2)}`, 'success');
+                
+            } catch (error) {
+                log('clientResult', `❌ Client test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testPaymentCreation() {
+            try {
+                log('paymentResult', '🔄 Creating test payment...', 'info');
+                
+                const testPayment = {
+                    orderCode: Date.now(),
+                    amount: 50000,
+                    description: 'Test payment from integration test',
+                    items: [{
+                        name: 'Test Item',
+                        quantity: 1,
+                        price: 50000
+                    }],
+                    returnUrl: `${window.location.origin}/payment/success`,
+                    cancelUrl: `${window.location.origin}/payment/cancel`
+                };
+                
+                const result = await window.payOSClient.createPaymentLink(testPayment);
+                
+                if (result.success && result.data && result.data.checkoutUrl) {
+                    log('paymentResult', `✅ Payment created successfully!\n\nPayment Info:\n${JSON.stringify(result, null, 2)}\n\n🔗 Checkout URL: ${result.data.checkoutUrl}`, 'success');
+                } else {
+                    throw new Error('Invalid payment response format');
+                }
+                
+            } catch (error) {
+                log('paymentResult', `❌ Payment creation failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-test on load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                testServerConnection();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

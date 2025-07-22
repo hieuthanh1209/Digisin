@@ -2821,38 +2821,17 @@ async function processPayOSPayment() {
 
     console.log("PayOS payment data:", paymentData);
 
-    // Call PayOS API to create payment link with improved error handling
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), PAYOS_CONFIG.TIMEOUT.PAYMENT_CREATION);
+    // Use the new PayOS client from payos-vercel-config.js
+    const result = await window.payOSClient.createPaymentLink(paymentData);
+    
+    console.log("PayOS response:", result);
 
-    const response = await fetch(PAYOS_CONFIG.API_ENDPOINTS.CREATE_PAYMENT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(paymentData),
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-
-    let result;
-    try {
-      result = await response.json();
-    } catch (parseError) {
-      console.error("Failed to parse response:", parseError);
-      throw new Error("Server trả về dữ liệu không hợp lệ");
+    if (!result.success || !result.data || !result.data.checkoutUrl) {
+      throw new Error("PayOS response không hợp lệ");
     }
 
-    if (!response.ok) {
-      console.error("PayOS API error:", result);
-      throw new Error(result.message || `HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    if (!result.checkoutUrl) {
-      throw new Error("Không nhận được liên kết thanh toán từ PayOS");
-    }
+    // Extract checkout URL from the new response format
+    const checkoutUrl = result.data.checkoutUrl;
 
     // Store payment info for tracking
     const paymentInfo = {
@@ -2864,7 +2843,7 @@ async function processPayOSPayment() {
       discount: discountPercent,
       discountCode: selectedDiscountCode?.code || "",
       paymentMethod: "PayOS",
-      checkoutUrl: result.checkoutUrl,
+      checkoutUrl: checkoutUrl, // Use the extracted URL
       timestamp: new Date(),
       status: "pending"
     };
@@ -2882,11 +2861,11 @@ async function processPayOSPayment() {
       paymentModal.hide();
     }
 
-    console.log('[PayOS] Redirecting to PayOS checkout:', result.checkoutUrl);
+    console.log('[PayOS] Redirecting to PayOS checkout:', checkoutUrl);
     console.log('[PayOS] Expected return URL:', paymentData.returnUrl);
 
     // Redirect to PayOS checkout
-    window.location.href = result.checkoutUrl;
+    window.location.href = checkoutUrl;
 
   } catch (error) {
     console.error("Error processing PayOS payment:", error);
