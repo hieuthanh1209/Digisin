@@ -90,9 +90,18 @@ export const PayOSUtils = {
 
   // Generate order code from order ID
   generateOrderCode: (orderId) => {
-    // Extract numbers from order ID, or use timestamp if no numbers found
-    const numbers = orderId.replace(/\D/g, "");
-    return numbers ? parseInt(numbers) : Date.now();
+    // Create unique order code by combining timestamp with order ID hash
+    const timestamp = Date.now();
+    const orderHash = orderId.split('').reduce((hash, char) => {
+      hash = ((hash << 5) - hash) + char.charCodeAt(0);
+      return hash & hash; // Convert to 32-bit integer
+    }, 0);
+    
+    // Combine timestamp (last 6 digits) with order hash (absolute value, last 4 digits)
+    const uniqueCode = parseInt(timestamp.toString().slice(-6) + Math.abs(orderHash).toString().slice(-4));
+    
+    console.log(`Generated unique order code: ${uniqueCode} for order: ${orderId}`);
+    return uniqueCode;
   },
 
   // Validate email format

@@ -257,6 +257,118 @@ app.post('/api/payos/webhook', async (req, res) => {
   }
 });
 
+// Alternative endpoint for create-payment-link (for compatibility)
+app.post('/create-payment-link', async (req, res) => {
+  try {
+    console.log('Creating PayOS payment via /create-payment-link with data:', JSON.stringify(req.body, null, 2));
+
+    const {
+      orderCode,
+      amount,
+      description,
+      returnUrl,
+      cancelUrl,
+      buyerName,
+      buyerEmail,
+      buyerPhone,
+      items,
+      orderId,
+    } = req.body;
+
+    // Validate required fields
+    if (!orderCode || !amount || !description) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'orderCode, amount, and description are required',
+      });
+    }
+
+    // Validate amount (must be positive integer)
+    if (!Number.isInteger(amount) || amount <= 0) {
+      return res.status(400).json({
+        error: 'Invalid amount',
+        message: 'Amount must be a positive integer',
+      });
+    }
+
+    // Validate amount range
+    if (amount < 1000 || amount > 500000000) {
+      return res.status(400).json({
+        error: 'Invalid amount range',
+        message: 'Amount must be between 1,000 and 500,000,000 VND',
+      });
+    }
+
+    // Prepare PayOS payment data
+    const paymentData = {
+      orderCode: Number(orderCode),
+      amount: amount,
+      description: description.substring(0, 25), // Ensure max 25 characters
+      returnUrl: returnUrl || `${req.protocol}://${req.get('host')}/dashboard/cashier-dashboard.html`,
+      cancelUrl: cancelUrl || `${req.protocol}://${req.get('host')}/dashboard/cashier-dashboard.html`,
+      items: items || [
+        {
+          name: description.substring(0, 25),
+          quantity: 1,
+          price: amount,
+        },
+      ],
+    };
+
+    // Add buyer information if provided and valid
+    if (buyerName && buyerName.trim()) paymentData.buyerName = buyerName.trim();
+    if (buyerEmail && buyerEmail.includes('@')) paymentData.buyerEmail = buyerEmail.trim();
+    if (buyerPhone && buyerPhone.trim()) paymentData.buyerPhone = buyerPhone.trim();
+
+    console.log('PayOS payment data:', JSON.stringify(paymentData, null, 2));
+
+    // Create payment link with PayOS
+    const paymentLinkResponse = await payOS.createPaymentLink(paymentData);
+
+    console.log('PayOS response:', JSON.stringify(paymentLinkResponse, null, 2));
+
+    // Return success response
+    res.json({
+      success: true,
+      data: paymentLinkResponse,
+      checkoutUrl: paymentLinkResponse.checkoutUrl,
+      paymentLinkId: paymentLinkResponse.paymentLinkId,
+      orderCode: paymentLinkResponse.orderCode,
+      qrCode: paymentLinkResponse.qrCode,
+    });
+
+  } catch (error) {
+    console.error('PayOS payment creation error:', error);
+    
+    // Handle specific PayOS errors
+    let errorMessage = 'Có lỗi xảy ra khi tạo liên kết thanh toán';
+    let statusCode = 500;
+
+    if (error.message.includes('orderCode')) {
+      errorMessage = 'Mã đơn hàng đã tồn tại hoặc không hợp lệ';
+      statusCode = 400;
+    } else if (error.message.includes('amount')) {
+      errorMessage = 'Số tiền không hợp lệ';
+      statusCode = 400;
+    } else if (error.message.includes('invalid')) {
+      errorMessage = 'Thông tin thanh toán không hợp lệ';
+      statusCode = 400;
+    } else if (error.message.includes('unauthorized')) {
+      errorMessage = 'Thông tin xác thực PayOS không hợp lệ';
+      statusCode = 401;
+    } else if (error.message.includes('Mô tả')) {
+      errorMessage = 'Mô tả đơn hàng quá dài (tối đa 25 ký tự)';
+      statusCode = 400;
+    }
+
+    res.status(statusCode).json({
+      error: 'Payment creation failed',
+      message: errorMessage,
+      details: error.message,
+    });
+  }
+});
+
 // Test endpoint for CORS
 app.get('/api/test-cors', (req, res) => {
   res.json({
