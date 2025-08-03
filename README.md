@@ -476,35 +476,10 @@ Nếu phát hiện lỗ hổng bảo mật, vui lòng:
 ## 📊 Project Stats
 
 **Current Version**: `v2.0.0`  
-**Last Updated**: January 2025  
+**Last Updated**: August 03 2025  
 **Development Team**: [hieuthanh1209](https://github.com/hieuthanh1209)  
 **License**: MIT  
 **Repository**: [Digisin](https://github.com/hieuthanh1209/Digisin)
-
-### 📈 Changelog
-
-#### v2.0.0 (January 2025)
-- ✨ **NEW**: Complete PayOS integration with QR payments
-- ✨ **NEW**: Firebase real-time database integration  
-- ✨ **NEW**: Advanced VAT calculation system
-- ✨ **NEW**: Comprehensive admin tools
-- 🚀 **IMPROVED**: Enhanced dashboard interfaces
-- 🚀 **IMPROVED**: Better mobile responsiveness
-- 🐛 **FIXED**: Multiple UI/UX improvements
-- 🐛 **FIXED**: Performance optimizations
-
-#### v1.5.0 (December 2024)
-- ✨ **NEW**: Manager dashboard with analytics
-- ✨ **NEW**: Staff management system
-- 🚀 **IMPROVED**: Order tracking system
-- 🐛 **FIXED**: Various bug fixes
-
-#### v1.0.0 (November 2024)
-- 🎉 **INITIAL**: Core restaurant management system
-- 🎉 **INITIAL**: Waiter, Chef, Cashier dashboards
-- 🎉 **INITIAL**: Basic order management
-
----
 
 **⭐ Star this repository if you find it helpful!**  
 **🍴 Fork it to contribute to the project!**  
