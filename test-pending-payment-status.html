@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Trạng thái Chờ thanh toán</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Test Trạng thái "Chờ thanh toán"</h1>
+        
+        <div class="alert alert-info">
+            <h5>Các tính năng đã được thêm:</h5>
+            <ul>
+                <li>✅ Thêm trạng thái mới "pending_payment" (Chờ thanh toán)</li>
+                <li>✅ Cập nhật CSS để hiển thị màu sắc cho trạng thái mới (màu vàng)</li>
+                <li>✅ Cập nhật HTML để hiển thị badge "Chờ thanh toán"</li>
+                <li>✅ Thay đổi logic markOrderCompleted() để chuyển bàn sang "pending_payment" thay vì "available"</li>
+                <li>✅ Thêm logic kiểm tra paymentStatus trước khi cho phép dọn bàn</li>
+                <li>✅ Thêm auto-update trạng thái bàn khi có order được thanh toán</li>
+                <li>✅ Không cho phép tạo order mới cho bàn đang chờ thanh toán</li>
+            </ul>
+        </div>
+
+        <div class="alert alert-warning">
+            <h5>Flow hoạt động mới:</h5>
+            <ol>
+                <li><strong>Bàn Trống (available)</strong> → Khách vào, tạo order → <strong>Đang phục vụ (occupied)</strong></li>
+                <li><strong>Đang phục vụ (occupied)</strong> → Hoàn thành order → <strong>Chờ thanh toán (pending_payment)</strong></li>
+                <li><strong>Chờ thanh toán (pending_payment)</strong> → Thu ngân thanh toán (paymentStatus: "paid") → <strong>Trống (available)</strong></li>
+            </ol>
+        </div>
+
+        <div class="alert alert-success">
+            <h5>Lợi ích:</h5>
+            <ul>
+                <li>Nhân viên phục vụ biết được bàn nào đang chờ thanh toán</li>
+                <li>Tránh dọn bàn khi chưa thanh toán</li>
+                <li>Tự động cập nhật trạng thái khi có thanh toán</li>
+                <li>Không thể tạo order mới cho bàn chưa thanh toán xong</li>
+            </ul>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <h4>Files đã được cập nhật:</h4>
+                <ul class="list-group">
+                    <li class="list-group-item">
+                        <code>dashboard/waiter-dashboard.html</code>
+                        <br><small class="text-muted">Thêm badge "Chờ thanh toán"</small>
+                    </li>
+                    <li class="list-group-item">
+                        <code>dashboard/waiter-styles.css</code>
+                        <br><small class="text-muted">Thêm CSS cho trạng thái pending_payment</small>
+                    </li>
+                    <li class="list-group-item">
+                        <code>dashboard/waiter-script.js</code>
+                        <br><small class="text-muted">Logic chính cho trạng thái mới</small>
+                    </li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <h4>Functions đã được cập nhật:</h4>
+                <ul class="list-group">
+                    <li class="list-group-item">
+                        <code>renderTables()</code>
+                        <br><small class="text-muted">Hiển thị trạng thái pending_payment</small>
+                    </li>
+                    <li class="list-group-item">
+                        <code>updateStats()</code>
+                        <br><small class="text-muted">Tính toán thống kê bàn</small>
+                    </li>
+                    <li class="list-group-item">
+                        <code>markOrderCompleted()</code>
+                        <br><small class="text-muted">Chuyển sang pending_payment</small>
+                    </li>
+                    <li class="list-group-item">
+                        <code>cleanTable()</code>
+                        <br><small class="text-muted">Kiểm tra payment trước khi dọn</small>
+                    </li>
+                    <li class="list-group-item">
+                        <code>handleTableClick()</code>
+                        <br><small class="text-muted">Xử lý click cho trạng thái mới</small>
+                    </li>
+                    <li class="list-group-item">
+                        <code>populateTableSelect()</code>
+                        <br><small class="text-muted">Disable bàn pending_payment</small>
+                    </li>
+                    <li class="list-group-item">
+                        <code>checkAndUpdateTableStatusOnPayment()</code>
+                        <br><small class="text-muted">Auto-update khi thanh toán</small>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <h4>Test Cases để kiểm tra:</h4>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Hành động</th>
+                            <th>Kết quả mong đợi</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Hoàn thành order từ chef dashboard</td>
+                            <td>Bàn chuyển sang "Chờ thanh toán" (màu vàng)</td>
+                            <td><span class="badge bg-warning">Cần test</span></td>
+                        </tr>
+                        <tr>
+                            <td>Click vào bàn đang chờ thanh toán</td>
+                            <td>Hiển thị thông báo + mở table actions modal</td>
+                            <td><span class="badge bg-warning">Cần test</span></td>
+                        </tr>
+                        <tr>
+                            <td>Cố gắng dọn bàn khi chưa thanh toán</td>
+                            <td>Hiển thị thông báo lỗi, không cho dọn</td>
+                            <td><span class="badge bg-warning">Cần test</span></td>
+                        </tr>
+                        <tr>
+                            <td>Thanh toán order từ cashier dashboard</td>
+                            <td>Bàn tự động chuyển về "Trống"</td>
+                            <td><span class="badge bg-warning">Cần test</span></td>
+                        </tr>
+                        <tr>
+                            <td>Thống kê bàn trên dashboard</td>
+                            <td>Đếm bàn pending_payment vào "Đang phục vụ"</td>
+                            <td><span class="badge bg-warning">Cần test</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

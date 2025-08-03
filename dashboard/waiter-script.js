@@ -13,6 +13,7 @@ import {
   getDocs,
   onSnapshot,
   query,
+  where,
   orderBy,
   addDoc,
   setDoc,
@@ -406,7 +407,7 @@ function populateTableSelect() {
       const option = document.createElement("option");
       option.value = table.id;
       option.textContent = table.name || `Bàn ${table.id}`;
-      option.disabled = table.status === "occupied";
+      option.disabled = table.status === "occupied" || table.status === "pending_payment";
       selectElement.appendChild(option);
     });
   }
@@ -557,6 +558,7 @@ function updateStats() {
   // Map Firestore status to display status for counting
   const availableTables = tables.filter((t) => t.status === "available").length;
   const occupiedTables = tables.filter((t) => t.status === "occupied").length;
+  const pendingPaymentTables = tables.filter((t) => t.status === "pending_payment").length;
   const totalTables = tables.length;
 
   // Update stats cards if elements exist
@@ -565,7 +567,7 @@ function updateStats() {
   const totalTablesEl = document.getElementById("totalTables");
 
   if (emptyTablesEl) emptyTablesEl.textContent = availableTables;
-  if (occupiedTablesEl) occupiedTablesEl.textContent = occupiedTables;
+  if (occupiedTablesEl) occupiedTablesEl.textContent = occupiedTables + pendingPaymentTables; // Combine occupied and pending payment
   if (totalTablesEl) totalTablesEl.textContent = totalTables;
 }
 
@@ -605,6 +607,10 @@ function renderTables() {
         case "occupied":
           displayStatus = "occupied";
           statusText = "Đang phục vụ";
+          break;
+        case "pending_payment":
+          displayStatus = "pending_payment";
+          statusText = "Chờ thanh toán";
           break;
         default:
           displayStatus = "empty";
@@ -687,6 +693,14 @@ function handleTableClick(tableId) {
     openOrderModal(table);
   } else if (table.status === "occupied") {
     // Open table actions modal
+    openTableActionsModal(table);
+  } else if (table.status === "pending_payment") {
+    // Show message that table is waiting for payment
+    showToast(
+      `Bàn ${table.name || table.id} đang chờ thanh toán. Vui lòng thanh toán trước khi dọn bàn.`,
+      "warning"
+    );
+    // Still allow access to table actions for checking orders or cleaning (if paid)
     openTableActionsModal(table);
   }
 }
@@ -1037,6 +1051,7 @@ window.refreshOrders = refreshOrders;
 window.addOrder = addOrder;
 window.callWaiter = callWaiter;
 window.cleanTable = cleanTable;
+window.forceCleanTable = forceCleanTable;
 window.showCreateOrderModal = showCreateOrderModal;
 window.proceedToCreateOrder = proceedToCreateOrder;
 window.editOrder = editOrder;
@@ -1222,6 +1237,44 @@ async function cleanTable() {
       currentTable.status
     );
 
+    // If table is in pending_payment status, check if all orders are paid
+    if (currentTable.status === "pending_payment") {
+      // Query Firestore directly to get the latest order data for this table
+      console.log("Checking payment status for table:", currentTable.id);
+      
+      const ordersQuery = query(
+        collection(db, "orders"),
+        where("tableId", "==", currentTable.id),
+        where("status", "==", "completed")
+      );
+      
+      const ordersSnapshot = await getDocs(ordersQuery);
+      const tableOrders = [];
+      
+      ordersSnapshot.forEach((doc) => {
+        tableOrders.push({ id: doc.id, ...doc.data() });
+      });
+      
+      console.log("Found orders for table:", tableOrders);
+      
+      // Check if there are any unpaid orders
+      const unpaidOrders = tableOrders.filter(order => 
+        !order.paymentStatus || order.paymentStatus !== "paid"
+      );
+      
+      console.log("Unpaid orders:", unpaidOrders);
+      
+      if (unpaidOrders.length > 0) {
+        showToast(
+          `Không thể dọn bàn! Còn ${unpaidOrders.length} order chưa thanh toán.`,
+          "warning"
+        );
+        return;
+      }
+      
+      console.log("All orders are paid, proceeding to clean table");
+    }
+
     // Update table status in Firestore
     const tableRef = doc(db, "tables", currentTable.id.toString());
     await updateDoc(tableRef, {
@@ -1247,6 +1300,46 @@ async function cleanTable() {
   } catch (error) {
     console.error("Error cleaning table:", error);
     showToast("Lỗi khi dọn bàn: " + error.message, "error");
+  }
+}
+
+// Force clean table without payment check (for emergency situations)
+async function forceCleanTable() {
+  if (!currentTable) return;
+
+  // Confirm with user
+  if (!confirm(`Bạn có chắc muốn dọn bàn ${currentTable.id} ngay lập tức không?\n\nLưu ý: Điều này sẽ bỏ qua việc kiểm tra thanh toán!`)) {
+    return;
+  }
+
+  try {
+    console.log("Force cleaning table:", currentTable.id);
+
+    // Update table status in Firestore
+    const tableRef = doc(db, "tables", currentTable.id.toString());
+    await updateDoc(tableRef, {
+      status: "available",
+      updatedAt: serverTimestamp(),
+    });
+
+    console.log("Table force cleaned successfully");
+
+    // Close modal
+    const modal = bootstrap.Modal.getInstance(
+      document.getElementById("tableActionsModal")
+    );
+    modal.hide();
+
+    // Show success
+    showSuccess(
+      "Bàn đã được dọn (Force)!",
+      `Bàn ${currentTable.id} đã được dọn ngay lập tức.`
+    );
+
+    currentTable = null;
+  } catch (error) {
+    console.error("Error force cleaning table:", error);
+    showToast("Lỗi khi force clean bàn: " + error.message, "error");
   }
 }
 
@@ -1654,18 +1747,18 @@ async function markOrderCompleted(orderId) {
       status: "completed",
     });
 
-    // Update table status in Firestore
+    // Update table status to pending_payment in Firestore
     const table = tables.find((t) => t.id === order.tableId);
     if (table) {
       const tableRef = doc(db, "tables", table.id);
       await updateDoc(tableRef, {
-        status: "available",
+        status: "pending_payment", // Changed from "available" to "pending_payment"
       });
     }
 
     showSuccess(
       "Order đã hoàn thành!",
-      `Order ${order.id} đã được đánh dấu hoàn thành.`
+      `Order ${order.id} đã được đánh dấu hoàn thành. Bàn đang chờ thanh toán.`
     );
   } catch (error) {
     console.error("Error updating order status:", error);
@@ -2382,7 +2475,50 @@ document.addEventListener("DOMContentLoaded", () => {
 onSnapshot(collection(db, "orders"), (snapshot) => {
   console.log("Orders collection updated, recalculating table totals...");
   calculateTableTotals();
+  
+  // Check for paid orders and update table status if needed
+  checkAndUpdateTableStatusOnPayment();
 });
+
+// Check and update table status when orders are paid
+async function checkAndUpdateTableStatusOnPayment() {
+  try {
+    // Find tables that are in pending_payment status
+    const pendingPaymentTables = tables.filter(table => table.status === "pending_payment");
+    
+    for (const table of pendingPaymentTables) {
+      // Query Firestore directly for the latest order data
+      const ordersQuery = query(
+        collection(db, "orders"),
+        where("tableId", "==", table.id),
+        where("status", "==", "completed")
+      );
+      
+      const ordersSnapshot = await getDocs(ordersQuery);
+      const tableOrders = [];
+      
+      ordersSnapshot.forEach((doc) => {
+        tableOrders.push({ id: doc.id, ...doc.data() });
+      });
+      
+      // Check if all completed orders are paid
+      const allPaid = tableOrders.length > 0 && 
+                     tableOrders.every(order => order.paymentStatus === "paid");
+      
+      if (allPaid) {
+        // Update table status to available
+        console.log(`All orders for table ${table.id} are paid, updating status to available`);
+        const tableRef = doc(db, "tables", table.id.toString());
+        await updateDoc(tableRef, {
+          status: "available",
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error checking and updating table status on payment:", error);
+  }
+}
 
 // Table creation functions
 function showCreateTableModal() {

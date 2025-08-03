@@ -883,6 +883,11 @@
     background: linear-gradient(135deg, #cce7ff 0%, #b3d9ff 100%);
 }
 
+.table-card.pending_payment {
+    border-color: #ffc107;
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+}
+
 .table-card.cleaning {
     border-color: #ffc107;
     background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
@@ -911,6 +916,10 @@
 
 .table-status.occupied {
     color: #004085;
+}
+
+.table-status.pending_payment {
+    color: #856404;
 }
 
 .table-status.cleaning {

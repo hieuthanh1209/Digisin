@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Clean Table Logic - Chờ thanh toán</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>🧪 Test Logic Clean Table với Trạng thái "Chờ thanh toán"</h1>
+        
+        <div class="alert alert-info">
+            <h5>📋 Các cải tiến đã thực hiện:</h5>
+            <ul>
+                <li>✅ <strong>Query Firestore trực tiếp</strong> thay vì dựa vào memory</li>
+                <li>✅ <strong>Kiểm tra real-time</strong> paymentStatus của orders</li>
+                <li>✅ <strong>Auto-update</strong> trạng thái bàn khi thanh toán xong</li>
+                <li>✅ <strong>Force Clean button</strong> cho trường hợp khẩn cấp</li>
+                <li>✅ <strong>Detailed logging</strong> để debug dễ dàng</li>
+            </ul>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5>🔄 Logic mới cho cleanTable()</h5>
+                    </div>
+                    <div class="card-body">
+                        <ol>
+                            <li><strong>Kiểm tra trạng thái bàn:</strong>
+                                <br><small class="text-muted">Nếu bàn ở trạng thái "pending_payment"</small>
+                            </li>
+                            <li><strong>Query Firestore trực tiếp:</strong>
+                                <br><small class="text-muted">
+                                    <code>query(collection(db, "orders"), where("tableId", "==", tableId), where("status", "==", "completed"))</code>
+                                </small>
+                            </li>
+                            <li><strong>Kiểm tra paymentStatus:</strong>
+                                <br><small class="text-muted">Tất cả orders completed phải có paymentStatus === "paid"</small>
+                            </li>
+                            <li><strong>Cho phép dọn bàn:</strong>
+                                <br><small class="text-muted">Chỉ khi tất cả orders đã thanh toán</small>
+                            </li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-warning text-dark">
+                        <h5>🚨 Force Clean Button</h5>
+                    </div>
+                    <div class="card-body">
+                        <p><strong>Khi nào sử dụng:</strong></p>
+                        <ul>
+                            <li>Có lỗi dữ liệu</li>
+                            <li>Khách bỏ đi không thanh toán</li>
+                            <li>Cần dọn bàn khẩn cấp</li>
+                            <li>Debugging/Testing</li>
+                        </ul>
+                        <div class="alert alert-danger">
+                            <small><strong>⚠️ Lưu ý:</strong> Button này bỏ qua tất cả kiểm tra và dọn bàn ngay lập tức!</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5>🎯 Test Scenarios</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Scenario</th>
+                                    <th>Trạng thái bàn</th>
+                                    <th>PaymentStatus</th>
+                                    <th>Kết quả mong đợi</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Order completed, chưa thanh toán</td>
+                                    <td><span class="badge bg-warning">pending_payment</span></td>
+                                    <td><span class="badge bg-danger">null/unpaid</span></td>
+                                    <td>❌ Không cho dọn bàn</td>
+                                    <td>
+                                        <button class="btn btn-success btn-sm">Clean Table</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Order completed, đã thanh toán</td>
+                                    <td><span class="badge bg-warning">pending_payment</span></td>
+                                    <td><span class="badge bg-success">paid</span></td>
+                                    <td>✅ Cho phép dọn bàn</td>
+                                    <td>
+                                        <button class="btn btn-success btn-sm">Clean Table</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Bàn trống</td>
+                                    <td><span class="badge bg-success">available</span></td>
+                                    <td>-</td>
+                                    <td>✅ Không cần kiểm tra</td>
+                                    <td>
+                                        <button class="btn btn-success btn-sm">Clean Table</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Force clean (emergency)</td>
+                                    <td><span class="badge bg-warning">pending_payment</span></td>
+                                    <td><span class="badge bg-danger">null/unpaid</span></td>
+                                    <td>✅ Dọn bàn ngay lập tức</td>
+                                    <td>
+                                        <button class="btn btn-danger btn-sm">Force Clean</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5>🔍 Debug Information</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Console logs để theo dõi:</strong></p>
+                    <ul>
+                        <li><code>Cleaning table: [tableId] current status: [status]</code></li>
+                        <li><code>Checking payment status for table: [tableId]</code></li>
+                        <li><code>Found orders for table: [orders array]</code></li>
+                        <li><code>Unpaid orders: [unpaid orders array]</code></li>
+                        <li><code>All orders are paid, proceeding to clean table</code></li>
+                        <li><code>Table status updated to 'available' in Firestore</code></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <div class="alert alert-success">
+                <h5>✅ Tổng kết:</h5>
+                <p>Logic "Chờ thanh toán" đã được hoàn thiện với:</p>
+                <ul class="mb-0">
+                    <li><strong>Real-time checking:</strong> Query Firestore trực tiếp thay vì dựa vào memory</li>
+                    <li><strong>Smart validation:</strong> Kiểm tra paymentStatus chính xác</li>
+                    <li><strong>Auto-update:</strong> Tự động cập nhật khi có thanh toán</li>
+                    <li><strong>Emergency handle:</strong> Force clean cho trường hợp đặc biệt</li>
+                    <li><strong>User-friendly:</strong> Thông báo rõ ràng về lý do không thể dọn bàn</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="text-center mt-4">
+            <a href="waiter-dashboard.html" class="btn btn-primary btn-lg">
+                🚀 Trở về Dashboard để Test
+            </a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

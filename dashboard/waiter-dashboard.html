@@ -135,6 +135,7 @@
                             <div class="d-flex gap-3">
                                 <span class="badge bg-success">Trống</span>
                                 <span class="badge bg-primary">Đang phục vụ</span>
+                                <span class="badge bg-warning">Chờ thanh toán</span>
                             </div>
                             <div class="d-flex gap-2">
                                 <button class="btn btn-warning btn-sm" onclick="showMergeTablesModal()">
@@ -511,6 +512,10 @@
                             style="display: none;">
                             <i data-lucide="unlink" style="width: 20px; height: 20px;"></i>
                             Tách bàn
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="forceCleanTable()" title="Dọn bàn ngay lập tức (không kiểm tra thanh toán)">
+                            <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                            Force Clean
                         </button>
                         <button class="btn btn-warning btn-lg" onclick="callWaiter()">
                             <i data-lucide="bell" style="width: 20px; height: 20px;"></i>
