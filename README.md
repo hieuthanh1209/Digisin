@@ -102,17 +102,9 @@ Digisin/
 5. **Khởi động ứng dụng**:
 
    ```bash
-   # Khởi động main server
-   npm start
-   # hoặc
-   node server.js
+   # Khởi động PayOS server
+   node payos-simple-server.js
 
-   # Khởi động PayOS server (nếu cần)
-   npm run payos:start
-
-   # Development với auto-reload
-   npm run dev
-   ```
 
 6. **Truy cập ứng dụng**:
    - Main app: `http://localhost:3000`
